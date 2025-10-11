@@ -7,7 +7,6 @@ import {
   Download,
   DollarSign,
   Calendar,
-  Smile,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -16,52 +15,76 @@ import {
   XAxis,
   Tooltip,
 } from "recharts";
+import toast, { Toaster } from "react-hot-toast";
+import {
+  getIncomes,
+  createIncome,
+  updateIncome,
+  deleteIncome,
+} from "../../services/incomeService";
 
-// ✅ Component chính
 export default function Income() {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
-
-  // Mock data (sau này thay bằng GET API)
-  const [incomes, setIncomes] = useState([
-    { id: 1, source: "Salary", amount: 3500, date: "2025-10-01", emoji: "💼" },
-    { id: 2, source: "Freelance", amount: 1200, date: "2025-10-03", emoji: "💻" },
-    { id: 3, source: "Investments", amount: 600, date: "2025-10-05", emoji: "📈" },
-  ]);
-
+  const [incomes, setIncomes] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ source: "", amount: "", date: "", emoji: "💰" });
+  const [editId, setEditId] = useState(null);
 
-  // ✅ Giả lập API gọi chart data
-  const barData = incomes.map((i) => ({
-    name: i.source,
-    amount: i.amount,
-  }));
+  // ✅ Load dữ liệu từ backend
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getIncomes();
+        setIncomes(data);
+      } catch (err) {
+        console.error(err);
+        toast.error("Không thể tải danh sách thu nhập!");
+      }
+    })();
+  }, []);
 
-  // ✅ Xử lý thêm thu nhập
-  const handleAddIncome = () => {
-    if (!form.source || !form.amount || !form.date) return alert("Please fill all fields!");
-    const newIncome = {
-      id: Date.now(),
-      ...form,
-      amount: Number(form.amount),
-    };
-    setIncomes([...incomes, newIncome]);
-    setShowModal(false);
-    setForm({ source: "", amount: "", date: "", emoji: "💰" });
-  };
+  const barData = incomes.map((i) => ({ name: i.source, amount: i.amount }));
 
-  // ✅ Xóa thu nhập
-  const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this income?")) {
-      setIncomes(incomes.filter((i) => i.id !== id));
+  // ✅ Thêm hoặc cập nhật
+  const handleSave = async () => {
+    if (!form.source || !form.amount || !form.date)
+      return toast.error("Vui lòng nhập đầy đủ thông tin!");
+
+    try {
+      if (editId) {
+        const updated = await updateIncome(editId, form);
+        setIncomes((prev) =>
+          prev.map((i) => (i.id === editId ? updated : i))
+        );
+        toast.success("Cập nhật thành công!");
+      } else {
+        const created = await createIncome(form);
+        setIncomes([...incomes, created]);
+        toast.success("Thêm thu nhập thành công!");
+      }
+      setForm({ source: "", amount: "", date: "", emoji: "💰" });
+      setEditId(null);
+      setShowModal(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Lỗi khi lưu dữ liệu!");
     }
   };
 
-  // ✅ Giả lập xuất Excel
-  const handleDownload = () => {
-    alert("📊 Download Excel from backend API here.");
+  // ✅ Xóa thu nhập
+  const handleDelete = async (id) => {
+    if (!window.confirm("Xác nhận xóa?")) return;
+    try {
+      await deleteIncome(id);
+      setIncomes(incomes.filter((i) => i.id !== id));
+      toast.success("Đã xóa!");
+    } catch {
+      toast.error("Không thể xóa!");
+    }
   };
+
+  const handleDownload = () => toast("📊 Gọi API tải Excel tại đây.");
 
   return (
     <div
@@ -69,13 +92,18 @@ export default function Income() {
         isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
       }`}
     >
+      <Toaster position="top-right" />
       <main className="p-8 space-y-8">
-        {/* --- Header --- */}
+        {/* Header */}
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Income Management</h1>
           <div className="flex gap-3">
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => {
+                setForm({ source: "", amount: "", date: "", emoji: "💰" });
+                setEditId(null);
+                setShowModal(true);
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
             >
               <PlusCircle size={18} />
@@ -91,7 +119,7 @@ export default function Income() {
           </div>
         </div>
 
-        {/* --- Biểu đồ tổng quan --- */}
+        {/* Biểu đồ */}
         <div
           className={`p-6 rounded-2xl shadow-lg ${
             isDark ? "bg-[#1e293b]" : "bg-white"
@@ -112,7 +140,7 @@ export default function Income() {
           </ResponsiveContainer>
         </div>
 
-        {/* --- Danh sách thu nhập --- */}
+        {/* Danh sách */}
         <div
           className={`p-6 rounded-2xl shadow-lg ${
             isDark ? "bg-[#1e293b]" : "bg-white"
@@ -142,7 +170,11 @@ export default function Income() {
                         <Trash2 size={18} />
                       </button>
                       <button
-                        onClick={() => alert("Edit function here (PUT API)")}
+                        onClick={() => {
+                          setEditId(inc.id);
+                          setForm(inc);
+                          setShowModal(true);
+                        }}
                         className="text-blue-400 hover:text-blue-500"
                       >
                         <Edit size={18} />
@@ -165,7 +197,7 @@ export default function Income() {
         </div>
       </main>
 
-      {/* --- Modal thêm thu nhập --- */}
+      {/* Modal */}
       {showModal && (
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -173,91 +205,37 @@ export default function Income() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-md p-6 rounded-2xl shadow-xl transition ${
+            className={`w-full max-w-md p-6 rounded-2xl shadow-xl ${
               isDark ? "bg-[#1f2937]" : "bg-white"
             }`}
           >
-            <h2 className="text-xl font-semibold mb-4">Add New Income</h2>
-
+            <h2 className="text-xl font-semibold mb-4">
+              {editId ? "Edit Income" : "Add New Income"}
+            </h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Source
-                </label>
-                <input
-                  type="text"
-                  name="source"
-                  value={form.source}
-                  onChange={(e) =>
-                    setForm({ ...form, source: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Amount</label>
-                <input
-                  type="number"
-                  name="amount"
-                  value={form.amount}
-                  onChange={(e) =>
-                    setForm({ ...form, amount: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Date</label>
-                <input
-                  type="date"
-                  name="date"
-                  value={form.date}
-                  onChange={(e) =>
-                    setForm({ ...form, date: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Emoji
-                </label>
-                <input
-                  type="text"
-                  name="emoji"
-                  maxLength={2}
-                  value={form.emoji}
-                  onChange={(e) =>
-                    setForm({ ...form, emoji: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-
+              {["source", "amount", "date", "emoji"].map((field) => (
+                <div key={field}>
+                  <label className="block text-sm font-medium mb-1 capitalize">
+                    {field}
+                  </label>
+                  <input
+                    type={field === "amount" ? "number" : field === "date" ? "date" : "text"}
+                    name={field}
+                    value={form[field]}
+                    onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                      isDark
+                        ? "bg-gray-700 border-gray-600 text-white"
+                        : "bg-gray-100 border-gray-300"
+                    }`}
+                  />
+                </div>
+              ))}
               <button
-                onClick={handleAddIncome}
-                className="w-full mt-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition flex items-center justify-center gap-2"
+                onClick={handleSave}
+                className="w-full mt-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2"
               >
-                <DollarSign size={18} /> Save Income
+                <DollarSign size={18} /> {editId ? "Update" : "Save"} Income
               </button>
             </div>
           </div>

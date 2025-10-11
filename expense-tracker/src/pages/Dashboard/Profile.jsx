@@ -185,7 +185,7 @@ export default function Profile() {
         </div>
 
         
-      </div>
+      
 
       {/* --- Edit Modal --- */}
       {isEditing && (
