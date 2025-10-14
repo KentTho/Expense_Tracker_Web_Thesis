@@ -30,7 +30,6 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
     { name: "Income", path: "/income", icon: <TrendingUp size={18} /> },
     { name: "Expense", path: "/expense", icon: <Wallet size={18} /> },
     { name: "Data Export", path: "/dataexport", icon: <Download size={18} /> },
-    { name: "Profile", path: "/profile", icon: <User size={18} /> }, // ✅ thêm dòng này
     { name: "Security", path: "/security", icon: <Lock size={18} /> }, // ✅ Trang bảo mật
     { name: "Settings", path: "/settings", icon: <Settings size={18} /> },
   ];
@@ -50,7 +49,9 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
 
   return (
     <aside
-      onClick={() => setCollapsed((prev) => !prev)} // ✅ Click toàn vùng Sidebar để toggle
+        onMouseEnter={() => setCollapsed(false)}   // 👉 Hover vào => mở rộng
+        onMouseLeave={() => setCollapsed(true)}    // 👉 Rời chuột => thu lại
+      // ✅ Click toàn vùng Sidebar để toggle
       className={`fixed top-0 left-0 h-screen flex flex-col justify-between cursor-pointer
         ${
           theme === "dark"
@@ -154,7 +155,13 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
         }`}
       >
         {/* Avatar */}
-        <div className="flex items-center gap-3">
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate("/profile");
+          }}
+          className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition"
+        >
           <img
             src={user?.profile_image || "https://i.pravatar.cc/40"}
             alt="avatar"
@@ -163,10 +170,11 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
           {!collapsed && (
             <div className="leading-tight">
               <p className="font-semibold text-sm">{user?.name || "User"}</p>
-              <p className="text-xs opacity-70">View profile</p>
+              <p className="text-xs opacity-70 text-blue-400">View profile</p>
             </div>
           )}
         </div>
+
 
         {/* --- Theme Toggle --- */}
         <button
