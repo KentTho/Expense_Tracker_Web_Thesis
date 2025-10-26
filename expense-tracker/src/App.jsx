@@ -10,6 +10,7 @@ import Expense from "./pages/Dashboard/Expense";
 import ExportData from "./pages/Dashboard/ExportData";
 import Profile from "./pages/Dashboard/Profile";
 import SecuritySettings from "./pages/Dashboard/SecuritySettings";
+import Category from "./pages/Dashboard/Category";
 import Analytics from "./pages/Dashboard/Analytics";
 import DashboardLayout from "./layouts/DashboardLayout"; // ✅ layout chứa Sidebar
 
@@ -41,6 +42,7 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/security" element={<SecuritySettings />} />
           <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/categories" element={<Category />} />
         </Route>
 
         {/* 🔹 fallback nếu route không tồn tại */}

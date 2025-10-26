@@ -22,6 +22,7 @@ import {
   updateIncome,
   deleteIncome,
 } from "../../services/incomeService";
+import { getCategories } from "../../services/categoryService";
 
 export default function Income() {
   const { theme } = useOutletContext();
@@ -30,19 +31,42 @@ export default function Income() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ source: "", amount: "", date: "", emoji: "💰" });
   const [editId, setEditId] = useState(null);
-
+  const [categories, setCategories] = useState([]);
   // ✅ Load dữ liệu từ backend
   useEffect(() => {
     (async () => {
       try {
-        const data = await getIncomes();
-        setIncomes(data);
+        const [incomeData, defaultCats, userCats] = await Promise.all([
+          getIncomes(),
+          getDefaultCategories("income"),
+          getCategories("income")
+        ]);
+
+        setIncomes(incomeData);
+        setCategories([...defaultCats, ...userCats]); // ✅ merge 2 nguồn
       } catch (err) {
         console.error(err);
-        toast.error("Không thể tải danh sách thu nhập!");
+        toast.error("Không thể tải dữ liệu!");
       }
     })();
   }, []);
+
+  
+  useEffect(() => {
+      (async () => {
+        try {
+          const [incomeData, categoryData] = await Promise.all([
+            getIncomes(),
+            getCategories("income"),
+          ]);
+          setIncomes(incomeData);
+          setCategories(categoryData);
+        } catch (err) {
+          console.error(err);
+          toast.error("Không thể tải dữ liệu thu nhập / danh mục!");
+        }
+      })();
+    }, []);
 
   const barData = incomes.map((i) => ({ name: i.source, amount: i.amount }));
 
@@ -84,7 +108,32 @@ export default function Income() {
     }
   };
 
-  const handleDownload = () => toast("📊 Gọi API tải Excel tại đây.");
+  const handleDownload = async () => {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const res = await fetch(`${BACKEND_BASE}/export/income`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Lỗi khi tải file Excel!");
+
+      // Tải file về trình duyệt
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "incomes.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("📂 Đã tải file Excel!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Không thể xuất dữ liệu!");
+    }
+  };
+
+
+  
 
   return (
     <div
@@ -187,7 +236,8 @@ export default function Income() {
                       +${inc.amount.toLocaleString()}
                     </p>
                     <p className="text-sm text-gray-400 flex items-center gap-1 mt-1">
-                      <Calendar size={14} /> {inc.date}
+                      <Calendar size={14} />
+                      {new Date(inc.date).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -238,6 +288,26 @@ export default function Income() {
                 <DollarSign size={18} /> {editId ? "Update" : "Save"} Income
               </button>
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Category</label>
+              <select
+                value={form.category_id || ""}
+                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                  isDark
+                    ? "bg-gray-700 border-gray-600 text-white"
+                    : "bg-gray-100 border-gray-300"
+                }`}
+              >
+                <option value="">-- Select Category --</option>
+                {categories.map((c) => (
+                  <option key={c.id || c.category_id} value={c.id || c.category_id}>
+                    {c.icon_name ? `${c.icon_name} ` : ""}{c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
           </div>
         </div>
       )}

@@ -1,10 +1,9 @@
-# ======================================================
-# 🔁 IMPORTS & SETUP GIỮ NGUYÊN
-# ======================================================
-from datetime import date
+# main.py
+import os
+import json
 from io import BytesIO
-from typing import List
-import os, json
+from datetime import date
+from typing import List, Optional
 from uuid import UUID
 
 import pandas as pd
@@ -12,26 +11,28 @@ import firebase_admin
 from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
 from sqlalchemy.orm import Session
-from firebase_admin import credentials, auth as fb_auth
 from dotenv import load_dotenv
+from firebase_admin import credentials, auth as fb_auth
+from sqlalchemy import func
 
-# ------------------------------
-# 🔹 Internal imports
-# ------------------------------
+# internal imports (the files you already have)
 import models
-from db.database import SessionLocal
+from db.database import SessionLocal, engine  # assumes database.py exposes SessionLocal and engine
 import crud
-from schema import (
+from schema import (  # your file is named schema.py per your last message
     UserOut, IncomeOut, ExpenseOut,
     ExpenseCreate, IncomeCreate, UserSyncPayload, UserUpdate,
-    CategoryOut, CategoryCreate, TransactionOut, TransactionCreate, SummaryOut
+    CategoryOut, CategoryCreate, TransactionOut, SummaryOut,
+    DashboardResponse, DefaultCategoryOut
 )
 
-# ======================================================
-# 🔥 FIREBASE INITIALIZATION (giữ nguyên)
-# ======================================================
+# create tables if not handled elsewhere (optional)
+models.Base.metadata.create_all(bind=engine)
+
+# -------------------------------------------------
+# Firebase initialization (from .env FIREBASE_SERVICE_ACCOUNT JSON)
+# -------------------------------------------------
 load_dotenv()
 firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 if not firebase_admin._apps:
@@ -44,17 +45,19 @@ if not firebase_admin._apps:
         except Exception as e:
             print("❌ Error loading Firebase credentials from .env:", e)
     else:
-        raise RuntimeError("FIREBASE_CREDENTIALS not found in .env")
+        raise RuntimeError("FIREBASE_SERVICE_ACCOUNT not found in .env")
 
-# ======================================================
-# 🚀 FASTAPI APP SETUP
-# ======================================================
+# -------------------------------------------------
+# FastAPI app + CORS
+# -------------------------------------------------
 app = FastAPI(title="Expense Tracker API")
 
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    # add your deployed frontend origins if any
 ]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -63,9 +66,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ======================================================
-# 🔧 DATABASE DEPENDENCY
-# ======================================================
+# -------------------------------------------------
+# DB dependency
+# -------------------------------------------------
 def get_db():
     db = SessionLocal()
     try:
@@ -73,32 +76,88 @@ def get_db():
     finally:
         db.close()
 
-# ======================================================
-# 🔑 HELPER FUNCTIONS
-# ======================================================
+# -------------------------------------------------
+# Auth helpers
+# -------------------------------------------------
+# ----------------------
+# Extract Token
+# ----------------------
 def extract_token(authorization: str) -> str:
     """Lấy token từ header Bearer."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=400, detail="Invalid Authorization header")
-    return authorization.split(" ", 1)[1]
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=400, detail="Invalid Authorization header format")
+    token = authorization.split(" ", 1)[1]
+    # Debug (chỉ bật khi cần)
+    # print("🔑 Extracted Token:", token[:20], "...")
+    return token
 
+
+# ----------------------
+# Verify Token with Firebase
+# ----------------------
 def verify_token_and_get_payload(id_token: str):
-    """Xác minh Firebase ID token."""
+    """Xác minh Firebase ID token và trả payload."""
     try:
         decoded = fb_auth.verify_id_token(id_token)
-        print("✅ Token verified successfully:", decoded)
+        # print("✅ Firebase token verified for UID:", decoded.get("uid"))
         return decoded
+    except fb_auth.ExpiredIdTokenError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except fb_auth.InvalidIdTokenError:
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+    except fb_auth.RevokedIdTokenError:
+        raise HTTPException(status_code=401, detail="Token has been revoked")
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token verification failed: {e}")
+        raise HTTPException(status_code=401, detail=f"Token verification failed: {str(e)}")
 
 
-# ======================================================
-# 🧩 AUTHENTICATION & USER ROUTES
-# ======================================================
+# ----------------------
+# Dependency: get current user
+# ----------------------
+def get_current_user_db(
+    authorization: str = Header(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Dependency: Verify Firebase token, ensure user exists in DB,
+    and return the DB user object.
+    """
+    id_token = extract_token(authorization)
+    payload = verify_token_and_get_payload(id_token)
 
+    uid = payload.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Invalid token payload: uid missing")
+
+    # Tìm user theo firebase_uid
+    user = crud.get_user_by_firebase_uid(db, uid)
+
+    # Nếu chưa tồn tại -> tự động tạo user
+    if not user:
+        email = payload.get("email") or f"user_{uid}@noemail.local"
+        name = payload.get("name") or payload.get("displayName") or "Unnamed User"
+        picture = payload.get("picture")
+        user = crud.create_user(
+            db,
+            firebase_uid=uid,
+            email=email,
+            name=name,
+            profile_image=picture
+        )
+        # print(f"🆕 User created automatically for UID: {uid}")
+
+    return user
+# ----------------------
+# USER ROUTES
+# ----------------------
 @app.post("/auth/sync", response_model=UserOut)
 def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """Đồng bộ user giữa Firebase và DB."""
+    """
+    Đồng bộ user giữa Firebase và DB (explicit sync route).
+    FE should send Authorization: Bearer <idToken> and payload (email, firebase_uid, display_name)
+    """
     id_token = extract_token(authorization)
     decoded = verify_token_and_get_payload(id_token)
 
@@ -124,46 +183,24 @@ def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Se
             db.refresh(user)
     return user
 
-
 @app.get("/auth/user/profile", response_model=UserOut)
-def get_profile(authorization: str = Header(...), db: Session = Depends(get_db)):
+def get_profile(current_user = Depends(get_current_user_db)):
     """Lấy thông tin hồ sơ người dùng."""
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
+    return current_user
 
 @app.put("/auth/user/profile", response_model=UserOut)
-def update_profile(
-    data: UserUpdate,
-    authorization: str = Header(...),
-    db: Session = Depends(get_db)
-):
+def update_profile(data: UserUpdate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
     """Cập nhật hồ sơ người dùng."""
-    print("✅ Route /auth/user/profile được gọi!")
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    firebase_uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, firebase_uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Cập nhật thông tin
-    if data.name:
+    user = current_user
+    if data.name is not None:
         user.name = data.name
-    if data.email:
+    if data.email is not None:
         user.email = data.email
-    if data.profile_image:
+    if data.profile_image is not None:
         user.profile_image = data.profile_image
-    if data.gender:
+    if data.gender is not None:
         user.gender = data.gender
-    if data.birthday:
+    if data.birthday is not None:
         user.birthday = data.birthday
 
     db.add(user)
@@ -171,44 +208,23 @@ def update_profile(
     db.refresh(user)
     return user
 
-
 @app.get("/me", response_model=UserOut)
-def get_me(authorization: str = Header(...), db: Session = Depends(get_db)):
+def get_me(current_user = Depends(get_current_user_db)):
     """Trả về thông tin người dùng hiện tại."""
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    uid = payload.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+    return current_user
 
-# ======================================================
-# 💰 INCOME ROUTES (THU NHẬP)
-# ======================================================
-
+# ----------------------
+# INCOME ROUTES
+# ----------------------
 @app.post("/incomes", response_model=IncomeOut)
-def create_income(payload: IncomeCreate, authorization: str = Header(...), db: Session = Depends(get_db)):
+def create_income(payload: IncomeCreate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
     """
-    🟢 Thêm thu nhập mới.
-    Dữ liệu bao gồm:
-      - source: nguồn thu (Lương, thưởng,…)
-      - amount, date, emoji, category_id
+    Thêm thu nhập mới.
     """
-    id_token = extract_token(authorization)
-    token_payload = verify_token_and_get_payload(id_token)
-    uid = token_payload.get("uid")
-
-    # 🔍 Kiểm tra hoặc tạo mới user
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        user = crud.create_user(db, firebase_uid=uid, email=token_payload.get("email"))
-
-    # 🔹 Gọi CRUD tạo thu nhập (có category_id nếu FE gửi lên)
     income = crud.create_income(
         db=db,
-        user_id=user.id,
-        source=payload.source,
+        user_id=current_user.id,
+        category_name=payload.category_name,
         amount=payload.amount,
         date_val=payload.date,
         emoji=payload.emoji,
@@ -216,320 +232,171 @@ def create_income(payload: IncomeCreate, authorization: str = Header(...), db: S
     )
     return income
 
-
 @app.get("/incomes", response_model=List[IncomeOut])
-def list_incomes(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """
-    📄 Lấy danh sách thu nhập của người dùng.
-    Trả về kèm thông tin danh mục (category) nếu có.
-    """
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    incomes = crud.list_incomes_for_user(db, user.id)
+def list_incomes(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    incomes = crud.list_incomes_for_user(db, current_user.id)
     return incomes
 
-
 @app.put("/incomes/{income_id}", response_model=IncomeOut)
-def update_income(
-    income_id: UUID,
-    update_data: dict,
-    authorization: str = Header(...),
-    db: Session = Depends(get_db),
-):
-    """✏️ Cập nhật thu nhập (ví dụ đổi danh mục, số tiền, emoji, …)"""
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    updated_income = crud.update_income(db, income_id, user.id, update_data)
+def update_income(income_id: UUID, update_data: dict, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    updated_income = crud.update_income(db, income_id, current_user.id, update_data)
     if not updated_income:
         raise HTTPException(status_code=404, detail="Income not found")
     return updated_income
 
-
 @app.delete("/incomes/{income_id}")
-def delete_income(income_id: UUID, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """🗑️ Xóa thu nhập"""
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    deleted = crud.delete_income(db, income_id, user.id)
+def delete_income(income_id: UUID, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    deleted = crud.delete_income(db, income_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Income not found")
     return {"message": "Income deleted successfully"}
 
-
-# ======================================================
-# 💸 EXPENSE ROUTES (CHI TIÊU)
-# ======================================================
-
+# ----------------------
+# EXPENSE ROUTES
+# ----------------------
 @app.post("/expenses", response_model=ExpenseOut)
-def create_expense(payload: ExpenseCreate, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """
-    🟢 Thêm chi tiêu mới.
-    Dữ liệu bao gồm:
-      - amount, date, emoji, category_id, category_name
-    """
-    id_token = extract_token(authorization)
-    payload_fb = verify_token_and_get_payload(id_token)
-    uid = payload_fb.get("uid")
-
-    # 🔍 Kiểm tra hoặc tạo mới user
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        user = crud.create_user(db, firebase_uid=uid, email=payload_fb.get("email"))
-
-    # 🔹 Gọi CRUD thêm chi tiêu (có category_id)
+def create_expense(payload: ExpenseCreate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
     expense = crud.create_expense(
         db=db,
-        user_id=user.id,
+        user_id=current_user.id,
         amount=payload.amount,
         date_val=payload.date,
         emoji=payload.emoji,
         category_id=payload.category_id,
-        category_name=payload.category or None,
+        category_name=payload.category_name or None,
     )
     return expense
 
-
 @app.get("/expenses", response_model=List[ExpenseOut])
-def list_expenses(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """
-    📄 Lấy danh sách chi tiêu của người dùng.
-    Bao gồm category (nếu có liên kết).
-    """
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    expenses = crud.list_expenses_for_user(db, user.id)
+def list_expenses(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    expenses = crud.list_expenses_for_user(db, current_user.id)
     return expenses
 
-
 @app.put("/expenses/{expense_id}", response_model=ExpenseOut)
-def update_expense(
-    expense_id: UUID,
-    update_data: dict,
-    authorization: str = Header(...),
-    db: Session = Depends(get_db),
-):
-    """✏️ Cập nhật chi tiêu (đổi danh mục, emoji, số tiền, …)"""
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    updated_expense = crud.update_expense(db, expense_id, user.id, update_data)
+def update_expense(expense_id: UUID, update_data: dict, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    updated_expense = crud.update_expense(db, expense_id, current_user.id, update_data)
     if not updated_expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     return updated_expense
 
-
 @app.delete("/expenses/{expense_id}")
-def delete_expense(expense_id: UUID, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """🗑️ Xóa chi tiêu"""
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-    uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    deleted = crud.delete_expense(db, expense_id, user.id)
+def delete_expense(expense_id: UUID, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    deleted = crud.delete_expense(db, expense_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Expense not found")
     return {"message": "Expense deleted successfully"}
-
-
-# ======================================================
-# 🗂️ CATEGORY ROUTES (DANH MỤC)
-# ======================================================
-
+# ----------------------
+# CATEGORY ROUTES
+# ----------------------
 @app.post("/categories")
-def create_category(payload: dict, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """
-    🟢 Tạo danh mục thu/chi mới.
-    Dữ liệu:
-      - name: tên danh mục
-      - type: 'income' hoặc 'expense'
-      - icon, color: tuỳ chọn
-    """
-    id_token = extract_token(authorization)
-    decoded = verify_token_and_get_payload(id_token)
-    uid = decoded.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
+def create_category(
+    payload: dict,
+    current_user = Depends(get_current_user_db),
+    db: Session = Depends(get_db)
+):
     category = crud.create_category(
         db=db,
-        user_id=user.id,
+        user_id=current_user.id,
         name=payload.get("name"),
         type=payload.get("type"),
         icon=payload.get("icon"),
         color=payload.get("color"),
     )
-    return {"message": "Category created successfully", "category": category}
+
+    return {
+        "message": "Category created successfully",
+        "category": {
+            "id": category.id,
+            "name": category.name,
+            "type": category.type,
+            "icon": category.icon,
+            "color": category.color,
+        },
+    }
 
 
-@app.get("/categories")
-def list_categories(type: str = None, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """
-    📄 Lấy danh sách danh mục của người dùng.
-    Có thể lọc theo type = 'income' hoặc 'expense'
-    """
-    id_token = extract_token(authorization)
-    decoded = verify_token_and_get_payload(id_token)
-    uid = decoded.get("uid")
+@app.get("/categories", response_model=List[CategoryOut | DefaultCategoryOut])
+def list_categories(
+    type: Optional[str] = None,
+    include_default: bool = True,
+    current_user = Depends(get_current_user_db),
+    db: Session = Depends(get_db)
+):
+    # Lấy danh mục người dùng
+    user_categories = crud.list_categories_for_user(db, current_user.id, type_filter=type)
 
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Lấy danh mục mặc định
+    default_categories = []
+    if include_default:
+        default_data = crud.get_default_categories(type or "expense")
+        default_categories = [
+            DefaultCategoryOut(
+                name=item["name"],
+                type=type or "expense",
+                icon=item["icon_name"],
+                color=item["color_code"]
+            )
+            for item in default_data
+        ]
 
-    categories = crud.list_categories_for_user(db, user.id, type_filter=type)
-    return categories
-
-
-@app.delete("/categories/{category_id}")
-def delete_category(category_id: int, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """🗑️ Xóa danh mục thu/chi"""
-    id_token = extract_token(authorization)
-    decoded = verify_token_and_get_payload(id_token)
-    uid = decoded.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    deleted = crud.delete_category(db, category_id, user.id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Category not found")
-
-    return {"message": "Category deleted successfully"}
+    # Gộp và trả kết quả
+    return default_categories + user_categories
 
 
 @app.put("/categories/{category_id}", response_model=CategoryOut)
-def update_category(category_id: int, payload: CategoryCreate, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """🆕 Cập nhật danh mục."""
-    token = extract_token(authorization)
-    payload_token = verify_token_and_get_payload(token)
-    uid = payload_token.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-    category = crud.update_category(db, category_id, user.id, payload.dict())
+def update_category(category_id: UUID, payload: CategoryCreate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    category = crud.update_category(db, category_id, current_user.id, payload.dict())
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 
-# ======================================================
-# 🆕 🔁 TRANSACTION ROUTES
-# ======================================================
-@app.post("/transactions", response_model=TransactionOut)
-def create_transaction(payload: TransactionCreate, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """🆕 Thêm giao dịch mới (thu nhập hoặc chi tiêu)."""
-    id_token = extract_token(authorization)
-    decoded = verify_token_and_get_payload(id_token)
-    uid = decoded.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+@app.delete("/categories/{category_id}")
+def delete_category(category_id: UUID, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    deleted = crud.delete_category(db, category_id, current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"message": "Category deleted successfully"}
 
-    return crud.create_transaction(db, user_id=user.id, **payload.dict())
-
-
+# ----------------------
+# TRANSACTIONS (Read-only, T3)
+# ----------------------
 @app.get("/transactions", response_model=List[TransactionOut])
-def list_transactions(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """🆕 Lấy tất cả giao dịch của người dùng (thu + chi)."""
-    token = extract_token(authorization)
-    payload = verify_token_and_get_payload(token)
-    uid = payload.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-    return crud.list_transactions_for_user(db, user.id)
-
+def list_transactions(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    """Lấy tất cả giao dịch (thu + chi). Read-only per decision T3."""
+    transactions = crud.list_transactions_for_user(db, current_user.id)
+    return transactions
 
 @app.get("/transactions/summary", response_model=SummaryOut)
-def get_summary(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """🆕 Tổng hợp thu nhập, chi tiêu, và số dư."""
-    token = extract_token(authorization)
-    payload = verify_token_and_get_payload(token)
-    uid = payload.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def get_summary(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    summary = crud.get_financial_summary(db, current_user.id)
+    # crud.get_financial_summary already returns dict with floats
+    return {"total_income": summary["total_income"], "total_expense": summary["total_expense"], "balance": summary["balance"]}
 
-    return crud.get_financial_summary(db, user.id)
+@app.get("/transactions/category-summary", response_model=List[dict])
+def get_expense_by_category(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    return crud.get_expense_by_category(db, current_user.id)
 
-
-@app.get("/transactions/category-summary")
-def get_expense_by_category(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """🆕 Thống kê chi tiêu theo danh mục (biểu đồ tròn)."""
-    token = extract_token(authorization)
-    payload = verify_token_and_get_payload(token)
-    uid = payload.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-    return crud.get_expense_by_category(db, user.id)
-
-
-# ======================================================
-# 📊 DASHBOARD & ANALYTICS
-# ======================================================
-
-@app.get("/dashboard/summary")
-def get_dashboard_summary(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """Tổng quan thu chi."""
-    token = extract_token(authorization)
-    payload = verify_token_and_get_payload(token)
-    uid = payload.get("uid")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    total_income = crud.get_income_summary(db, user.id)
-    total_expense = crud.get_expense_summary(db, user.id)
+# ----------------------
+# DASHBOARD & ANALYTICS
+# ----------------------
+@app.get("/dashboard/summary", response_model=SummaryOut)
+def get_dashboard_summary(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    total_income = float(crud.get_income_summary(db, current_user.id) or 0)
+    total_expense = float(crud.get_expense_summary(db, current_user.id) or 0)
     total_balance = total_income - total_expense
+    return {"total_income": total_income, "total_expense": total_expense, "balance": total_balance}
 
-    return {
-        "total_income": total_income,
-        "total_expense": total_expense,
-        "total_balance": total_balance,
-    }
-
+@app.get("/dashboard/data", response_model=DashboardResponse)
+def get_dashboard_data(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    data = crud.get_dashboard_data(db, current_user.id)
+    # crud.get_dashboard_data returns summary, recent_transactions (list of dicts), income_chart, expense_chart
+    return data
 
 @app.get("/analytics/trends")
-def get_analytics_trends(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """Xu hướng thu chi theo ngày."""
-    token = extract_token(authorization)
-    payload = verify_token_and_get_payload(token)
-    uid = payload.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-
+def get_analytics_trends(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
     income_data = (
         db.query(models.Income.date, func.sum(models.Income.amount))
-        .filter(models.Income.user_id == user.id)
+        .filter(models.Income.user_id == current_user.id)
         .group_by(models.Income.date)
         .order_by(models.Income.date)
         .limit(60)
@@ -537,10 +404,10 @@ def get_analytics_trends(authorization: str = Header(...), db: Session = Depends
     )
     expense_data = (
         db.query(models.Expense.date, func.sum(models.Expense.amount))
-        .filter(models.Expense.user_id == user.id)
+        .filter(models.Expense.user_id == current_user.id)
         .group_by(models.Expense.date)
         .order_by(models.Expense.date)
-        .limit(30)
+        .limit(60)
         .all()
     )
 
@@ -549,21 +416,14 @@ def get_analytics_trends(authorization: str = Header(...), db: Session = Depends
         "expense_trend": [{"date": str(d), "amount": float(a)} for d, a in expense_data],
     }
 
-# ======================================================
-# 📤 EXPORT ROUTES (Excel)
-# ======================================================
-
+# ----------------------
+# EXPORT (Excel)
+# ----------------------
 @app.get("/export/income")
-def export_income(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """Xuất file Excel cho Income."""
-    token = extract_token(authorization)
-    payload = verify_token_and_get_payload(token)
-    uid = payload.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-
-    incomes = crud.list_incomes_for_user(db, user.id)
+def export_income(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    incomes = crud.list_incomes_for_user(db, current_user.id)
     df = pd.DataFrame([
-        {"ID": str(i.id), "Source": i.source, "Amount": float(i.amount), "Date": i.date.isoformat(), "Emoji": i.emoji}
+        {"ID": str(i.id), "Category": i.category_name, "Amount": float(i.amount), "Date": i.date.isoformat(), "Emoji": i.emoji}
         for i in incomes
     ])
     df.loc[len(df)] = ["", "TOTAL", df["Amount"].sum(), "", ""]
@@ -576,18 +436,11 @@ def export_income(authorization: str = Header(...), db: Session = Depends(get_db
         headers={"Content-Disposition": "attachment; filename=incomes.xlsx"}
     )
 
-
 @app.get("/export/expense")
-def export_expense(authorization: str = Header(...), db: Session = Depends(get_db)):
-    """Xuất file Excel cho Expense."""
-    token = extract_token(authorization)
-    payload = verify_token_and_get_payload(token)
-    uid = payload.get("uid")
-    user = crud.get_user_by_firebase_uid(db, uid)
-
-    expenses = crud.list_expenses_for_user(db, user.id)
+def export_expense(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    expenses = crud.list_expenses_for_user(db, current_user.id)
     df = pd.DataFrame([
-        {"ID": str(e.id), "Category": e.category, "Amount": float(e.amount), "Date": e.date.isoformat(), "Emoji": e.emoji}
+        {"ID": str(e.id), "Category": e.category_name, "Amount": float(e.amount), "Date": e.date.isoformat(), "Emoji": e.emoji}
         for e in expenses
     ])
     df.loc[len(df)] = ["", "TOTAL", df["Amount"].sum(), "", ""]
@@ -599,3 +452,16 @@ def export_expense(authorization: str = Header(...), db: Session = Depends(get_d
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=expenses.xlsx"}
     )
+
+# ----------------------
+# DEFAULT CATEGORIES (static)
+# ----------------------
+
+
+# -------------------------------------------------
+# Root
+# -------------------------------------------------
+@app.get("/")
+def root():
+    return {"message": "Expense Tracker API is running"}
+

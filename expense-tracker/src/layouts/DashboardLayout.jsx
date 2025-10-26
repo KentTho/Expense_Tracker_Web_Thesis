@@ -47,14 +47,14 @@ export default function DashboardLayout() {
             initial={{ x: -250, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -250, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 80, damping: 20 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
             className="fixed md:static z-40"
           >
             <Sidebar
               collapsed={sidebarCollapsed}
               setCollapsed={setSidebarCollapsed}
               theme={theme}
-              setTheme={setTheme}
+              setTheme={setTheme} 
             />
           </motion.div>
         )}

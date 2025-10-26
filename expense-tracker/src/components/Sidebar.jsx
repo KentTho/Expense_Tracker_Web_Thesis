@@ -15,7 +15,8 @@ import {
   User,
   BarChart2, 
   Download ,
-  Lock
+  Lock,
+  Tag
 } from "lucide-react";
 import logo from "../assets/logo.png";
 
@@ -26,13 +27,15 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
 
   const menu = [
     { name: "Home", path: "/dashboard", icon: <Home size={18} /> },
-    { name: "Analytics", path: "/analytics", icon: <BarChart2  size={18} /> },
+    { name: "Analytics", path: "/analytics", icon: <BarChart2 size={18} /> },
     { name: "Income", path: "/income", icon: <TrendingUp size={18} /> },
     { name: "Expense", path: "/expense", icon: <Wallet size={18} /> },
+    { name: "Category", path: "/categories", icon: <Tag size={18} /> }, // ✅ Thêm dòng này
     { name: "Data Export", path: "/dataexport", icon: <Download size={18} /> },
-    { name: "Security", path: "/security", icon: <Lock size={18} /> }, // ✅ Trang bảo mật
+    { name: "Security", path: "/security", icon: <Lock size={18} /> },
     { name: "Settings", path: "/settings", icon: <Settings size={18} /> },
   ];
+
 
   const handleLogout = async () => {
     try {
@@ -49,17 +52,18 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
 
   return (
     <aside
-        onMouseEnter={() => setCollapsed(false)}   // 👉 Hover vào => mở rộng
-        onMouseLeave={() => setCollapsed(true)}    // 👉 Rời chuột => thu lại
-      // ✅ Click toàn vùng Sidebar để toggle
-      className={`fixed top-0 left-0 h-screen flex flex-col justify-between cursor-pointer
+      onMouseEnter={() => setCollapsed(false)}   // 🟢 Hover mở rộng
+      onMouseLeave={() => setCollapsed(true)}    // 🔵 Rời chuột thu lại
+      className={`fixed top-0 left-0 h-screen flex flex-col justify-between
+        transition-[width] duration-300 ease-in-out shadow-lg
         ${
           theme === "dark"
             ? "bg-gradient-to-b from-[#07142e] to-[#0d1f4a] text-gray-100"
             : "bg-white text-gray-800 border-r border-gray-200"
         }
-        shadow-lg transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`}
+        ${collapsed ? "w-16" : "w-64"}`}
     >
+
       {/* --- Header --- */}
       <div className="flex flex-col relative select-none">
         <div className="flex items-center justify-between px-3 py-5">

@@ -1,0 +1,41 @@
+from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy.orm import Session
+from schema import UserOut, UserSyncPayload, UserUpdate
+from utils.auth_helpers import extract_token, verify_token_and_get_payload, get_current_user_db
+from db.database import get_db
+import crud
+
+router = APIRouter(prefix="/auth", tags=["Auth"])
+
+@router.post("/sync", response_model=UserOut)
+def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Session = Depends(get_db)):
+    id_token = extract_token(authorization)
+    decoded = verify_token_and_get_payload(id_token)
+    uid = decoded.get("uid")
+
+    user = crud.get_user_by_firebase_uid(db, uid)
+    if not user:
+        user = crud.create_user(db, firebase_uid=uid, email=decoded.get("email"), name=decoded.get("name"), profile_image=decoded.get("picture"))
+    return user
+
+@router.get("/user/profile", response_model=UserOut)
+def get_profile(current_user = Depends(get_current_user_db)):
+    return current_user
+
+@router.put("/user/profile", response_model=UserOut)
+def update_profile(data: UserUpdate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+    user = current_user
+    if data.name is not None:
+        user.name = data.name
+    if data.email is not None:
+        user.email = data.email
+    if data.profile_image is not None:
+        user.profile_image = data.profile_image
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+@router.get("/me", response_model=UserOut)
+def get_me(current_user = Depends(get_current_user_db)):
+    return current_user

@@ -47,51 +47,56 @@ class UserSyncPayload(BaseModel):
 # =========================================================
 class IncomeBase(BaseModel):
     """Schema cơ bản cho bảng thu nhập"""
-    source: Optional[str] = None
+    category_name: Optional[str] = None
     amount: float
     date: date
     emoji: Optional[str] = None
-    category_id: Optional[int] = None   # Liên kết Category (nếu có)
-    type: str = "income"                # Đánh dấu loại giao dịch
+    category_id: Optional[UUID] = None   # Liên kết Category (nếu có)
 
 
 class IncomeCreate(IncomeBase):
     """Schema tạo mới thu nhập"""
-    source: Optional[str]
-    amount: float
-    date: date
-    emoji: Optional[str]
+    pass
+
+
+class CategoryOut(BaseModel):
+    """Schema phản hồi danh mục"""
+    id: UUID
+    user_id: UUID
+    name: str
+    type: str
+    color: Optional[str] = None
+    icon: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class IncomeOut(IncomeBase):
     """Schema phản hồi thu nhập"""
-    id: UUID                                  # ID của bản ghi thu nhập
-    user_id: UUID                             # ID của người dùng
-    created_at: Optional[datetime] = None     # Thời điểm tạo bản ghi
-
-    # Thông tin category (tuỳ chọn) — giúp FE hiển thị chi tiết danh mục
-    category: Optional["CategoryOut"] = None
+    id: UUID
+    user_id: UUID
+    created_at: Optional[datetime] = None
+    category: Optional[CategoryOut] = None
 
     model_config = {"from_attributes": True}
+
 
 # =========================================================
 # 💸 3️⃣ EXPENSE SCHEMAS
 # =========================================================
 class ExpenseBase(BaseModel):
     """Schema cơ bản cho bảng chi tiêu"""
-    category: Optional[str] = None
+    category_name: Optional[str] = None
     amount: float
     date: date
     emoji: Optional[str] = None
-    category_id: Optional[int] = None   # Liên kết Category (nếu có)
-    type: str = "expense"               # Đánh dấu loại giao dịch
+    category_id: Optional[UUID] = None   # Liên kết Category (nếu có)
+
 
 class ExpenseCreate(ExpenseBase):
     """Schema tạo mới chi tiêu"""
-    category: Optional[str]
-    amount: float
-    date: date
-    emoji: Optional[str]
+    pass
 
 
 class ExpenseOut(ExpenseBase):
@@ -99,21 +104,20 @@ class ExpenseOut(ExpenseBase):
     id: UUID
     user_id: UUID
     created_at: Optional[datetime] = None
-
-    # Thông tin category kèm theo (nếu có)
-    category: Optional["CategoryOut"] = None
+    category: Optional[CategoryOut] = None
 
     model_config = {"from_attributes": True}
 
+
 # =========================================================
-# 🗂️ 4️⃣ CATEGORY SCHEMAS
+# 🏷️ 4️⃣ CATEGORY SCHEMAS
 # =========================================================
 class CategoryBase(BaseModel):
     """Schema cơ bản cho danh mục thu/chi"""
     name: str
     type: str                           # "income" hoặc "expense"
-    color_code: Optional[str] = None    # Mã màu hiển thị (#FF5733)
-    icon_name: Optional[str] = None     # Biểu tượng UI (vd: "shopping-cart")
+    color: Optional[str] = None
+    icon: Optional[str] = None
 
 
 class CategoryCreate(CategoryBase):
@@ -121,14 +125,36 @@ class CategoryCreate(CategoryBase):
     pass
 
 
+# CategoryOut đã được định nghĩa phía trên, giữ nguyên
+
+class DefaultCategoryItem(BaseModel):
+    name: str
+    icon: str
+    color: str
+
+class DefaultCategoryResponse(BaseModel):
+    type: str
+    categories: List[DefaultCategoryItem]
+
+    class Config:
+        orm_mode = True
+
 class CategoryOut(CategoryBase):
-    """Schema phản hồi danh mục"""
-    category_id: int
+    """Schema trả về khi lấy category từ DB"""
+    id: UUID
     user_id: UUID
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
+
+# ✅ Schema mới cho danh mục mặc định (không cần id, user_id, created_at)
+class DefaultCategoryOut(BaseModel):
+    name: str
+    type: str
+    icon: Optional[str] = None
+    color: Optional[str] = None
 
 # =========================================================
 # 🔁 5️⃣ TRANSACTION SCHEMAS
@@ -139,7 +165,8 @@ class TransactionBase(BaseModel):
     amount: float
     transaction_date: date
     note: Optional[str] = None
-    category_id: Optional[int] = None   # Liên kết danh mục (Category)
+    source_or_category: Optional[str] = None
+    category_id: Optional[UUID] = None
 
 
 class TransactionCreate(TransactionBase):
@@ -149,12 +176,22 @@ class TransactionCreate(TransactionBase):
 
 class TransactionOut(TransactionBase):
     """Schema phản hồi giao dịch"""
-    transaction_id: int
+    id: UUID
     user_id: UUID
     created_at: datetime
-    category: Optional[CategoryOut] = None  # Gắn danh mục (nếu có)
+    category: Optional[CategoryOut] = None
 
     model_config = {"from_attributes": True}
+
+
+class RecentTransactionOut(BaseModel):
+    """Schema cho giao dịch gần đây"""
+    id: UUID
+    type: str
+    emoji: Optional[str]
+    amount: float
+    transaction_date: date
+    category_name: Optional[str]
 
 
 # =========================================================
@@ -171,3 +208,32 @@ class CategorySummaryOut(BaseModel):
     """Schema thống kê chi tiêu theo danh mục"""
     category: str
     total: float
+
+
+# ======================================================
+# 📈 7️⃣ DASHBOARD / ANALYTICS SCHEMAS
+# ======================================================
+class SummaryStats(BaseModel):
+    total_income: float
+    total_expense: float
+    total_balance: float
+
+
+class ChartPoint(BaseModel):
+    date: date
+    total: float
+
+
+class DashboardResponse(BaseModel):
+    summary: SummaryStats
+    recent_transactions: List[RecentTransactionOut]
+    income_chart: List[ChartPoint]
+    expense_chart: List[ChartPoint]
+
+
+# ======================================================
+# 📤 8️⃣ EXPORT SCHEMA
+# ======================================================
+class ExportResponse(BaseModel):
+    message: str
+    file_url: str

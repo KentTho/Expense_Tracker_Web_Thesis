@@ -8,8 +8,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
-    func,
-    Integer
+    func
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -46,9 +45,9 @@ class Income(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False)
 
-    source = Column(String(255))
+    category_name = Column(String(255))
     amount = Column(Numeric(14, 2), nullable=False)
     date = Column(Date, nullable=False)
     emoji = Column(String(64), nullable=True)
@@ -66,7 +65,7 @@ class Expense(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False)
 
     category_name = Column(String(255))
     amount = Column(Numeric(14, 2), nullable=False)
@@ -88,8 +87,8 @@ class Category(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(100), nullable=False)
     type = Column(String(10), nullable=False)  # 'income' hoặc 'expense'
-    color_code = Column(String(10))
-    icon_name = Column(String(50))
+    color = Column(String(10))
+    icon = Column(String(50))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="categories")
@@ -104,14 +103,17 @@ class Category(Base):
 class Transaction(Base):
     __tablename__ = "transactions"
 
-    transaction_id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True)
-    type = Column(String(10), nullable=False)
-    amount = Column(Numeric(12, 2), nullable=False)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False)
+
+    type = Column(String(10), nullable=False)  # 'income' hoặc 'expense'
+    amount = Column(Numeric(14, 2), nullable=False)
+    source_or_category = Column(String(255))  # Dùng chung cho source (thu) hoặc category_name (chi)
     note = Column(Text)
     transaction_date = Column(Date, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
+

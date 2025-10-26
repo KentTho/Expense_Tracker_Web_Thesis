@@ -7,5 +7,8 @@ export default defineConfig({
   server: {
     port: 3000,      // ✅ Đặt cổng chạy FE là 3000
     open: true       // Tùy chọn: Tự động mở trình duyệt khi chạy
-  }
+  },
+  optimizeDeps: {
+    include: ['react-is'],
+  },
 })
