@@ -13,8 +13,9 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Định nghĩa lớp cơ sở cho ORM models
 class Base(DeclarativeBase):
     pass
-
-
+# -------------------------------------------------
+# DB dependency
+# -------------------------------------------------
 def get_db():
     db = SessionLocal()
     try:

@@ -18,14 +18,14 @@ from sqlalchemy import func
 
 # internal imports (the files you already have)
 import models
-from db.database import SessionLocal, engine  # assumes database.py exposes SessionLocal and engine
+from db.database import SessionLocal, engine, get_db  # assumes database.py exposes SessionLocal and engine
 import crud
-from schemas import (  # your file is named schema.py per your last message
-    UserOut, IncomeOut, ExpenseOut,
-    ExpenseCreate, IncomeCreate, UserSyncPayload, UserUpdate,
+from schemas import ( IncomeOut, ExpenseOut,
+    ExpenseCreate, IncomeCreate,
     CategoryOut, CategoryCreate, TransactionOut, SummaryOut,
     DashboardResponse, DefaultCategoryOut
 )
+from services.auth_token_db import get_current_user_db
 
 # create tables if not handled elsewhere (optional)
 models.Base.metadata.create_all(bind=engine)
@@ -65,192 +65,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# -------------------------------------------------
-# DB dependency
-# -------------------------------------------------
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# -------------------------------------------------
-# Auth helpers
-# -------------------------------------------------
-# ----------------------
-# Extract Token
-# ----------------------
-def extract_token(authorization: str) -> str:
-    """Lấy token từ header Bearer."""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=400, detail="Invalid Authorization header format")
-    token = authorization.split(" ", 1)[1]
-    # Debug (chỉ bật khi cần)
-    # print("🔑 Extracted Token:", token[:20], "...")
-    return token
-
-
-# ----------------------
-# Verify Token with Firebase
-# ----------------------
-def verify_token_and_get_payload(id_token: str):
-    """Xác minh Firebase ID token và trả payload."""
-    try:
-        decoded = fb_auth.verify_id_token(id_token)
-        # print("✅ Firebase token verified for UID:", decoded.get("uid"))
-        return decoded
-    except fb_auth.ExpiredIdTokenError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except fb_auth.InvalidIdTokenError:
-        raise HTTPException(status_code=401, detail="Invalid Firebase token")
-    except fb_auth.RevokedIdTokenError:
-        raise HTTPException(status_code=401, detail="Token has been revoked")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token verification failed: {str(e)}")
-
-
-# ----------------------
-# Dependency: get current user
-# ----------------------
-def get_current_user_db(
-    authorization: str = Header(...),
-    db: Session = Depends(get_db)
-):
-    """
-    Dependency: Verify Firebase token, ensure user exists in DB,
-    and return the DB user object.
-    """
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
-
-    uid = payload.get("uid")
-    if not uid:
-        raise HTTPException(status_code=401, detail="Invalid token payload: uid missing")
-
-    # Tìm user theo firebase_uid
-    user = crud.get_user_by_firebase_uid(db, uid)
-
-    # Nếu chưa tồn tại -> tự động tạo user
-    if not user:
-        email = payload.get("email") or f"user_{uid}@noemail.local"
-        name = payload.get("name") or payload.get("displayName") or "Unnamed User"
-        picture = payload.get("picture")
-        user = crud.create_user(
-            db,
-            firebase_uid=uid,
-            email=email,
-            name=name,
-            profile_image=picture
-        )
-        # print(f"🆕 User created automatically for UID: {uid}")
-
-    return user
-# ----------------------
-# USER ROUTES
-# ----------------------
-@app.post("/auth/sync", response_model=UserOut)
-def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """
-    Đồng bộ user giữa Firebase và DB (explicit sync route).
-    FE should send Authorization: Bearer <idToken> and payload (email, firebase_uid, display_name)
-    """
-    id_token = extract_token(authorization)
-    decoded = verify_token_and_get_payload(id_token)
-
-    uid = decoded.get("uid")
-    email = decoded.get("email") or payload.email
-    name = payload.display_name or decoded.get("name")
-    picture = decoded.get("picture")
-
-    user = crud.get_user_by_firebase_uid(db, uid)
-    if not user:
-        user = crud.create_user(db, firebase_uid=uid, email=email, name=name, profile_image=picture)
-    else:
-        updated = False
-        if email and user.email != email:
-            user.email = email; updated = True
-        if name and user.name != name:
-            user.name = name; updated = True
-        if picture and user.profile_image != picture:
-            user.profile_image = picture; updated = True
-        if updated:
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-    return user
-
-@app.get("/auth/user/profile", response_model=UserOut)
-def get_profile(current_user = Depends(get_current_user_db)):
-    """Lấy thông tin hồ sơ người dùng."""
-    return current_user
-
-@app.put("/auth/user/profile", response_model=UserOut)
-def update_profile(data: UserUpdate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    """Cập nhật hồ sơ người dùng."""
-    user = current_user
-    if data.name is not None:
-        user.name = data.name
-    if data.email is not None:
-        user.email = data.email
-    if data.profile_image is not None:
-        user.profile_image = data.profile_image
-    if data.gender is not None:
-        user.gender = data.gender
-    if data.birthday is not None:
-        user.birthday = data.birthday
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-@app.get("/me", response_model=UserOut)
-def get_me(current_user = Depends(get_current_user_db)):
-    """Trả về thông tin người dùng hiện tại."""
-    return current_user
-
-# ----------------------
-# INCOME ROUTES
-# ----------------------
-@app.post("/incomes", response_model=IncomeOut)
-def create_income(payload: IncomeCreate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    """
-    Thêm thu nhập mới.
-    """
-    income = crud.create_income(
-        db=db,
-        user_id=current_user.id,
-        category_name=payload.category_name,
-        amount=payload.amount,
-        date_val=payload.date,
-        emoji=payload.emoji,
-        category_id=payload.category_id,
-    )
-    return income
-
-@app.get("/incomes", response_model=List[IncomeOut])
-def list_incomes(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    incomes = crud.list_incomes_for_user(db, current_user.id)
-    return incomes
-
-@app.put("/incomes/{income_id}", response_model=IncomeOut)
-def update_income(income_id: UUID, update_data: dict, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    updated_income = crud.update_income(db, income_id, current_user.id, update_data)
-    if not updated_income:
-        raise HTTPException(status_code=404, detail="Income not found")
-    return updated_income
-
-@app.delete("/incomes/{income_id}")
-def delete_income(income_id: UUID, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    deleted = crud.delete_income(db, income_id, current_user.id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Income not found")
-    return {"message": "Income deleted successfully"}
-
 # ----------------------
 # EXPENSE ROUTES
 # ----------------------
