@@ -1,13 +1,15 @@
 import { BACKEND_BASE } from "./api";
+import { auth } from "../components/firebase";
 
-function getToken() {
-  const token = localStorage.getItem("idToken");
-  if (!token) throw new Error("User not authenticated");
-  return token;
+async function getToken() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("User not authenticated");
+  return await user.getIdToken(); // Firebase sẽ tự refresh nếu token hết hạn
 }
 
+
 export async function getCategories(type = "income") {
-  const token = getToken();
+  const token = await getToken();
 
   const res = await fetch(`${BACKEND_BASE}/categories?type=${type}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -18,8 +20,9 @@ export async function getCategories(type = "income") {
     throw new Error(`Failed to fetch categories: ${text}`);
   }
 
-  return await res.json(); // Giờ /categories đã trả cả mặc định + user
+  return await res.json();
 }
+
 
 export async function createCategory(payload) {
   const token = getToken();

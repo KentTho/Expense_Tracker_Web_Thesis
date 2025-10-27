@@ -20,7 +20,7 @@ from sqlalchemy import func
 import models
 from db.database import SessionLocal, engine  # assumes database.py exposes SessionLocal and engine
 import crud
-from schema import (  # your file is named schema.py per your last message
+from schemas import (  # your file is named schema.py per your last message
     UserOut, IncomeOut, ExpenseOut,
     ExpenseCreate, IncomeCreate, UserSyncPayload, UserUpdate,
     CategoryOut, CategoryCreate, TransactionOut, SummaryOut,
@@ -341,7 +341,6 @@ def list_categories(
 
     # Gộp và trả kết quả
     return default_categories + user_categories
-
 
 @app.put("/categories/{category_id}", response_model=CategoryOut)
 def update_category(category_id: UUID, payload: CategoryCreate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
