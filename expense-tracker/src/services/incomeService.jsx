@@ -1,12 +1,23 @@
 import { auth } from "../components/firebase";
 import { BACKEND_BASE } from "./api";
+import { onAuthStateChanged } from "firebase/auth";
 
 // ✅ Lấy token Firebase
-async function getToken() {
+export const getToken = async () => {
   const user = auth.currentUser;
-  if (!user) throw new Error("User not authenticated");
-  return await user.getIdToken();
-}
+  if (!user) {
+    await new Promise(resolve => {
+      const unsubscribe = onAuthStateChanged(auth, (u) => {
+        if (u) {
+          unsubscribe();
+          resolve(u);
+        }
+      });
+    });
+  }
+  return await auth.currentUser.getIdToken();
+};
+
 
 // ✅ Lấy danh sách thu nhập
 export async function getIncomes() {

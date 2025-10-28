@@ -5,6 +5,7 @@ from io import BytesIO
 from datetime import date
 from typing import List, Optional
 from uuid import UUID
+from routes import auth_route, income_route, category_route  # tùy theo dự án
 
 import pandas as pd
 import firebase_admin
@@ -65,6 +66,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# 👇 Đăng ký router
+app.include_router(auth_route.router)
+app.include_router(income_route.router)
+app.include_router(category_route.router)  # 👈 thêm dòng này
+@app.get("/")
+def root():
+    return {"message": "API running successfully!"}
 # ----------------------
 # EXPENSE ROUTES
 # ----------------------
@@ -99,76 +107,6 @@ def delete_expense(expense_id: UUID, current_user = Depends(get_current_user_db)
     if not deleted:
         raise HTTPException(status_code=404, detail="Expense not found")
     return {"message": "Expense deleted successfully"}
-# ----------------------
-# CATEGORY ROUTES
-# ----------------------
-@app.post("/categories")
-def create_category(
-    payload: dict,
-    current_user = Depends(get_current_user_db),
-    db: Session = Depends(get_db)
-):
-    category = crud.create_category(
-        db=db,
-        user_id=current_user.id,
-        name=payload.get("name"),
-        type=payload.get("type"),
-        icon=payload.get("icon"),
-        color=payload.get("color"),
-    )
-
-    return {
-        "message": "Category created successfully",
-        "category": {
-            "id": category.id,
-            "name": category.name,
-            "type": category.type,
-            "icon": category.icon,
-            "color": category.color,
-        },
-    }
-
-
-@app.get("/categories", response_model=List[CategoryOut | DefaultCategoryOut])
-def list_categories(
-    type: Optional[str] = None,
-    include_default: bool = True,
-    current_user = Depends(get_current_user_db),
-    db: Session = Depends(get_db)
-):
-    # Lấy danh mục người dùng
-    user_categories = crud.list_categories_for_user(db, current_user.id, type_filter=type)
-
-    # Lấy danh mục mặc định
-    default_categories = []
-    if include_default:
-        default_data = crud.get_default_categories(type or "expense")
-        default_categories = [
-            DefaultCategoryOut(
-                name=item["name"],
-                type=type or "expense",
-                icon=item["icon_name"],
-                color=item["color_code"]
-            )
-            for item in default_data
-        ]
-
-    # Gộp và trả kết quả
-    return default_categories + user_categories
-
-@app.put("/categories/{category_id}", response_model=CategoryOut)
-def update_category(category_id: UUID, payload: CategoryCreate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    category = crud.update_category(db, category_id, current_user.id, payload.dict())
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
-    return category
-
-@app.delete("/categories/{category_id}")
-def delete_category(category_id: UUID, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    deleted = crud.delete_category(db, category_id, current_user.id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Category not found")
-    return {"message": "Category deleted successfully"}
 
 # ----------------------
 # TRANSACTIONS (Read-only, T3)

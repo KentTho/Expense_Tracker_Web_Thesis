@@ -1,20 +1,14 @@
-from main import get_db, app
-from schemas import (  # your file is named schema.py per your last message
-    UserOut, UserSyncPayload, UserUpdate
-)
-from services.auth_token_db import extract_token, verify_token_and_get_payload, get_current_user_db
-from fastapi import Depends, Header
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
+from db.database import get_db
+import crud
+from schemas import UserOut, UserSyncPayload, UserUpdate
+from services.auth_token_db import extract_token, verify_token_and_get_payload, get_current_user_db
 
-# ----------------------
-# USER ROUTES
-# ----------------------
-@app.post("/auth/sync", response_model=UserOut)
+router = APIRouter(prefix="/auth", tags=["Auth"])
+
+@router.post("/sync", response_model=UserOut)
 def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Session = Depends(get_db)):
-    """
-    Đồng bộ user giữa Firebase và DB (explicit sync route).
-    FE should send Authorization: Bearer <idToken> and payload (email, firebase_uid, display_name)
-    """
     id_token = extract_token(authorization)
     decoded = verify_token_and_get_payload(id_token)
 
@@ -40,14 +34,12 @@ def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Se
             db.refresh(user)
     return user
 
-@app.get("/auth/user/profile", response_model=UserOut)
+@router.get("/user/profile", response_model=UserOut)
 def get_profile(current_user = Depends(get_current_user_db)):
-    """Lấy thông tin hồ sơ người dùng."""
     return current_user
 
-@app.put("/auth/user/profile", response_model=UserOut)
+@router.put("/user/profile", response_model=UserOut)
 def update_profile(data: UserUpdate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    """Cập nhật hồ sơ người dùng."""
     user = current_user
     if data.name is not None:
         user.name = data.name
@@ -59,13 +51,11 @@ def update_profile(data: UserUpdate, current_user = Depends(get_current_user_db)
         user.gender = data.gender
     if data.birthday is not None:
         user.birthday = data.birthday
-
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
-@app.get("/me", response_model=UserOut)
+@router.get("/me", response_model=UserOut)
 def get_me(current_user = Depends(get_current_user_db)):
-    """Trả về thông tin người dùng hiện tại."""
     return current_user

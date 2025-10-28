@@ -3,12 +3,12 @@ from typing import Optional
 from datetime import date, datetime
 from uuid import UUID
 from .category_schemas import CategoryOut
-
+from decimal import Decimal
 
 class IncomeBase(BaseModel):
     """Schema cơ bản cho bảng thu nhập"""
     category_name: Optional[str] = None
-    amount: float
+    amount: Decimal
     date: date
     emoji: Optional[str] = None
     category_id: Optional[UUID] = None   # Liên kết Category (nếu có)

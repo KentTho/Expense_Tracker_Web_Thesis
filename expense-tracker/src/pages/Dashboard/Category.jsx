@@ -115,47 +115,47 @@ export default function Category() {
 
         {/* Danh sách danh mục */}
         <div className={`p-6 rounded-2xl shadow-lg ${isDark ? "bg-[#1e293b]" : "bg-white"}`}>
-          <h3 className="text-lg font-semibold mb-4">List of {typeFilter} Categories</h3>
-          {categories.length === 0 ? (
-            <p className="text-gray-400">Chưa có danh mục nào.</p>
-          ) : (
-            <div className="grid grid-cols-4 gap-4">
-              {categories.map((cat) => (
-                <div
-                  key={cat.id}
-                  className="p-5 rounded-xl border flex flex-col justify-between transition"
-                  style={{
-                    backgroundColor: `${cat.color}20`,
-                    borderColor: cat.color,
-                  }}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="text-3xl" style={{ color: cat.color }}>
-                      {cat.icon || "📁"}
-                    </span>
-                    <div className="flex gap-2">
-                      <button onClick={() => handleDelete(cat.id)} className="text-red-400 hover:text-red-500">
-                        <Trash2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditId(cat.id);
-                          setForm(cat);
-                          setShowModal(true);
-                        }}
-                        className="text-blue-400 hover:text-blue-500"
-                      >
-                        <Edit size={18} />
-                      </button>
+            <h3 className="text-lg font-semibold mb-4">List of {typeFilter} Categories</h3>
+            {categories.length === 0 ? (
+              <p className="text-gray-400">Chưa có danh mục nào.</p>
+            ) : (
+              <div className="grid grid-cols-4 gap-4">
+                {categories.map((cat) => (
+                  <div
+                    key={cat.id || cat.name}
+                    className="p-5 rounded-xl border flex flex-col justify-between transition"
+                    style={{
+                      backgroundColor: `${cat.color}20`,
+                      borderColor: cat.color,
+                    }}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="text-3xl" style={{ color: cat.color }}>
+                        {cat.icon || "📁"}
+                      </span>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleDelete(cat.id)} className="text-red-400 hover:text-red-500">
+                          <Trash2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditId(cat.id);
+                            setForm(cat);
+                            setShowModal(true);
+                          }}
+                          className="text-blue-400 hover:text-blue-500"
+                        >
+                          <Edit size={18} />
+                        </button>
+                      </div>
                     </div>
+                    <h4 className="font-semibold mt-2">{cat.name}</h4>
                   </div>
-                  <h4 className="font-semibold mt-2">{cat.name}</h4>
-                </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-              ))}
-            </div>
-          )}
-        </div>
       </main>
 
       {/* Modal */}

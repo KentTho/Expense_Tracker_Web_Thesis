@@ -1,22 +1,22 @@
 from uuid import UUID
-
-import crud
-from main import get_db, app
-from schemas import ( IncomeOut, IncomeCreate)
-from fastapi import Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+
+import crud
+from db.database import get_db
+from schemas import IncomeOut, IncomeCreate
 from services.auth_token_db import get_current_user_db
 
+router = APIRouter(prefix="/incomes", tags=["Income"])
 
-# ----------------------
-# INCOME ROUTES
-# ----------------------
-@app.post("/incomes", response_model=IncomeOut)
-def create_income(payload: IncomeCreate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    """
-    Thêm thu nhập mới.
-    """
+@router.post("", response_model=IncomeOut)
+def create_income(
+    payload: IncomeCreate,
+    current_user = Depends(get_current_user_db),
+    db: Session = Depends(get_db)
+):
+    """Thêm thu nhập mới."""
     income = crud.create_income(
         db=db,
         user_id=current_user.id,
@@ -28,20 +28,34 @@ def create_income(payload: IncomeCreate, current_user = Depends(get_current_user
     )
     return income
 
-@app.get("/incomes", response_model=List[IncomeOut])
-def list_incomes(current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    incomes = crud.list_incomes_for_user(db, current_user.id)
-    return incomes
+@router.get("", response_model=List[IncomeOut])
+def list_incomes(
+    current_user = Depends(get_current_user_db),
+    db: Session = Depends(get_db)
+):
+    """Danh sách thu nhập của người dùng."""
+    return crud.list_incomes_for_user(db, current_user.id)
 
-@app.put("/incomes/{income_id}", response_model=IncomeOut)
-def update_income(income_id: UUID, update_data: dict, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
-    updated_income = crud.update_income(db, income_id, current_user.id, update_data)
+@router.put("/{income_id}", response_model=IncomeOut)
+def update_income(
+    income_id: UUID,
+    update_data: IncomeCreate,
+    current_user = Depends(get_current_user_db),
+    db: Session = Depends(get_db)
+):
+    """Cập nhật thu nhập."""
+    updated_income = crud.update_income(db, income_id, current_user.id, update_data.dict())
     if not updated_income:
         raise HTTPException(status_code=404, detail="Income not found")
     return updated_income
 
-@app.delete("/incomes/{income_id}")
-def delete_income(income_id: UUID, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+@router.delete("/{income_id}")
+def delete_income(
+    income_id: UUID,
+    current_user = Depends(get_current_user_db),
+    db: Session = Depends(get_db)
+):
+    """Xóa thu nhập."""
     deleted = crud.delete_income(db, income_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Income not found")
