@@ -5,12 +5,16 @@ from uuid import UUID
 from .category_schemas import CategoryOut
 from decimal import Decimal
 
+
 class IncomeBase(BaseModel):
     """Schema cơ bản cho bảng thu nhập"""
+    # ✅ TRƯỜNG BỊ THIẾU: BẮT BUỘC PHẢI THÊM VÀO ĐÂY
+    category_name: Optional[str] = None
+
     amount: Decimal
     date: date
     emoji: Optional[str] = None
-    category_id: Optional[UUID] = None   # Liên kết Category (nếu có)
+    category_id: Optional[UUID] = None  # Liên kết Category (nếu có)
 
 
 class IncomeCreate(IncomeBase):

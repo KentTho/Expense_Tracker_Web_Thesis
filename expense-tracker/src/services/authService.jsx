@@ -100,3 +100,12 @@ export async function logout() {
     throw error;
   }
 }
+
+export async function getValidToken() {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  if (!user) throw new Error("User not signed in");
+  const token = await user.getIdToken(true); // refresh luôn
+  localStorage.setItem("idToken", token);
+  return token;
+}

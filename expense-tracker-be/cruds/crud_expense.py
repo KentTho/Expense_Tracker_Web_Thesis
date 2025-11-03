@@ -5,15 +5,16 @@ from uuid import UUID
 from decimal import Decimal
 from sqlalchemy import func
 import models
+from typing import Optional
 
 def create_expense(
     db: Session,
     user_id: UUID,
+    category_name: Optional[str],
     amount: Decimal,
     date_val: date,
-    emoji: str = None,
-    category_id: UUID = None,
-    category_name: str = None
+    emoji: Optional[str] = None,
+    category_id: Optional[UUID] = None
 ):
     """🟢 Tạo mới chi tiêu (Expense)"""
     exp = models.Expense(
