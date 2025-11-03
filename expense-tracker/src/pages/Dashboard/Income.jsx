@@ -22,51 +22,64 @@ import {
   updateIncome,
   deleteIncome,
 } from "../../services/incomeService";
-import { getCategories, getDefaultCategories } from "../../services/categoryService";
+// ✅ CHỈ GIỮ LẠI getCategories - XÓA getDefaultCategories
+import { getCategories } from "../../services/categoryService"; 
+import { auth } from "../../components/firebase"; // Sửa đường dẫn theo cấu trúc project của bạn
+import { BACKEND_BASE } from "../../services/api"; 
 
 export default function Income() {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
-
   const [incomes, setIncomes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({
-    source: "",
+    category_name: "",
     amount: "",
     date: "",
     emoji: "💰",
     category_id: "",
   });
 
-  // ✅ Load dữ liệu từ backend
+  // ✅ Load dữ liệu từ backend (ĐÃ SỬA LẠI ĐỂ CHỈ GỌI getCategories)
   useEffect(() => {
     (async () => {
       try {
-        const [incomeData, defaultCats, userCats] = await Promise.all([
+        // ✅ CHỈ GỌI MỘT API: getCategories
+        const [incomeData, allCategories] = await Promise.all([
           getIncomes(),
-          getDefaultCategories("income"),
-          getCategories("income"),
+          getCategories("income"), 
         ]);
         setIncomes(incomeData);
-        setCategories([...defaultCats, ...userCats]); // merge danh mục
+
+        // ✅ Chuẩn hóa đơn giản và giữ lại ID THẬT
+        // Đảm bảo c.id là string UUID hợp lệ từ BE
+        const normalizedCategories = allCategories.map((c) => ({
+          id: c.id, 
+          name: c.name,
+          icon: c.icon || "📁", 
+          color: c.color || "#9CA3AF",
+          is_user_category: !!c.user_id, // Nếu user_id là null, đây là Default Category
+        }));
+
+        setCategories(normalizedCategories);
       } catch (err) {
         console.error(err);
         toast.error("Không thể tải dữ liệu thu nhập hoặc danh mục!");
       }
     })();
   }, []);
-
-  // ✅ Chuẩn bị dữ liệu cho biểu đồ
+  
+  // ✅ Chuẩn bị dữ liệu cho biểu đồ (Giữ nguyên)
   const barData = incomes.map((i) => ({
-    name: i.source,
+    name: i.category_name || "Unknown",
     amount: i.amount,
   }));
-
-  // ✅ Thêm / Cập nhật
+  
+  // ✅ Thêm / Cập nhật (Giữ nguyên)
   const handleSave = async () => {
-    if (!form.source || !form.amount || !form.date || !form.category_id)
+    if (!form.amount || !form.date || !form.category_id)
       return toast.error("Vui lòng nhập đầy đủ thông tin!");
 
     try {
@@ -83,14 +96,14 @@ export default function Income() {
       setIncomes(updatedList);
       setShowModal(false);
       setEditId(null);
-      setForm({ source: "", amount: "", date: "", emoji: "💰", category_id: "" });
+      setForm({ category_name: "", amount: "", date: "", emoji: "💰", category_id: "" });
     } catch (err) {
       console.error(err);
       toast.error("Lỗi khi lưu dữ liệu!");
     }
   };
 
-  // ✅ Xóa thu nhập
+  // ✅ Xóa thu nhập (Giữ nguyên)
   const handleDelete = async (id) => {
     if (!window.confirm("Xác nhận xóa?")) return;
     try {
@@ -102,7 +115,7 @@ export default function Income() {
     }
   };
 
-  // ✅ Xuất Excel
+  // ✅ Xuất Excel (Giữ nguyên)
   const handleDownload = async () => {
     try {
       const token = await auth.currentUser.getIdToken();
@@ -134,14 +147,14 @@ export default function Income() {
     >
       <Toaster position="top-right" />
       <main className="p-8 space-y-8">
-        {/* Header */}
+        {/* Header, Biểu đồ, Danh sách (Giữ nguyên) */}
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Income Management</h1>
           <div className="flex gap-3">
             <button
               onClick={() => {
                 setForm({
-                  source: "",
+                  category_name: "",
                   amount: "",
                   date: "",
                   emoji: "💰",
@@ -218,7 +231,13 @@ export default function Income() {
                       <button
                         onClick={() => {
                           setEditId(inc.id);
-                          setForm(inc);
+                          setForm({
+                            category_name: inc.category_name || "",
+                            amount: inc.amount || "",
+                            date: inc.date || "",
+                            emoji: inc.emoji || "💰",
+                            category_id: inc.category_id || "", 
+                          });
                           setShowModal(true);
                         }}
                         className="text-blue-400 hover:text-blue-500"
@@ -228,7 +247,7 @@ export default function Income() {
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-lg mt-2">{inc.source}</h4>
+                    <h4 className="font-semibold text-lg mt-2">{inc.category_name}</h4>
                     <p className="text-green-400 font-bold">
                       +${inc.amount.toLocaleString()}
                     </p>
@@ -238,7 +257,7 @@ export default function Income() {
                     </p>
                     {inc.category && (
                       <p className="text-sm mt-1">
-                        <span className="mr-1">{inc.category.icon_name}</span>
+                        <span className="mr-1">{inc.category.icon}</span>
                         {inc.category.name}
                       </p>
                     )}
@@ -250,7 +269,7 @@ export default function Income() {
         </div>
       </main>
 
-      {/* Modal thêm/sửa */}
+      {/* 🪟 Modal Add/Edit Income */}
       {showModal && (
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -262,43 +281,77 @@ export default function Income() {
               isDark ? "bg-[#1f2937]" : "bg-white"
             }`}
           >
+            {/* 🏷️ Modal Title */}
             <h2 className="text-xl font-semibold mb-4">
-              {editId ? "Edit Income" : "Add New Income"}
+              {editId ? "Edit Income Record" : "Add New Income"}
             </h2>
-            <div className="space-y-4">
-              {["source", "amount", "date", "emoji"].map((field) => (
-                <div key={field}>
-                  <label className="block text-sm font-medium mb-1 capitalize">
-                    {field}
-                  </label>
-                  <input
-                    type={
-                      field === "amount"
-                        ? "number"
-                        : field === "date"
-                        ? "date"
-                        : "text"
-                    }
-                    name={field}
-                    value={form[field]}
-                    onChange={(e) =>
-                      setForm({ ...form, [field]: e.target.value })
-                    }
-                    className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                      isDark
-                        ? "bg-gray-700 border-gray-600 text-white"
-                        : "bg-gray-100 border-gray-300"
-                    }`}
-                  />
-                </div>
-              ))}
 
-              {/* 🔹 Danh mục có icon + tên */}
+            <div className="space-y-4">
+              {/* 💰 Amount Input (Giữ nguyên)*/}
+              <div>
+                <label className="block text-sm font-medium mb-1">Amount</label>
+                <input
+                  type="number"
+                  name="amount"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  placeholder="Enter income amount"
+                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                    isDark
+                      ? "bg-gray-700 border-gray-600 text-white"
+                      : "bg-gray-100 border-gray-300"
+                  }`}
+                />
+              </div>
+
+              {/* 📅 Date Picker (Giữ nguyên) */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Date</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                    isDark
+                      ? "bg-gray-700 border-gray-600 text-white"
+                      : "bg-gray-100 border-gray-300"
+                  }`}
+                />
+              </div>
+
+              {/* 🗂️ Category Selector */}
               <div>
                 <label className="block text-sm font-medium mb-1">Category</label>
                 <select
-                  value={form.category_id || ""}
-                  onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                  // Đảm bảo giá trị lựa chọn là ID UUID thật
+                  value={form.category_id || ""} 
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    
+                    // Nếu chọn option mặc định (ID trống)
+                    if (!selectedId) {
+                        return setForm({ ...form, category_id: "", category_name: "", emoji: "💰" });
+                    }
+                    
+                    // ✅ KHẮC PHỤC: Sử dụng String() cho cả hai bên để đảm bảo so sánh chuỗi
+                    const found = categories.find((c) => 
+                        String(c.id).toLowerCase() === selectedId.toLowerCase()
+                    ); 
+                    
+                    if (found) {
+                        setForm({
+                            ...form,
+                            category_id: found.id,
+                            category_name: found.name,
+                            emoji: found.icon || "💰",
+                            is_user_category: found.is_user_category,
+                        });
+                    } else {
+                        // Vẫn cảnh báo nếu tìm không thấy, nhưng lỗi này không nên xảy ra
+                        console.warn("Category not found for ID:", selectedId);
+                    }
+                }}
                   className={`w-full px-3 py-2 rounded-lg border outline-none ${
                     isDark
                       ? "bg-gray-700 border-gray-600 text-white"
@@ -306,21 +359,68 @@ export default function Income() {
                   }`}
                 >
                   <option value="">-- Select Category --</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.icon_name ? `${c.icon_name} ` : ""}{c.name}
+                  {/* Đảm bảo c.id được dùng làm value */}
+                  {categories.map((c, idx) => (
+                    <option key={c.id || idx} value={c.id}> 
+                      {c.icon ? `${c.icon} ` : ""}{c.name}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {/* 😄 Emoji Display (Giữ nguyên) */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Selected Emoji</label>
+                <input
+                  type="text"
+                  value={form.emoji}
+                  readOnly
+                  className={`w-full px-3 py-2 rounded-lg border outline-none text-center text-2xl ${
+                    isDark
+                      ? "bg-gray-700 border-gray-600 text-white"
+                      : "bg-gray-100 border-gray-300"
+                  }`}
+                />
+              </div>
+
+              {/* 💾 Save / Update Button (Giữ nguyên) */}
               <button
-                onClick={handleSave}
+                onClick={async () => {
+                  // 🧠 Validate dữ liệu trước khi lưu
+                  if (!form.amount || !form.date || !form.category_id)
+                    return toast.error("Please fill in all required fields!");
+
+                  try {
+                    let updatedList;
+                    if (editId) {
+                      const updated = await updateIncome(editId, form);
+                      updatedList = incomes.map((i) => (i.id === editId ? updated : i));
+                      toast.success("Income updated successfully!");
+                    } else {
+                      const created = await createIncome(form);
+                      updatedList = [...incomes, created];
+                      toast.success("New income added!");
+                    }
+                    setIncomes(updatedList);
+                    setShowModal(false);
+                    setEditId(null);
+                    setForm({
+                      category_name: "",
+                      amount: "",
+                      date: "",
+                      emoji: "💰",
+                      category_id: "",
+                    });
+                  } catch (err) {
+                    console.error(err);
+                    toast.error("Error while saving income!");
+                  }
+                }}
                 className="w-full mt-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2"
               >
-                <DollarSign size={18} /> {editId ? "Update" : "Save"} Income
+                <DollarSign size={18} />
+                {editId ? "Update Income" : "Save Income"}
               </button>
-
             </div>
           </div>
         </div>
@@ -328,4 +428,3 @@ export default function Income() {
     </div>
   );
 }
-

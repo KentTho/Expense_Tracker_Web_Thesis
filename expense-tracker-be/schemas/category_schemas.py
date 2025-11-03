@@ -20,7 +20,8 @@ class CategoryCreate(CategoryBase):
 class CategoryOut(CategoryBase):
     """Schema trả về khi lấy category từ DB"""
     id: UUID
-    user_id: UUID
+    # ✅ Quan trọng: Cho phép user_id là Optional (None) để hỗ trợ Default Category
+    user_id: Optional[UUID] = None
     created_at: datetime
 
     class Config:
@@ -28,7 +29,9 @@ class CategoryOut(CategoryBase):
 
 
 # ✅ Schema dùng cho danh mục mặc định (không có user_id, id, created_at)
+# ✅ Bỏ sử dụng DefaultCategoryOut trong routes để chỉ dùng CategoryOut
 class DefaultCategoryOut(BaseModel):
+    id: Optional[UUID] = None # Giữ lại để tránh lỗi Pydantic
     name: str
     type: str
     icon: Optional[str] = None

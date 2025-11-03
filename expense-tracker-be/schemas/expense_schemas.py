@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date, datetime
@@ -8,7 +10,7 @@ from .category_schemas import CategoryOut
 class ExpenseBase(BaseModel):
     """Schema cơ bản cho bảng chi tiêu"""
     category_name: Optional[str] = None
-    amount: float
+    amount: Decimal
     date: date
     emoji: Optional[str] = None
     category_id: Optional[UUID] = None   # Liên kết Category (nếu có)

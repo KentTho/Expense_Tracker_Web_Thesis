@@ -7,7 +7,6 @@ from decimal import Decimal
 
 class IncomeBase(BaseModel):
     """Schema cơ bản cho bảng thu nhập"""
-    category_name: Optional[str] = None
     amount: Decimal
     date: date
     emoji: Optional[str] = None

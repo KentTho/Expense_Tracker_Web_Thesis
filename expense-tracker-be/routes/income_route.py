@@ -2,8 +2,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-
-import crud
+from cruds.crud_income import list_incomes_for_user, create_income, delete_income, update_income, get_income_summary
 from db.database import get_db
 from schemas import IncomeOut, IncomeCreate
 from services.auth_token_db import get_current_user_db
@@ -17,7 +16,8 @@ def create_income(
     db: Session = Depends(get_db)
 ):
     """Thêm thu nhập mới."""
-    income = crud.create_income(
+    # ✅ Truyền đầy đủ các trường Pydantic xuống CRUD
+    income = create_income(
         db=db,
         user_id=current_user.id,
         category_name=payload.category_name,
@@ -34,7 +34,7 @@ def list_incomes(
     db: Session = Depends(get_db)
 ):
     """Danh sách thu nhập của người dùng."""
-    return crud.list_incomes_for_user(db, current_user.id)
+    return list_incomes_for_user(db, current_user.id)
 
 @router.put("/{income_id}", response_model=IncomeOut)
 def update_income(
@@ -44,7 +44,7 @@ def update_income(
     db: Session = Depends(get_db)
 ):
     """Cập nhật thu nhập."""
-    updated_income = crud.update_income(db, income_id, current_user.id, update_data.dict())
+    updated_income = update_income(db, income_id, current_user.id, update_data.dict())
     if not updated_income:
         raise HTTPException(status_code=404, detail="Income not found")
     return updated_income
@@ -56,7 +56,7 @@ def delete_income(
     db: Session = Depends(get_db)
 ):
     """Xóa thu nhập."""
-    deleted = crud.delete_income(db, income_id, current_user.id)
+    deleted = delete_income(db, income_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Income not found")
     return {"message": "Income deleted successfully"}

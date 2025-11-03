@@ -1,8 +1,7 @@
 from fastapi import Depends, HTTPException, Header
 from firebase_admin import auth as fb_auth
 from sqlalchemy.orm import Session
-
-import crud
+from cruds.crud_user import create_user, get_user_by_firebase_uid
 from db.database import get_db
 
 
@@ -62,14 +61,14 @@ def get_current_user_db(
         raise HTTPException(status_code=401, detail="Invalid token payload: uid missing")
 
     # Tìm user theo firebase_uid
-    user = crud.get_user_by_firebase_uid(db, uid)
+    user = get_user_by_firebase_uid(db, uid)
 
     # Nếu chưa tồn tại -> tự động tạo user
     if not user:
         email = payload.get("email") or f"user_{uid}@noemail.local"
         name = payload.get("name") or payload.get("displayName") or "Unnamed User"
         picture = payload.get("picture")
-        user = crud.create_user(
+        user = create_user(
             db,
             firebase_uid=uid,
             email=email,

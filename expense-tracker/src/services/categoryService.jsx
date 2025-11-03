@@ -1,5 +1,6 @@
 import { BACKEND_BASE } from "./api";
 import { auth } from "../components/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 export const getToken = async () => {
   // 🔹 Nếu user chưa sẵn sàng, chờ cho đến khi Firebase trả về user
@@ -16,20 +17,14 @@ export const getToken = async () => {
   return await user.getIdToken();
 };
 
-// ✅ Lấy danh mục mặc định (income / expense)
-export async function getDefaultCategories(type) {
-  const token = await getToken();
-  const res = await fetch(`${BACKEND_BASE}/categories/default/${type}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("Không thể tải danh mục mặc định!");
-  return res.json();
-}
+// ❌ LOẠI BỎ getDefaultCategories() vì nó không còn cần thiết
+// API /categories?type={type} đã trả về Default Categories từ DB
 
-// ✅ Lấy tất cả danh mục
+// ✅ Lấy tất cả danh mục (bao gồm User-defined và Default từ DB)
 export async function getCategories(type) {
   const token = await getToken();
-  const res = await fetch(`${BACKEND_BASE}/categories?type=${type}`, {
+  // Giả định BE đã sửa route /categories để trả về cả user_id=None (Default)
+  const res = await fetch(`${BACKEND_BASE}/categories?type=${type}`, { 
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -41,7 +36,7 @@ export async function getCategories(type) {
   return await res.json();
 }
 
-// ✅ Tạo danh mục mới
+// (Giữ nguyên createCategory, updateCategory, deleteCategory)
 export async function createCategory(payload) {
   const token = await getToken();
   const res = await fetch(`${BACKEND_BASE}/categories`, {
@@ -57,7 +52,6 @@ export async function createCategory(payload) {
   return await res.json();
 }
 
-// ✅ Cập nhật danh mục
 export async function updateCategory(id, payload) {
   const token = await getToken();
   const res = await fetch(`${BACKEND_BASE}/categories/${id}`, {
@@ -73,7 +67,6 @@ export async function updateCategory(id, payload) {
   return await res.json();
 }
 
-// ✅ Xóa danh mục
 export async function deleteCategory(id) {
   const token = await getToken();
   const res = await fetch(`${BACKEND_BASE}/categories/${id}`, {

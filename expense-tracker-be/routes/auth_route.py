@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 from db.database import get_db
-import crud
 from schemas import UserOut, UserSyncPayload, UserUpdate
 from services.auth_token_db import extract_token, verify_token_and_get_payload, get_current_user_db
-
+from cruds.crud_user import get_user_by_email, create_user, get_user_by_firebase_uid
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/sync", response_model=UserOut)
@@ -17,9 +16,9 @@ def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Se
     name = payload.display_name or decoded.get("name")
     picture = decoded.get("picture")
 
-    user = crud.get_user_by_firebase_uid(db, uid)
+    user = get_user_by_firebase_uid(db, uid)
     if not user:
-        user = crud.create_user(db, firebase_uid=uid, email=email, name=name, profile_image=picture)
+        user = create_user(db, firebase_uid=uid, email=email, name=name, profile_image=picture)
     else:
         updated = False
         if email and user.email != email:
