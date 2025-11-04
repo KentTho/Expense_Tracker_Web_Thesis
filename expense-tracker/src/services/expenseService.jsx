@@ -81,11 +81,15 @@ export async function createExpense(data) {
   return await res.json();
 }
 
-// 📄 GET All Expenses
+// expenseService.jsx
+
+// (Giữ nguyên các hàm khác)
+
+// 🔍 GET Expenses List
 export async function getExpenses() {
   const token = await getToken();
 
-  const res = await fetch(`${BACKEND_BASE}/expenses/`, { // Backend route: GET /expenses/
+  const res = await fetch(`${BACKEND_BASE}/expenses/`, {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -99,8 +103,13 @@ export async function getExpenses() {
         throw new Error(errText || "Failed to fetch expenses!");
     }
   }
-  return await res.json();
+
+  // ✅ ĐÃ SỬA: Trả về trường 'items' chứa danh sách giao dịch
+  const data = await res.json();
+  return data.items || []; 
 }
+
+// (Giữ nguyên các hàm khác)
 
 // ✏️ UPDATE Expense
 export async function updateExpense(id, data) {

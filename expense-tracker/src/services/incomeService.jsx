@@ -64,7 +64,10 @@ export async function createIncome(data) {
   return await res.json();
 }
 
-// (Giữ nguyên getIncomes, updateIncome, deleteIncome)
+// incomeService.jsx
+
+// (Giữ nguyên các hàm khác)
+
 export async function getIncomes() {
   const token = await getToken();
 
@@ -75,10 +78,21 @@ export async function getIncomes() {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(err.detail || "Failed to fetch incomes!");
+    // ✅ Có vẻ có lỗi trong logic error handling cũ của bạn, nên tôi sửa lại cho đồng bộ
+    try {
+        const errJson = JSON.parse(err);
+        throw new Error(errJson.detail || "Failed to fetch incomes!");
+    } catch (e) {
+        throw new Error(err || "Failed to fetch incomes!");
+    }
   }
-  return await res.json();
+  
+  // ✅ ĐÃ SỬA: Trả về trường 'items' chứa danh sách giao dịch
+  const data = await res.json();
+  return data.items || [];
 }
+
+// (Giữ nguyên các hàm khác)
 
 export async function updateIncome(id, data) {
   const token = await getToken();
@@ -113,5 +127,29 @@ export async function deleteIncome(id) {
     throw new Error(err);
   }
 
+  return await res.json();
+}
+
+
+// ====================================================
+// 📊 GET Income Summary (Thêm mới)
+// ====================================================
+export async function getIncomeSummary() {
+  const token = await getToken();
+
+  const res = await fetch(`${BACKEND_BASE}/incomes/summary`, { // Backend route: GET /incomes/summary
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    try {
+        const errJson = JSON.parse(errText);
+        throw new Error(errJson.detail || "Failed to fetch income summary!");
+    } catch (e) {
+        throw new Error(errText || "Failed to fetch income summary!");
+    }
+  }
   return await res.json();
 }

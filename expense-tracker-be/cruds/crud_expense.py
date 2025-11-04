@@ -6,7 +6,7 @@ from sqlalchemy import func
 import models
 from typing import Optional
 from fastapi import HTTPException  # Cần thiết cho các hàm khác
-
+from sqlalchemy.orm import Session, joinedload
 
 def create_expense(
         db: Session,
@@ -75,14 +75,29 @@ def create_expense(
 
 
 def list_expenses_for_user(db: Session, user_id: UUID):
-    """📄 Lấy danh sách chi tiêu"""
-    return (
+    """💸 Lấy danh sách chi tiêu của người dùng, tải kèm thông tin Category."""
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # ✅ ĐÃ SỬA: SỬ DỤNG joinedload ĐỂ TẢI MỐI QUAN HỆ Category
+    expenses = (
         db.query(models.Expense)
+        .options(joinedload(models.Expense.category)) # ⬅️ QUAN TRỌNG: Tải Category
         .filter(models.Expense.user_id == user_id)
-        .order_by(models.Expense.date.desc())
+        .order_by(models.Expense.date.desc()) # Thêm sắp xếp cho gọn
         .all()
     )
 
+    # TRẢ VỀ CẤU TRÚC ĐỒNG BỘ VỚI ExpenseListOut Schema (nếu có)
+    # Giả định bạn có Schema ExpenseListOut chứa các trường này
+    return {
+        "items": expenses,
+        # Nếu user chưa có trường currency_code/symbol, hãy thêm kiểm tra
+        "currency_code": getattr(user, 'currency_code', 'USD'),
+        "currency_symbol": getattr(user, 'currency_symbol', '$'),
+    }
 
 def update_expense(db: Session, expense_id: UUID, user_id: UUID, update_data: dict):
     """✏️ Cập nhật thông tin chi tiêu"""

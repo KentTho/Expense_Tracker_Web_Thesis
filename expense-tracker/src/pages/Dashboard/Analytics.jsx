@@ -1,329 +1,528 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
-  Calendar,
-  Filter,
-  BarChart3,
-  PieChart,
-  Download,
+    Calendar,
+    Filter,
+    BarChart3,
+    PieChart,
+    Download,
+    Loader2,
 } from "lucide-react";
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  Tooltip,
-  Pie,
-  PieChart as RePieChart,
-  Cell,
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    Tooltip,
+    Pie,
+    PieChart as RePieChart,
+    Cell, 
 } from "recharts";
+import toast, { Toaster } from "react-hot-toast";
+
+// ✅ IMPORTS DỊCH VỤ CƠ BẢN
+import { getIncomes } from "../../services/incomeService";
+import { getExpenses } from "../../services/expenseService";
+
+// ✅ IMPORTS MỚI: DÙNG ĐỂ LẤY TẤT CẢ CATEGORIES CHO FILTER
+import { getCategories } from "../../services/categoryService"; 
 
 export default function Analytics() {
-  const { theme } = useOutletContext();
-  const isDark = theme === "dark";
+    const { theme } = useOutletContext();
+    const isDark = theme === "dark";
 
-  // Mock data
-  const [transactions, setTransactions] = useState([
-    { id: 1, type: "income", category: "Salary", amount: 1200, date: "2025-09-01" },
-    { id: 2, type: "expense", category: "Food", amount: 50, date: "2025-09-02" },
-    { id: 3, type: "expense", category: "Transport", amount: 20, date: "2025-09-03" },
-    { id: 4, type: "income", category: "Freelance", amount: 500, date: "2025-09-10" },
-    { id: 5, type: "expense", category: "Entertainment", amount: 100, date: "2025-09-12" },
-  ]);
+    const [transactions, setTransactions] = useState([]); // All combined transactions
+    // Categories for the filter dropdown
+    const [categories, setCategories] = useState([]); 
+    const [loading, setLoading] = useState(false); // Loading state
 
-  const [filters, setFilters] = useState({
-    type: "all",
-    category: "all",
-    startDate: "",
-    endDate: "",
-  });
+    const [filters, setFilters] = useState({
+        type: "all",
+        category: "all",
+        startDate: "",
+        endDate: "",
+    });
 
-  const [filteredData, setFilteredData] = useState([]);
+    const [filteredData, setFilteredData] = useState([]);
 
-  // --- Xử lý lọc dữ liệu ---
-  useEffect(() => {
-    let data = [...transactions];
-    if (filters.type !== "all") data = data.filter((t) => t.type === filters.type);
-    if (filters.category !== "all") data = data.filter((t) => t.category === filters.category);
-    if (filters.startDate)
-      data = data.filter((t) => new Date(t.date) >= new Date(filters.startDate));
-    if (filters.endDate)
-      data = data.filter((t) => new Date(t.date) <= new Date(filters.endDate));
-    setFilteredData(data);
-  }, [filters, transactions]);
+// ----------------------------------------------------
+// 🧩 Function to fetch and normalize all data (Giữ nguyên logic trước đó)
+// ----------------------------------------------------
+const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    try {
+        const [incomesResult, expensesResult, incomeCats, expenseCats] = await Promise.all([
+            getIncomes(),
+            getExpenses(),
+            getCategories('income'),
+            getCategories('expense'), 
+        ]);
 
-  // --- Tổng thu nhập & chi tiêu ---
-  const totalIncome = filteredData
-    .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0);
-  const totalExpense = filteredData
-    .filter((t) => t.type === "expense")
-    .reduce((sum, t) => sum + t.amount, 0);
-  const totalBalance = totalIncome - totalExpense;
+        const incomes = Array.isArray(incomesResult) ? incomesResult : [];
+        const expenses = Array.isArray(expensesResult) ? expensesResult : [];
+        const fetchedIncomeCats = Array.isArray(incomeCats) ? incomeCats : [];
+        const fetchedExpenseCats = Array.isArray(expenseCats) ? expenseCats : [];
+        
+        // 1. Gộp tất cả categories thành Map để tìm kiếm nhanh
+        const categoryMap = new Map();
+        const allFetchedCategories = [...fetchedIncomeCats, ...fetchedExpenseCats];
+        
+        allFetchedCategories.forEach(c => {
+            if (c.name) {
+                categoryMap.set(c.name, c.emoji || c.icon || ""); 
+            }
+        });
 
-  // --- Biểu đồ ---
-  const barData = [
-    { name: "Income", amount: totalIncome },
-    { name: "Expense", amount: totalExpense },
-  ];
+        // 2. Normalize and combine transactions
+        const allTransactions = [
+            ...incomes.map((inc) => {
+                const categoryName = inc.category?.name || inc.category_name || "N/A";
+                return {
+                    id: inc.id,
+                    type: "income",
+                    category: categoryName, 
+                    amount: Number(inc.amount),
+                    date: inc.date,
+                    emoji: inc.emoji || inc.category?.emoji || inc.category?.icon || categoryMap.get(categoryName) || "💰",
+                };
+            }),
+            ...expenses.map((exp) => {
+                const categoryName = exp.category?.name || exp.category_name || "N/A";
+                return {
+                    id: exp.id,
+                    type: "expense",
+                    category: categoryName,
+                    amount: Number(exp.amount),
+                    date: exp.date,
+                    emoji: exp.emoji || exp.category?.emoji || exp.category?.icon || categoryMap.get(categoryName) || "💸",
+                };
+            }),
+        ].sort((a, b) => new Date(b.date) - new Date(a.date)); 
 
-  const pieData = filteredData.reduce((acc, cur) => {
-    const found = acc.find((a) => a.category === cur.category);
-    if (found) found.amount += cur.amount;
-    else acc.push({ category: cur.category, amount: cur.amount });
-    return acc;
-  }, []);
+        setTransactions(allTransactions);
 
-  const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
+        // 3. Chuẩn bị danh sách danh mục (name + emoji) cho dropdown
+        const uniqueCategories = new Map();
+        allTransactions.forEach(t => {
+            if (t.category && t.category !== "N/A") {
+                if (!uniqueCategories.has(t.category) || uniqueCategories.get(t.category).emoji === '💰' || uniqueCategories.get(t.category).emoji === '💸') {
+                    uniqueCategories.set(t.category, { name: t.category, emoji: t.emoji });
+                }
+            }
+        });
+        
+        allFetchedCategories.forEach(c => {
+            if (c.name) {
+                uniqueCategories.set(c.name, { name: c.name, emoji: c.emoji || c.icon || (c.type === 'income' ? '💰' : '💸') });
+            }
+        });
 
-  const handleDownloadReport = () => {
-    alert("📄 Download report (Excel/PDF) — connect to backend API here!");
-  };
+        setCategories(Array.from(uniqueCategories.values()).sort((a, b) => a.name.localeCompare(b.name)));
 
-  return (
-    <div
-      className={`min-h-screen transition-colors duration-300 ${
-        isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
-      }`}
-    >
-      <main className="p-8 space-y-8">
-        {/* --- Header --- */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <BarChart3 className="text-blue-500" /> Analytics Dashboard
-          </h1>
+    } catch (error) {
+        console.error("Error fetching data:", error);
+        toast.error("Failed to load analytics data. Please check connection and authentication.");
+    } finally {
+        setLoading(false);
+    }
+}, []);
 
-          <button
-            onClick={handleDownloadReport}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition"
-          >
-            <Download size={18} /> Export Report
-          </button>
-        </div>
+    // ----------------------------------------------------
+    // ⬇️ Function to Export Data to CSV (MỚI)
+    // ----------------------------------------------------
+    const exportToCSV = (data, filename) => {
+        if (data.length === 0) {
+            toast.error("No data to export based on current filters.");
+            return;
+        }
 
-        {/* --- Bộ lọc --- */}
+        // 1. Định nghĩa Headers (Sử dụng tiêu đề tiếng Việt và loại bỏ 'emoji' và 'id')
+        const headers = ["ID", "Date", "Type", "Category", "Amount"];
+        
+        // 2. Tạo nội dung CSV
+        const csvContent = 
+            // Header Row
+            headers.join(",") + "\n" + 
+            // Data Rows
+            data.map(t => [
+                // Loại bỏ emoji khỏi Category Name khi xuất ra file
+                `"${t.id}"`,
+                `"${t.date}"`,
+                `"${t.type.charAt(0).toUpperCase() + t.type.slice(1)}"`, // Type
+                `"${t.category.replace(/"/g, '""')}"`, // Category (Escape quotes)
+                t.amount // Amount
+            ].join(",")).join("\n");
+
+        // 3. Kích hoạt tải file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success(`Exported ${data.length} transactions to ${filename}`);
+    };
+
+    // ----------------------------------------------------
+    // 🔄 Handler cho nút Export
+    // ----------------------------------------------------
+    const handleDownloadReport = () => {
+        const filename = `Transactions_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+        // ✅ GỌI HÀM EXPORT MỚI VỚI DỮ LIỆU ĐÃ LỌC
+        exportToCSV(filteredData, filename);
+    };
+
+
+    // ----------------------------------------------------
+    // 🔄 Initial Data Fetch (Giữ nguyên)
+    // ----------------------------------------------------
+    useEffect(() => {
+        fetchTransactions();
+    }, [fetchTransactions]);
+
+// ----------------------------------------------------
+// ⚙️ Xử lý lọc dữ liệu (Giữ nguyên)
+// ----------------------------------------------------
+    useEffect(() => {
+        let data = [...transactions];
+        if (filters.type !== "all")
+            data = data.filter((t) => t.type === filters.type);
+        if (filters.category !== "all")
+            data = data.filter((t) => t.category === filters.category);
+
+        const startDate = filters.startDate ? new Date(filters.startDate) : null;
+        const endDate = filters.endDate ? new Date(filters.endDate) : null;
+
+        if (startDate)
+            data = data.filter((t) => new Date(t.date) >= startDate);
+
+        if (endDate) {
+            const endOfDay = new Date(endDate);
+            endOfDay.setDate(endOfDay.getDate() + 1);
+            data = data.filter((t) => new Date(t.date) < endOfDay);
+        }
+
+        setFilteredData(data);
+    }, [filters, transactions]);
+
+
+    // --- Total Income & Expense (Giữ nguyên) ---
+    const totalIncome = filteredData
+        .filter((t) => t.type === "income")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const totalExpense = filteredData
+        .filter((t) => t.type === "expense")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const totalBalance = totalIncome - totalExpense;
+
+    // --- Chart Data (Giữ nguyên) ---
+    const barData = [
+        { name: "Income", amount: totalIncome, color: "#10B981" },
+        { name: "Expense", amount: totalExpense, color: "#EF4444" },
+    ];
+
+    const pieData = filteredData
+        .filter(t => filters.type === 'all' || t.type === filters.type)
+        .reduce((acc, cur) => {
+            const found = acc.find((a) => a.category === cur.category);
+            if (found) found.amount += cur.amount;
+            else acc.push({ category: cur.category, amount: cur.amount });
+            return acc;
+        }, [])
+        .sort((a, b) => b.amount - a.amount);
+
+    const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#C084FC", "#F472B6", "#1D4ED8", "#059669"];
+
+
+    return (
         <div
-          className={`p-6 rounded-2xl shadow-lg ${
-            isDark ? "bg-[#1e293b]" : "bg-white"
-          }`}
+            className={`min-h-screen transition-colors duration-300 ${
+                isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
+            } relative`}
         >
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Filter /> Filter Options
-          </h3>
+            {/* ⚠️ Loading Overlay */}
+            {loading && (
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <Loader2 className="animate-spin text-white h-10 w-10" />
+                </div>
+            )}
+            
+            <Toaster position="top-right" reverseOrder={false} />
 
-          <div className="grid grid-cols-4 gap-4">
-            {/* Loại giao dịch */}
-            <div>
-              <label className="block text-sm mb-1">Transaction Type</label>
-              <select
-                value={filters.type}
-                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg border ${
-                  isDark
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              >
-                <option value="all">All</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-              </select>
-            </div>
+            <main className="p-8 space-y-8">
+                {/* ... (Header) ... */}
+                <div className="flex justify-between items-center">
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        <BarChart3 className="text-blue-500" /> Analytics Dashboard
+                    </h1>
 
-            {/* Danh mục */}
-            <div>
-              <label className="block text-sm mb-1">Category</label>
-              <select
-                value={filters.category}
-                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg border ${
-                  isDark
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              >
-                <option value="all">All</option>
-                <option value="Salary">Salary</option>
-                <option value="Food">Food</option>
-                <option value="Transport">Transport</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="Freelance">Freelance</option>
-              </select>
-            </div>
+                    {/* ✅ Nút Export Report ĐÃ KÍCH HOẠT */}
+                    <button
+                        onClick={handleDownloadReport}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition"
+                    >
+                        <Download size={18} /> Export Report
+                    </button>
+                </div>
 
-            {/* Ngày bắt đầu */}
-            <div>
-              <label className="block text-sm mb-1">Start Date</label>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg border ${
-                  isDark
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              />
-            </div>
-
-            {/* Ngày kết thúc */}
-            <div>
-              <label className="block text-sm mb-1">End Date</label>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg border ${
-                  isDark
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* --- Tổng hợp thống kê --- */}
-        <div className="grid grid-cols-3 gap-6">
-          <div
-            className={`p-6 rounded-2xl shadow-lg flex flex-col justify-between ${
-              isDark ? "bg-[#1e293b]" : "bg-white"
-            }`}
-          >
-            <h3 className="text-lg font-semibold mb-3">Total Balance</h3>
-            <p
-              className={`text-3xl font-bold ${
-                totalBalance >= 0 ? "text-green-400" : "text-red-400"
-              }`}
-            >
-              ${totalBalance.toLocaleString()}
-            </p>
-          </div>
-
-          <div
-            className={`p-6 rounded-2xl shadow-lg ${
-              isDark ? "bg-[#1e293b]" : "bg-white"
-            }`}
-          >
-            <h3 className="text-lg font-semibold mb-3">Total Income</h3>
-            <p className="text-3xl font-bold text-green-400">
-              ${totalIncome.toLocaleString()}
-            </p>
-          </div>
-
-          <div
-            className={`p-6 rounded-2xl shadow-lg ${
-              isDark ? "bg-[#1e293b]" : "bg-white"
-            }`}
-          >
-            <h3 className="text-lg font-semibold mb-3">Total Expense</h3>
-            <p className="text-3xl font-bold text-red-400">
-              ${totalExpense.toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        {/* --- Biểu đồ --- */}
-        <div className="grid grid-cols-2 gap-6">
-          {/* Bar Chart */}
-          <div
-            className={`p-6 rounded-2xl shadow-lg ${
-              isDark ? "bg-[#1e293b]" : "bg-white"
-            }`}
-          >
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <BarChart3 /> Income vs Expense
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={barData}>
-                <XAxis dataKey="name" stroke={isDark ? "#94A3B8" : "#334155"} />
-                <Tooltip
-                  contentStyle={{
-                    background: isDark ? "#1E293B" : "#F1F5F9",
-                    border: "none",
-                  }}
-                />
-                <Bar dataKey="amount" fill="#3B82F6" radius={6} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Pie Chart */}
-          <div
-            className={`p-6 rounded-2xl shadow-lg ${
-              isDark ? "bg-[#1e293b]" : "bg-white"
-            }`}
-          >
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <PieChart /> Category Distribution
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <RePieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="amount"
-                  nameKey="category"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  fill="#8884d8"
-                  label
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-              </RePieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* --- Bảng thống kê --- */}
-        <div
-          className={`p-6 rounded-2xl shadow-lg ${
-            isDark ? "bg-[#1e293b]" : "bg-white"
-          }`}
-        >
-          <h3 className="text-lg font-semibold mb-3">Detailed Transactions</h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr
-                className={`border-b ${
-                  isDark ? "border-gray-700" : "border-gray-200"
-                }`}
-              >
-                <th className="text-left py-2">Date</th>
-                <th className="text-left py-2">Type</th>
-                <th className="text-left py-2">Category</th>
-                <th className="text-right py-2">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((t) => (
-                <tr
-                  key={t.id}
-                  className={`border-b ${
-                    isDark ? "border-gray-700" : "border-gray-200"
-                  }`}
-                >
-                  <td className="py-2">{t.date}</td>
-                  <td
-                    className={`py-2 font-medium ${
-                      t.type === "income" ? "text-green-400" : "text-red-400"
+                {/* --- Bộ lọc (Giữ nguyên logic Category đã cập nhật) --- */}
+                <div
+                    className={`p-6 rounded-2xl shadow-lg ${
+                        isDark ? "bg-[#1e293b]" : "bg-white"
                     }`}
-                  >
-                    {t.type}
-                  </td>
-                  <td className="py-2">{t.category}</td>
-                  <td className="py-2 text-right font-semibold">
-                    ${t.amount.toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                >
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Filter /> Filter Options
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        {/* Loại giao dịch (Giữ nguyên) */}
+                        <div>
+                            <label className="block text-sm mb-1">Transaction Type</label>
+                            <select
+                                value={filters.type}
+                                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                                className={`w-full px-3 py-2 rounded-lg border ${
+                                    isDark
+                                        ? "bg-gray-700 border-gray-600 text-white"
+                                        : "bg-gray-100 border-gray-300"
+                                }`}
+                            >
+                                <option value="all">All</option>
+                                <option value="income">Income</option>
+                                <option value="expense">Expense</option>
+                            </select>
+                        </div>
+
+                        {/* Danh mục (Dynamic) - Đã có Emoji */}
+                        <div>
+                            <label className="block text-sm mb-1">Category</label>
+                            <select
+                                value={filters.category}
+                                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                                className={`w-full px-3 py-2 rounded-lg border ${
+                                    isDark
+                                        ? "bg-gray-700 border-gray-600 text-white"
+                                        : "bg-gray-100 border-gray-300"
+                                }`}
+                            >
+                                <option value="all">All</option>
+                                {categories.map((cat) => (
+                                    <option key={cat.name} value={cat.name}>
+                                        {cat.emoji ? `${cat.emoji} ` : ""}{cat.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Ngày bắt đầu (Giữ nguyên) */}
+                        <div>
+                            <label className="block text-sm mb-1">Start Date</label>
+                            <input
+                                type="date"
+                                value={filters.startDate}
+                                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                                className={`w-full px-3 py-2 rounded-lg border ${
+                                    isDark
+                                        ? "bg-gray-700 border-gray-600 text-white"
+                                        : "bg-gray-100 border-gray-300"
+                                }`}
+                            />
+                        </div>
+
+                        {/* Ngày kết thúc (Giữ nguyên) */}
+                        <div>
+                            <label className="block text-sm mb-1">End Date</label>
+                            <input
+                                type="date"
+                                value={filters.endDate}
+                                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                                className={`w-full px-3 py-2 rounded-lg border ${
+                                    isDark
+                                        ? "bg-gray-700 border-gray-600 text-white"
+                                        : "bg-gray-100 border-gray-300"
+                                }`}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- Tổng hợp thống kê (Giữ nguyên) --- */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div
+                        className={`p-6 rounded-2xl shadow-lg flex flex-col justify-between ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3">Total Balance</h3>
+                        <p
+                            className={`text-3xl font-bold ${
+                                totalBalance >= 0 ? "text-green-400" : "text-red-400"
+                            }`}
+                        >
+                            ${totalBalance.toLocaleString()}
+                        </p>
+                    </div>
+
+                    <div
+                        className={`p-6 rounded-2xl shadow-lg ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3">Total Income</h3>
+                        <p className="text-3xl font-bold text-green-400">
+                            ${totalIncome.toLocaleString()}
+                        </p>
+                    </div>
+
+                    <div
+                        className={`p-6 rounded-2xl shadow-lg ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3">Total Expense</h3>
+                        <p className="text-3xl font-bold text-red-400">
+                            ${totalExpense.toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+
+                {/* --- Biểu đồ (Giữ nguyên) --- */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Bar Chart (Giữ nguyên) */}
+                    <div
+                        className={`p-6 rounded-2xl shadow-lg ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                            <BarChart3 /> Income vs Expense
+                        </h3>
+                        <ResponsiveContainer width="100%" height={250}>
+                            <BarChart data={barData}>
+                                <XAxis dataKey="name" stroke={isDark ? "#94A3B8" : "#334155"} />
+                                <Tooltip
+                                    formatter={(value) => [`$${value.toLocaleString()}`, "Amount"]}
+                                    contentStyle={{
+                                        background: isDark ? "#1E293B" : "#F1F5F9",
+                                        border: "none",
+                                    }}
+                                    itemStyle={{ color: isDark ? "#E2E8F0" : "#334155" }}
+                                />
+                                <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                                    {barData.map((entry, index) => (
+                                        <Cell key={`cell-${entry.name}`} fill={entry.color} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Pie Chart (Giữ nguyên) */}
+                    <div
+                        className={`p-6 rounded-2xl shadow-lg ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                            <PieChart /> Category Distribution ({filters.type === 'all' ? 'All Transactions' : filters.type === 'income' ? 'Income' : 'Expense'})
+                        </h3>
+                         <div className="flex justify-center items-center h-[250px]">
+                            {pieData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <RePieChart>
+                                        <Pie
+                                            data={pieData}
+                                            dataKey="amount"
+                                            nameKey="category"
+                                            cx="50%"
+                                            cy="50%"
+                                            outerRadius={90}
+                                            labelLine={false}
+                                            label={({ category, percent }) => `${category} (${(percent * 100).toFixed(0)}%)`}
+                                        >
+                                            {pieData.map((entry, index) => (
+                                                <Cell key={`cell-${entry.category}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            formatter={(value, name, props) => [`$${value.toLocaleString()}`, props.payload.category]}
+                                            contentStyle={{
+                                                background: isDark ? "#1E293B" : "#F1F5F9",
+                                                border: "none",
+                                            }}
+                                            itemStyle={{ color: isDark ? "#E2E8F0" : "#334155" }}
+                                        />
+                                    </RePieChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <p className="text-gray-500">No category data for the selected filters.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- Bảng thống kê (Giữ nguyên) --- */}
+                <div
+                    className={`p-6 rounded-2xl shadow-lg ${
+                        isDark ? "bg-[#1e293b]" : "bg-white"
+                    }`}
+                >
+                    <h3 className="text-lg font-semibold mb-3">Detailed Transactions</h3>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr
+                                    className={`border-b ${
+                                        isDark ? "border-gray-700" : "border-gray-200"
+                                    }`}
+                                >
+                                    <th className="text-left py-2 px-4">Date</th>
+                                    <th className="text-left py-2 px-4">Type</th>
+                                    <th className="text-left py-2 px-4">Category</th>
+                                    <th className="text-right py-2 px-4">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredData.map((t) => (
+                                    <tr
+                                        key={t.id}
+                                        className={`border-b ${
+                                            isDark ? "border-gray-700" : "border-gray-200"
+                                        }`}
+                                    >
+                                        <td className="py-2 px-4">{t.date}</td>
+                                        <td
+                                            className={`py-2 px-4 font-medium ${
+                                                t.type === "income" ? "text-green-400" : "text-red-400"
+                                            }`}
+                                        >
+                                            {t.type.charAt(0).toUpperCase() + t.type.slice(1)}
+                                        </td>
+                                        <td className="py-2 px-4 flex items-center gap-2">
+                                            <span className="text-lg">{t.emoji}</span>
+                                            {t.category}
+                                        </td>
+                                        <td className="py-2 px-4 text-right font-semibold">
+                                            ${t.amount.toLocaleString()}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredData.length === 0 && (
+                                    <tr>
+                                        <td colSpan="4" className="text-center py-4 text-gray-500">
+                                            No transactions found for the selected filters.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
         </div>
-      </main>
-    </div>
-  );
+    );
 }

@@ -11,6 +11,7 @@ from cruds.crud_expense import (
     list_expenses_for_user)
 from db.database import get_db
 from schemas import ExpenseOut, ExpenseCreate
+from schemas.expense_schemas import ExpenseListOut
 from services.auth_token_db import get_current_user_db
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
@@ -28,10 +29,12 @@ def create_expense(payload: ExpenseCreate, current_user=Depends(get_current_user
     )
     return expense
 
-@router.get("/", response_model=List[ExpenseOut])
+# ✅ CẬP NHẬT: Sử dụng response_model=ExpenseListOut
+@router.get("/", response_model=ExpenseListOut)
 def list_expenses(current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
+    """Danh sách chi tiêu của người dùng kèm cài đặt tiền tệ."""
+    # CRUD đã trả về dict có items, currency_code, currency_symbol, khớp với ExpenseListOut
     return list_expenses_for_user(db, current_user.id)
-
 @router.put("/{expense_id}", response_model=ExpenseOut)
 def update_expense(expense_id: UUID, update_data: dict, current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
     updated = crud_update_expense(db, expense_id, current_user.id, update_data)

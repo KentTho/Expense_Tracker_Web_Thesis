@@ -1,21 +1,21 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
     PlusCircle,
-    Trash2,
-    Edit,
-    Download,
-    Calendar,
     TrendingDown,
-    DollarSign, 
+    DollarSign,
     Loader2,
 } from "lucide-react";
 import {
     ResponsiveContainer,
-    LineChart,
-    Line,
-    XAxis,
     Tooltip,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid, // Thêm CartesianGrid cho lưới
+    LineChart, // Thêm LineChart cho xu hướng theo ngày
+    Line,
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -23,383 +23,485 @@ import {
     getExpenses,
     updateExpense,
     deleteExpense,
-    // getExpenseSummary, // Giữ lại nếu cần, nhưng không có trong Income.jsx
-} from "../../services/expenseService"; // Đảm bảo import từ expenseService mới
+} from "../../services/expenseService"; 
 import { getCategories } from "../../services/categoryService"; 
-import { auth } from "../../components/firebase"; // Sửa đường dẫn theo cấu trúc project của bạn
 
 export default function Expense() {
     const { theme } = useOutletContext();
     const isDark = theme === "dark";
 
     const [expenses, setExpenses] = useState([]);
-    const [categories, setCategories] = useState([]); // State để lưu danh mục chi tiêu
-    const [summary, setSummary] = useState([]); // Dữ liệu summary cho biểu đồ
+    const [categories, setCategories] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editId, setEditId] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [form, setForm] = useState({ 
-        category_name: "", 
-        amount: "", 
-        date: new Date().toISOString().split('T')[0], // Mặc định là ngày hôm nay
-        emoji: "🛍️",
-        category_id: "", // Thêm category_id để lưu ID từ dropdown
+    const [loading, setLoading] = useState(false);
+    const [form, setForm] = useState({
+        category_name: "",
+        amount: "",
+        date: new Date().toISOString().split('T')[0],
+        emoji: "💸",
+        category_id: "",
     });
 
-    // ----------------------------------------------------
-    // 🧩 Fetch Data (Expenses & Categories)
-    // ----------------------------------------------------
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
+    // -----------------------------------------------------------------
+    // 🧩 1. Data Fetching
+    // -----------------------------------------------------------------
+    const fetchExpenses = useCallback(async () => {
+        setLoading(true);
         try {
-            // Chờ người dùng xác thực (sử dụng auth.onAuthStateChanged)
-            await new Promise(resolve => {
-                const unsubscribe = auth.onAuthStateChanged(user => {
-                    unsubscribe();
-                    resolve(user);
-                });
-            });
+            const categoriesData = await getCategories("expense");
+            setCategories(categoriesData);
 
-            // Gọi API đồng thời
-            const [expenseList, categoryList] = await Promise.all([
-                getExpenses(),
-                getCategories("expense"), // Lấy danh mục chi tiêu
-            ]);
+            const expensesData = await getExpenses();
 
-            setExpenses(expenseList);
-            setCategories(categoryList);
+            const processedExpenses = expensesData
+                .map(exp => ({
+                    ...exp,
+                    amount: Number(exp.amount),
+                    category_name: exp.category?.name || exp.category_name || 'N/A',
+                    emoji: exp.category?.icon || exp.emoji || '💸'
+                }))
+                // Sắp xếp theo ngày mới nhất (để hiển thị trong bảng)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            // Xử lý summary data nếu cần
-            // (Hiện tại bỏ qua phần này để tập trung vào Category)
+            setExpenses(processedExpenses);
 
-        } catch (err) {
-            console.error("Error fetching data:", err);
-            toast.error("Failed to load data!");
+        } catch (error) {
+            console.error("Error fetching expenses/categories:", error);
+            toast.error("Failed to load expense data.");
+            setExpenses([]); 
+            setCategories([]);
+
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        fetchExpenses();
+    }, [fetchExpenses]);
 
-    // ----------------------------------------------------
-    // 🧩 Handle CRUD Operations
-    // ----------------------------------------------------
-
-    const handleEdit = (expense) => {
-        // Cập nhật form với dữ liệu hiện có
-        setForm({
-            // ✅ Đảm bảo category_name được giữ lại nếu có, nhưng nó sẽ được cập nhật từ dropdown nếu người dùng chọn lại
-            category_name: expense.category_name || expense.category?.name || "",
-            amount: expense.amount,
-            date: expense.date,
-            emoji: expense.emoji || "🛍️",
-            // ✅ Ưu tiên category_id
-            category_id: expense.category?.id || expense.category_id || "", 
-        });
-        setEditId(expense.id);
-        setShowModal(true);
-    };
-
-    const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this expense?")) return;
-
-        try {
-            await deleteExpense(id);
-            setExpenses(expenses.filter((e) => e.id !== id));
-            toast.success("Expense deleted successfully!");
-        } catch (err) {
-            console.error(err);
-            toast.error("Error deleting expense!");
+    // -----------------------------------------------------------------
+    // 🧩 2. Logic Form & CRUD (Giữ nguyên)
+    // -----------------------------------------------------------------
+    useEffect(() => {
+        const selectedCat = categories.find(c => c.id === form.category_id);
+        if (selectedCat) {
+            setForm(prev => ({
+                ...prev,
+                category_name: selectedCat.name,
+                emoji: selectedCat.icon || "💸"
+            }));
         }
-    };
+    }, [form.category_id, categories]);
+
 
     const handleFormSubmit = async () => {
-        // ✅ THAY ĐỔI: Kiểm tra category_id thay vì category_name
-        if (!form.category_id || !form.amount || !form.date) {
-            toast.error("Please fill in all required fields!");
+        if (!form.amount || !form.date || !form.category_id) {
+            toast.error("Please fill all required fields!");
             return;
         }
 
         try {
-            // ... (logic lưu và cập nhật state không đổi)
             let updatedList;
+            let result;
             if (editId) {
-                const updated = await updateExpense(editId, form);
-                updatedList = expenses.map((e) => (e.id === editId ? updated : e));
+                result = await updateExpense(editId, form);
+                updatedList = expenses.map((i) => (i.id === editId ? result : i));
                 toast.success("Expense updated successfully!");
             } else {
-                const created = await createExpense(form);
-                updatedList = [...expenses, created];
+                result = await createExpense(form);
+                updatedList = [result, ...expenses];
                 toast.success("New expense added!");
             }
-            setExpenses(updatedList);
+            
+            setExpenses(updatedList.map(exp => ({
+                ...exp,
+                amount: Number(exp.amount),
+                category_name: exp.category?.name || exp.category_name || 'N/A',
+                emoji: exp.category?.icon || exp.emoji || '💸'
+            })).sort((a, b) => new Date(b.date) - new Date(a.date)));
+
             setShowModal(false);
             setEditId(null);
             setForm({
                 category_name: "",
                 amount: "",
                 date: new Date().toISOString().split('T')[0],
-                emoji: "🛍️",
+                emoji: "💸",
                 category_id: "",
             });
         } catch (err) {
             console.error(err);
-            toast.error("Error while saving expense!");
+            toast.error(`Error while saving expense: ${err.message}`);
+        }
+    };
+    
+    const handleEdit = (expense) => {
+        setForm({
+            category_name: expense.category_name,
+            amount: expense.amount.toString(),
+            date: expense.date,
+            emoji: expense.emoji,
+            category_id: expense.category_id,
+        });
+        setEditId(expense.id);
+        setShowModal(true);
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm("Are you sure you want to delete this expense?")) {
+            try {
+                await deleteExpense(id);
+                setExpenses(expenses.filter((i) => i.id !== id));
+                toast.success("Expense deleted successfully!");
+            } catch (err) {
+                console.error(err);
+                toast.error("Error deleting expense.");
+            }
         }
     };
 
-    // ----------------------------------------------------
-    // 🧩 Render (Biểu đồ, Bảng, Modal)
-    // ----------------------------------------------------
+    // -----------------------------------------------------------------
+    // 🧩 3. Data Summary & Chart Data 
+    // -----------------------------------------------------------------
+    const totalExpense = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
-    const mainBg = isDark ? "bg-gray-800" : "bg-gray-50";
-    const cardBg = isDark ? "bg-gray-700" : "bg-white";
-    const textPrimary = isDark ? "text-white" : "text-gray-900";
-    const textSecondary = isDark ? "text-gray-400" : "text-gray-600";
-    const borderColor = isDark ? "border-gray-600" : "border-gray-300";
+    // 📊 Dữ liệu cho Bar Chart (Summary theo Danh mục)
+    const categoryChartData = useMemo(() => {
+        const dataMap = expenses.reduce((acc, expense) => {
+            const name = expense.category_name || "Khác";
+            acc[name] = (acc[name] || 0) + expense.amount;
+            return acc;
+        }, {});
+        
+        return Object.keys(dataMap)
+            .map(name => ({
+                category: name,
+                total: dataMap[name],
+            }))
+            // Chỉ lấy top 5 danh mục chi tiêu cao nhất
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5); 
 
-    const totalExpense = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0).toFixed(2);
+    }, [expenses]);
+
+    // 📈 Dữ liệu cho Line Chart (Xu hướng chi tiêu theo Ngày)
+    const dailyChartData = useMemo(() => {
+        // Gom nhóm chi tiêu theo ngày (date)
+        const dailyMap = expenses.reduce((acc, expense) => {
+            const dateStr = expense.date; // Ngày đã có format YYYY-MM-DD
+            acc[dateStr] = (acc[dateStr] || 0) + expense.amount;
+            return acc;
+        }, {});
+
+        // Chuyển sang mảng, sắp xếp theo ngày cũ nhất lên trước
+        return Object.keys(dailyMap)
+            .map(date => ({
+                date: date,
+                amount: dailyMap[date],
+            }))
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    }, [expenses]);
     
-    // Giả sử dữ liệu summary đã được xử lý để hiển thị trên biểu đồ LineChart
-    const chartData = summary.length > 0 ? summary : expenses.map(e => ({
-        date: e.date,
-        amount: Number(e.amount)
-    })).sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Custom Label cho Bar Chart (hiển thị số tiền phía trên cột)
+    const renderCustomBarLabel = ({ x, y, width, value }) => {
+        // Chỉ hiển thị label nếu cột đủ rộng
+        if (width < 30) return null; 
 
+        return (
+            <text 
+                x={x + width / 2} 
+                y={y} 
+                fill={isDark ? "#E2E8F0" : "#4A5568"} 
+                textAnchor="middle" 
+                dy={-6} // Đẩy label lên trên cột
+                fontSize={12}
+            >
+                {/* Format số tiền gọn gàng */}
+                ${(value / 1000).toFixed(0)}k 
+            </text>
+        );
+    };
+
+
+    // -----------------------------------------------------------------
+    // 🧩 4. JSX Rendering
+    // -----------------------------------------------------------------
 
     return (
-        <div className={`min-h-screen p-4 md:p-8 ${mainBg} ${textPrimary}`}>
-            <Toaster position="top-right" />
+        <div
+            className={`min-h-screen transition-colors duration-300 ${
+                isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
+            } relative`}
+        >
+            {/* ⚠️ Loading Overlay */}
+            {loading && (
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <Loader2 className="animate-spin text-white h-10 w-10" />
+                </div>
+            )}
 
-            <header className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold flex items-center gap-2">
-                    <TrendingDown size={30} className="text-red-500" />
-                    Expense Tracking
-                </h1>
-                <button
-                    onClick={() => {
-                        setEditId(null);
-                        setForm({
-                            category_name: "",
-                            amount: "",
-                            date: new Date().toISOString().split('T')[0],
-                            emoji: "🛍️",
-                            category_id: "",
-                        });
-                        setShowModal(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg transition"
+            <Toaster position="top-right" reverseOrder={false} />
+
+            <main className="p-8 space-y-8">
+                {/* Header & Add Button (Giữ nguyên) */}
+                <div className="flex justify-between items-center">
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        <TrendingDown className="text-red-500" /> Expense Tracker
+                    </h1>
+                    <button
+                        onClick={() => {
+                            setShowModal(true);
+                            setEditId(null);
+                            setForm({
+                                category_name: "",
+                                amount: "",
+                                date: new Date().toISOString().split('T')[0],
+                                emoji: "💸",
+                                category_id: "",
+                            });
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition"
+                    >
+                        <PlusCircle size={18} /> Add New Expense
+                    </button>
+                </div>
+
+                {/* Summary Card (Giữ nguyên) */}
+                <div
+                    className={`p-6 rounded-2xl shadow-lg flex justify-between items-center ${
+                        isDark ? "bg-[#1e293b]" : "bg-white"
+                    }`}
                 >
-                    <PlusCircle size={20} /> Add New Expense
-                </button>
-            </header>
-
-            {/* Total Summary Card and Chart */}
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6`}>
-                <div className={`${cardBg} p-6 rounded-xl shadow-xl lg:col-span-1 border ${borderColor} flex flex-col justify-between`}>
-                    <h2 className={`text-xl font-semibold mb-2 ${textSecondary}`}>Total Expenses</h2>
-                    <p className="text-4xl font-extrabold text-red-500">${totalExpense}</p>
-                    <p className={`text-sm mt-4 ${textSecondary}`}>Track your spending over time.</p>
+                    <div>
+                        <h3 className="text-lg font-semibold mb-1">Total Expense</h3>
+                        <p className="text-4xl font-bold text-red-500">
+                            ${totalExpense.toLocaleString()}
+                        </p>
+                    </div>
                 </div>
 
-                <div className={`${cardBg} p-4 rounded-xl shadow-xl lg:col-span-2 border ${borderColor} h-72`}>
-                    <h2 className={`text-xl font-semibold mb-2 p-2 ${textSecondary}`}>Expense Trend</h2>
-                    <ResponsiveContainer width="100%" height="90%">
-                        {isLoading ? (
-                            <div className="flex items-center justify-center h-full">
-                                <Loader2 className="animate-spin text-red-500" size={32} />
-                            </div>
-                        ) : (
-                            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                <XAxis dataKey="date" stroke={isDark ? "#ccc" : "#333"} />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: isDark ? "#374151" : "#fff",
-                                        borderColor: isDark ? "#4b5563" : "#d1d5db",
-                                        borderRadius: "8px",
-                                    }}
-                                    formatter={(value) => [`$${Number(value).toFixed(2)}`, "Amount"]}
-                                    labelStyle={{ color: isDark ? "#fff" : "#333" }}
-                                />
-                                <Line type="monotone" dataKey="amount" stroke="#EF4444" strokeWidth={2} dot={false} />
-                            </LineChart>
-                        )}
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Expense List */}
-            <div className={`${cardBg} p-4 md:p-6 rounded-xl shadow-xl border ${borderColor}`}>
-                <h2 className={`text-xl font-semibold mb-4 ${textSecondary}`}>Recent Transactions ({expenses.length})</h2>
-                {isLoading ? (
-                    <div className="flex items-center justify-center h-32">
-                        <Loader2 className="animate-spin text-red-500" size={32} />
-                    </div>
-                ) : expenses.length === 0 ? (
-                    <p className="text-center p-4 text-gray-400">No expenses recorded yet. Start by adding a new transaction!</p>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
-                            <thead>
-                                <tr className={`${isDark ? "bg-gray-600" : "bg-gray-100"} text-left text-sm font-medium ${textSecondary}`}>
-                                    <th className="px-6 py-3">Emoji</th>
-                                    <th className="px-6 py-3">Category</th>
-                                    <th className="px-6 py-3">Amount</th>
-                                    <th className="px-6 py-3">Date</th>
-                                    <th className="px-6 py-3 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {expenses.map((expense) => (
-                                    <tr key={expense.id} className={`${isDark ? "hover:bg-gray-600/50" : "hover:bg-gray-50"} transition`}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-xl">{expense.emoji}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap font-medium">{expense.category_name}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-red-500 font-semibold">
-                                            -${Number(expense.amount).toFixed(2)}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm">{expense.date}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => handleEdit(expense)}
-                                                className={`text-blue-500 hover:text-blue-700 mr-3 p-1 rounded transition ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-200"}`}
-                                                aria-label="Edit Expense"
-                                            >
-                                                <Edit size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(expense.id)}
-                                                className={`text-red-500 hover:text-red-700 p-1 rounded transition ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-200"}`}
-                                                aria-label="Delete Expense"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-
-            {/* Modal for Add/Edit Expense */}
-            {/* Modal for Add/Edit Expense */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-                    <div className={`${cardBg} rounded-xl shadow-2xl w-full max-w-lg p-6 relative border ${borderColor}`}>
-                        <h2 className="text-2xl font-bold mb-4 text-red-500">
-                            {editId ? "Edit Expense" : "Add New Expense"}
-                        </h2>
-                        <button
-                            onClick={() => setShowModal(false)}
-                            className={`absolute top-4 right-4 text-gray-500 hover:text-red-500 p-2 rounded-full transition ${isDark ? "hover:bg-gray-600" : "hover:bg-gray-100"}`}
-                        >
-                            <PlusCircle size={20} className="rotate-45" />
-                        </button>
-
-                        <div className="space-y-4">
-                            
-                            <div className="flex flex-col gap-4 md:flex-row">
-                                {/* ✅ THAY THẾ Category Name Input bằng Category Selector (Dropdown) */}
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium mb-1">Category</label>
-                                    <select
-                                        // ✅ Sử dụng category_id làm value
-                                        value={form.category_id || ""}
-                                        onChange={(e) => {
-                                            const selectedId = e.target.value;
-                                            
-                                            if (!selectedId) {
-                                                return setForm({ ...form, category_id: "", category_name: "", emoji: "🛍️" });
-                                            }
-                                            
-                                            // Tìm danh mục đã chọn
-                                            const found = categories.find((c) => 
-                                                String(c.id).toLowerCase() === selectedId.toLowerCase()
-                                            ); 
-                                            
-                                            if (found) {
-                                                setForm({
-                                                    ...form,
-                                                    category_id: found.id,
-                                                    category_name: found.name,
-                                                    emoji: found.icon || "🛍️",
-                                                    // Giả định categories từ BE không có is_user_category, 
-                                                    // nhưng ta vẫn gửi category_name và category_id
-                                                });
-                                            } else {
-                                                console.warn("Category not found for ID:", selectedId);
-                                            }
+                {/* Chart Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* 📊 CHART CARD 1: Bar Chart (Tổng chi tiêu theo danh mục) */}
+                    <div
+                        className={`lg:col-span-2 p-6 rounded-2xl shadow-lg ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3">Top 5 Expense by Category</h3>
+                        <div style={{ width: '100%', height: 350 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart 
+                                    data={categoryChartData}
+                                    layout="vertical" // Biểu đồ cột ngang dễ đọc tên danh mục hơn
+                                    margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#E2E8F0"} />
+                                    <XAxis 
+                                        type="number" 
+                                        stroke={isDark ? "#94A3B8" : "#334155"}
+                                        tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`} // Format trục X
+                                    />
+                                    <YAxis 
+                                        dataKey="category" 
+                                        type="category" 
+                                        stroke={isDark ? "#94A3B8" : "#334155"}
+                                        width={80} // Tăng chiều rộng để tránh cắt tên danh mục
+                                    />
+                                    <Tooltip
+                                        formatter={(value) => [`$${value.toLocaleString()}`, "Total Expense"]}
+                                        contentStyle={{
+                                            background: isDark ? "#1E293B" : "#F1F5F9",
+                                            border: "none",
                                         }}
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark
-                                                ? "bg-gray-800 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                            }`}
-                                    >
-                                        <option value="">-- Select Category --</option>
-                                        {/* ✅ Render Category Options */}
-                                        {categories.map((c, idx) => (
-                                            <option key={c.id || idx} value={c.id}> 
-                                                {c.icon ? `${c.icon} ` : ""}{c.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                
-                                {/* Amount Input */}
+                                    />
+                                    <Bar 
+                                        dataKey="total" 
+                                        fill="#EF4444" 
+                                        radius={[0, 10, 10, 0]} // Bo góc bên phải
+                                        label={renderCustomBarLabel} // Hiển thị số tiền trên cột
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* Recent Expenses List (Giữ nguyên) */}
+                    <div
+                        className={`p-6 rounded-2xl shadow-lg ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3">Recent Expenses</h3>
+                        <ul className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                            {expenses.slice(0, 5).map((expense) => (
+                                <li
+                                    key={expense.id}
+                                    className={`flex justify-between items-center p-3 rounded-lg ${
+                                        isDark ? "bg-gray-700/50" : "bg-gray-100"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-2xl">{expense.emoji}</span>
+                                        <div>
+                                            <p className="font-medium text-sm">
+                                                {expense.category_name}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                {expense.date}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <p className="font-bold text-red-500">
+                                        -${expense.amount.toLocaleString()}
+                                    </p>
+                                </li>
+                            ))}
+                            {expenses.length === 0 && !loading && (
+                                <li className="text-center py-4 text-gray-500">
+                                    No expense records found.
+                                </li>
+                            )}
+                        </ul>
+                    </div>
+                </div>
+
+                {/* 📈 CHART CARD 2: Line Chart (Xu hướng chi tiêu theo Ngày) */}
+                <div
+                    className={`p-6 rounded-2xl shadow-lg ${
+                        isDark ? "bg-[#1e293b]" : "bg-white"
+                    }`}
+                >
+                    <h3 className="text-lg font-semibold mb-3">Daily Expense Trend</h3>
+                    <div style={{ width: '100%', height: 300 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={dailyChartData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#E2E8F0"} />
+                                <XAxis 
+                                    dataKey="date" 
+                                    stroke={isDark ? "#94A3B8" : "#334155"}
+                                    tickFormatter={(dateStr) => dateStr.substring(5)} // Chỉ hiển thị MM-DD
+                                />
+                                <YAxis 
+                                    stroke={isDark ? "#94A3B8" : "#334155"}
+                                    tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
+                                />
+                                <Tooltip
+                                    labelFormatter={(label) => `Date: ${label}`}
+                                    formatter={(value) => [`$${value.toLocaleString()}`, "Total Expense"]}
+                                    contentStyle={{
+                                        background: isDark ? "#1E293B" : "#F1F5F9",
+                                        border: "none",
+                                    }}
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="amount" 
+                                    stroke="#EF4444" 
+                                    strokeWidth={3}
+                                    dot={{ fill: '#EF4444', r: 4 }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </main>
+            
+            {/* Modal (Giữ nguyên) */}
+            {showModal && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+                    onClick={() => setShowModal(false)}
+                >
+                    <div
+                        className={`rounded-2xl shadow-2xl transition-all w-full max-w-md ${
+                            isDark ? "bg-[#1e293b] text-gray-100" : "bg-white text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-6">
+                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                                <TrendingDown size={24} className="text-red-500" />
+                                {editId ? "Edit Expense" : "Add New Expense"}
+                            </h2>
+                            <div className="space-y-4">
+                                {/* Amount */}
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Amount ($)</label>
                                     <input
                                         type="number"
                                         value={form.amount}
                                         onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                                        placeholder="0.00"
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none text-red-500 font-semibold ${isDark
-                                                ? "bg-gray-800 border-gray-600 text-red-400"
+                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
                                                 : "bg-gray-100 border-gray-300"
-                                            }`}
+                                        }`}
+                                        placeholder="e.g. 150.00"
+                                        required
                                     />
                                 </div>
-                            </div>
-
-                            <div className="flex gap-4">
-                                {/* Date Input */}
-                                <div className="flex-1">
+                                {/* Date */}
+                                <div>
                                     <label className="block text-sm font-medium mb-1">Date</label>
                                     <input
                                         type="date"
                                         value={form.date}
                                         onChange={(e) => setForm({ ...form, date: e.target.value })}
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark
-                                                ? "bg-gray-800 border-gray-600 text-white"
+                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
                                                 : "bg-gray-100 border-gray-300"
-                                            }`}
+                                        }`}
+                                        required
                                     />
                                 </div>
-                                {/* ✅ THAY THẾ Emoji Input bằng Emoji Display (Readonly) */}
-                                <div className="w-20">
-                                    <label className="block text-sm font-medium mb-1">Emoji</label>
+                                {/* Category */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Category</label>
+                                    <select
+                                        value={form.category_id}
+                                        onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                : "bg-gray-100 border-gray-300"
+                                        }`}
+                                        required
+                                    >
+                                        <option value="">-- Select Category --</option>
+                                        {categories.map((c, idx) => (
+                                            <option key={c.id || idx} value={c.id}>
+                                                {c.icon ? `${c.icon} ` : ""}{c.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {/* Emoji Display */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Selected Emoji</label>
                                     <input
                                         type="text"
-                                        maxLength={2}
                                         value={form.emoji}
-                                        readOnly // ✅ Chuyển thành Readonly
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none text-xl text-center ${isDark
-                                                ? "bg-gray-800 border-gray-600 text-white"
+                                        readOnly
+                                        className={`w-full px-3 py-2 rounded-lg border outline-none text-center text-2xl ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
                                                 : "bg-gray-100 border-gray-300"
-                                            }`}
+                                        }`}
                                     />
                                 </div>
                             </div>
-
+                            {/* Save / Update Button */}
                             <button
                                 onClick={handleFormSubmit}
-                                className="w-full mt-6 py-3 rounded-lg bg-red-600 hover:bg-red-500 text-white transition font-semibold flex items-center justify-center gap-2 shadow-lg shadow-red-500/50"
+                                className="w-full mt-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2"
                             >
-                                <TrendingDown size={18} /> {editId ? "Update Expense" : "Save Expense"}
+                                <TrendingDown size={18} />
+                                {editId ? "Update Expense" : "Save Expense"}
                             </button>
                         </div>
                     </div>

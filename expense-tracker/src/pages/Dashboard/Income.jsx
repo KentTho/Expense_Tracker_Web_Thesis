@@ -1,420 +1,520 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
-  PlusCircle,
-  Trash2,
-  Edit,
-  Download,
-  DollarSign,
-  Calendar,
+    PlusCircle,
+    Trash2,
+    Edit,
+    DollarSign,
+    Loader2,
 } from "lucide-react";
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  Tooltip,
+    ResponsiveContainer,
+    BarChart, // Cho Category Summary
+    Bar,
+    XAxis,
+    YAxis,
+    Tooltip,
+    CartesianGrid,
+    AreaChart, // 📊 ĐÃ CHUYỂN SANG AreaChart cho xu hướng theo ngày
+    Area,
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
 import {
-  getIncomes,
-  createIncome,
-  updateIncome,
-  deleteIncome,
+    getIncomes,
+    createIncome,
+    updateIncome,
+    deleteIncome,
 } from "../../services/incomeService";
-// ✅ CHỈ GIỮ LẠI getCategories - XÓA getDefaultCategories
 import { getCategories } from "../../services/categoryService"; 
-import { auth } from "../../components/firebase"; // Sửa đường dẫn theo cấu trúc project của bạn
-import { BACKEND_BASE } from "../../services/api"; 
 
 export default function Income() {
-  const { theme } = useOutletContext();
-  const isDark = theme === "dark";
-  
-  const [incomes, setIncomes] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({
-    category_name: "",
-    amount: "",
-    date: new Date().toISOString().split('T')[0], // Đặt giá trị mặc định cho ngày
-    emoji: "💰",
-    category_id: "",
-  });
+    const { theme } = useOutletContext();
+    const isDark = theme === "dark";
 
-  // ✅ Load dữ liệu từ backend (ĐÃ SỬA LẠI ĐỂ CHỈ GỌI getCategories)
-  useEffect(() => {
-    (async () => {
-      try {
-        // ✅ CHỈ GỌI MỘT API: getCategories
-        const [incomeData, allCategories] = await Promise.all([
-          getIncomes(),
-          getCategories("income"), 
-        ]);
-        setIncomes(incomeData);
+    const [incomes, setIncomes] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [showModal, setShowModal] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [form, setForm] = useState({
+        category_name: "",
+        amount: "",
+        date: new Date().toISOString().split('T')[0], // Mặc định ngày hiện tại
+        emoji: "💰",
+        category_id: "",
+    });
 
-        // ✅ Chuẩn hóa đơn giản và giữ lại ID THẬT
-        // Đảm bảo c.id là string UUID hợp lệ từ BE
-        const normalizedCategories = allCategories.map((c) => ({
-          id: c.id, 
-          name: c.name,
-          icon: c.icon || "📁", 
-          color: c.color || "#9CA3AF",
-          is_user_category: !!c.user_id, // Nếu user_id là null, đây là Default Category
-        }));
+    // -----------------------------------------------------------------
+    // 🧩 1. Data Fetching
+    // -----------------------------------------------------------------
+    const fetchIncomes = useCallback(async () => {
+        setLoading(true);
+        try {
+            // 1. Fetch Categories
+            const categoriesData = await getCategories("income");
+            setCategories(categoriesData);
 
-        setCategories(normalizedCategories);
-      } catch (err) {
-        console.error(err);
-        toast.error("Không thể tải dữ liệu thu nhập hoặc danh mục!");
-      }
-    })();
-  }, []);
-  
-  // ✅ Tính tổng thu nhập
-  const totalIncome = incomes.reduce((sum, income) => sum + Number(income.amount || 0), 0);
+            // 2. Fetch Incomes
+            const incomesData = await getIncomes();
 
-  // ✅ Chuẩn bị dữ liệu cho biểu đồ (Giữ nguyên)
-  const barData = incomes.map((i) => ({
-    name: i.category_name || "Unknown",
-    amount: i.amount,
-  }));
-  
-  // ✅ Thêm / Cập nhật (Giữ nguyên)
-  const handleSave = async () => {
-    if (!form.amount || !form.date || !form.category_id)
-      return toast.error("Vui lòng nhập đầy đủ thông tin!");
+            // 3. Process data
+            const processedIncomes = incomesData
+                .map(inc => ({
+                    ...inc,
+                    amount: Number(inc.amount), // Đảm bảo Amount là Number
+                    category_name: inc.category?.name || inc.category_name || 'N/A',
+                    emoji: inc.category?.icon || inc.emoji || '💰'
+                }))
+                // Sắp xếp theo ngày mới nhất
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    try {
-      let updatedList;
-      if (editId) {
-        const updated = await updateIncome(editId, form);
-        updatedList = incomes.map((i) => (i.id === editId ? updated : i));
-        toast.success("Cập nhật thành công!");
-      } else {
-        const created = await createIncome(form);
-        updatedList = [...incomes, created];
-        toast.success("Thêm thu nhập thành công!");
-      }
-      setIncomes(updatedList);
-      setShowModal(false);
-      setEditId(null);
-      setForm({ category_name: "", amount: "", date: new Date().toISOString().split('T')[0], emoji: "💰", category_id: "" });
-    } catch (err) {
-      console.error(err);
-      toast.error("Lỗi khi lưu dữ liệu!");
-    }
-  };
+            setIncomes(processedIncomes);
 
-  // ✅ Xóa thu nhập (Giữ nguyên)
-  const handleDelete = async (id) => {
-    if (!window.confirm("Xác nhận xóa?")) return;
-    try {
-      await deleteIncome(id);
-      setIncomes(incomes.filter((i) => i.id !== id));
-      toast.success("Đã xóa!");
-    } catch {
-      toast.error("Không thể xóa!");
-    }
-  };
+        } catch (error) {
+            console.error("Error fetching incomes/categories:", error);
+            toast.error("Failed to load income data.");
+            setIncomes([]);
+            setCategories([]);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-  // ✅ Xuất Excel (Giữ nguyên)
-  const handleDownload = async () => {
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const res = await fetch(`${BACKEND_BASE}/export/income`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Lỗi khi tải file Excel!");
+    useEffect(() => {
+        fetchIncomes();
+    }, [fetchIncomes]);
 
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "incomes.xlsx";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("📂 Đã tải file Excel!");
-    } catch (err) {
-      console.error(err);
-      toast.error("Không thể xuất dữ liệu!");
-    }
-  };
+    // -----------------------------------------------------------------
+    // 🧩 2. Logic Form & CRUD (Đã tối ưu)
+    // -----------------------------------------------------------------
+    useEffect(() => {
+        const selectedCat = categories.find(c => c.id === form.category_id);
+        if (selectedCat) {
+            setForm(prev => ({
+                ...prev,
+                category_name: selectedCat.name,
+                emoji: selectedCat.icon || "💰"
+            }));
+        }
+    }, [form.category_id, categories]);
 
-  const cardBg = isDark ? "bg-[#1e293b]" : "bg-white";
+    const handleFormSubmit = async () => {
+        if (!form.amount || !form.date || !form.category_id) {
+            toast.error("Please fill all required fields!");
+            return;
+        }
 
-  return (
-    <div
-      className={`min-h-screen transition-colors duration-300 ${
-        isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
-      }`}
-    >
-      <Toaster position="top-right" />
-      <main className="p-8 space-y-8">
-        {/* Header, Biểu đồ, Danh sách (Giữ nguyên) */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Income Management</h1>
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                setForm({
-                  category_name: "",
-                  amount: "",
-                  date: new Date().toISOString().split('T')[0],
-                  emoji: "💰",
-                  category_id: "",
-                });
-                setEditId(null);
-                setShowModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
+        try {
+            let updatedList;
+            let result;
+            if (editId) {
+                result = await updateIncome(editId, form);
+                updatedList = incomes.map((i) => (i.id === editId ? result : i));
+                toast.success("Income updated successfully!");
+            } else {
+                result = await createIncome(form);
+                updatedList = [result, ...incomes];
+                toast.success("New income added!");
+            }
+            
+            // Cập nhật lại list sau khi thêm/sửa, và sắp xếp lại
+            setIncomes(updatedList.map(inc => ({
+                ...inc,
+                amount: Number(inc.amount),
+                category_name: inc.category?.name || inc.category_name || 'N/A',
+                emoji: inc.category?.icon || inc.emoji || '💰'
+            })).sort((a, b) => new Date(b.date) - new Date(a.date)));
+
+            setShowModal(false);
+            setEditId(null);
+            setForm({
+                category_name: "",
+                amount: "",
+                date: new Date().toISOString().split('T')[0],
+                emoji: "💰",
+                category_id: "",
+            });
+        } catch (err) {
+            console.error(err);
+            toast.error(`Error while saving income: ${err.message}`);
+        }
+    };
+    
+    const handleEdit = (income) => {
+        setForm({
+            category_name: income.category_name,
+            amount: income.amount.toString(),
+            date: income.date,
+            emoji: income.emoji,
+            category_id: income.category_id,
+        });
+        setEditId(income.id);
+        setShowModal(true);
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm("Are you sure you want to delete this income?")) {
+            try {
+                await deleteIncome(id);
+                setIncomes(incomes.filter((i) => i.id !== id));
+                toast.success("Income deleted successfully!");
+            } catch (err) {
+                console.error(err);
+                toast.error("Error deleting income.");
+            }
+        }
+    };
+
+    // -----------------------------------------------------------------
+    // 🧩 3. Data Summary & Chart Data 
+    // -----------------------------------------------------------------
+    const totalIncome = incomes.reduce((sum, income) => sum + income.amount, 0);
+
+    // 📊 Dữ liệu cho Bar Chart (Summary theo Danh mục)
+    const categoryChartData = useMemo(() => {
+        const dataMap = incomes.reduce((acc, income) => {
+            const name = income.category_name || "Khác";
+            acc[name] = (acc[name] || 0) + income.amount;
+            return acc;
+        }, {});
+        
+        return Object.keys(dataMap)
+            .map(name => ({
+                category: name,
+                total: dataMap[name],
+            }))
+            // Chỉ lấy top 5 danh mục thu nhập cao nhất
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5); 
+    }, [incomes]);
+
+    // 📈 Dữ liệu cho Area Chart (Xu hướng thu nhập theo Ngày)
+    const dailyChartData = useMemo(() => {
+        // Gom nhóm thu nhập theo ngày (date)
+        const dailyMap = incomes.reduce((acc, income) => {
+            const dateStr = income.date;
+            acc[dateStr] = (acc[dateStr] || 0) + income.amount;
+            return acc;
+        }, {});
+
+        // Chuyển sang mảng, sắp xếp theo ngày cũ nhất lên trước
+        return Object.keys(dailyMap)
+            .map(date => ({
+                date: date,
+                amount: dailyMap[date],
+            }))
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+    }, [incomes]);
+    
+    // Custom Label cho Bar Chart (hiển thị số tiền phía trên cột)
+    const renderCustomBarLabel = ({ x, y, width, value }) => {
+        // Chỉ hiển thị label nếu cột đủ rộng
+        if (width < 30) return null; 
+
+        return (
+            <text 
+                x={x + width / 2} 
+                y={y} 
+                fill={isDark ? "#E2E8F0" : "#4A5568"} 
+                textAnchor="middle" 
+                dy={-6} // Đẩy label lên trên cột
+                fontSize={12}
             >
-              <PlusCircle size={18} />
-              Add Income
-            </button>
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition"
-            >
-              <Download size={18} />
-              Export Excel
-            </button>
-          </div>
-        </div>
+                {/* Format số tiền gọn gàng */}
+                ${(value / 1000).toFixed(0)}k 
+            </text>
+        );
+    };
 
-        {/* 💵 Tổng Thu Nhập (Total Income Summary - PHẦN MỚI THÊM) */}
+    // -----------------------------------------------------------------
+    // 🧩 4. JSX Rendering
+    // -----------------------------------------------------------------
+
+    return (
         <div
-            className={`p-6 rounded-2xl shadow-lg ${cardBg} flex items-center justify-between`}
+            className={`min-h-screen transition-colors duration-300 ${
+                isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
+            } relative`}
         >
-            <h3 className="text-xl font-semibold flex items-center gap-3">
-                <DollarSign size={24} className="text-green-500 p-1 rounded-full bg-green-500/10"/>
-                Total Income
-            </h3>
-            <p className="text-green-400 font-bold">
-              {`+$${Number(inc.amount).toLocaleString(undefined, { 
-                minimumFractionDigits: 0, 
-                maximumFractionDigits: 2 
-              })}`}
-            </p>
-        </div>
-
-
-        {/* Biểu đồ */}
-        <div
-          className={`p-6 rounded-2xl shadow-lg ${cardBg}`}
-        >
-          <h3 className="text-lg font-semibold mb-4">Income Overview</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={barData}>
-              <XAxis dataKey="name" stroke={isDark ? "#94A3B8" : "#334155"} />
-              <Tooltip
-                contentStyle={{
-                  background: isDark ? "#1E293B" : "#F8FAFC",
-                  border: "none",
-                }}
-              />
-              <Bar dataKey="amount" fill="#22C55E" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Danh sách */}
-        <div
-          className={`p-6 rounded-2xl shadow-lg ${cardBg}`}
-        >
-          <h3 className="text-lg font-semibold mb-4">Income Records</h3>
-          {incomes.length === 0 ? (
-            <p className="text-gray-400 text-sm">No incomes recorded yet.</p>
-          ) : (
-            <div className="grid grid-cols-3 gap-4">
-              {incomes.map((inc) => (
-                <div
-                  key={inc.id}
-                  className={`p-5 rounded-xl flex flex-col justify-between border transition ${
-                    isDark
-                      ? "bg-[#0f172a] border-gray-700 hover:bg-gray-800"
-                      : "bg-gray-50 border-gray-200 hover:bg-gray-100"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <span className="text-3xl">{inc.emoji}</span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDelete(inc.id)}
-                        className="text-red-400 hover:text-red-500"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditId(inc.id);
-                          setForm({
-                            category_name: inc.category_name || "",
-                            amount: inc.amount || "",
-                            date: inc.date || "",
-                            emoji: inc.emoji || "💰",
-                            category_id: inc.category_id || "", 
-                          });
-                          setShowModal(true);
-                        }}
-                        className="text-blue-400 hover:text-blue-500"
-                      >
-                        <Edit size={18} />
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-lg mt-2">{inc.category_name}</h4>
-                    <p className="text-green-400 font-bold">
-                      +${inc.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-sm text-gray-400 flex items-center gap-1 mt-1">
-                      <Calendar size={14} />
-                      {new Date(inc.date).toLocaleDateString()}
-                    </p>
-                    {/* Thẻ category cho item trong danh sách (giữ nguyên) */}
-                    {/* {inc.category && (
-                      <p className="text-sm mt-1">
-                        <span className="mr-1">{inc.category.icon}</span>
-                        {inc.category.name}
-                      </p>
-                    )} */}
-                  </div>
+            {/* ⚠️ Loading Overlay */}
+            {loading && (
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <Loader2 className="animate-spin text-white h-10 w-10" />
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
+            )}
 
-      {/* 🪟 Modal Add/Edit Income (Giữ nguyên) */}
-      {showModal && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-md p-6 rounded-2xl shadow-xl ${
-              isDark ? "bg-[#1f2937]" : "bg-white"
-            }`}
-          >
-            {/* 🏷️ Modal Title */}
-            <h2 className="text-xl font-semibold mb-4">
-              {editId ? "Edit Income Record" : "Add New Income"}
-            </h2>
+            <Toaster position="top-right" reverseOrder={false} />
 
-            <div className="space-y-4">
-              {/* 💰 Amount Input (Giữ nguyên)*/}
-              <div>
-                <label className="block text-sm font-medium mb-1">Amount</label>
-                <input
-                  type="number"
-                  name="amount"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  placeholder="Enter income amount"
-                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
+            <main className="p-8 space-y-8">
+                {/* Header & Add Button */}
+                <div className="flex justify-between items-center">
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        <DollarSign className="text-blue-500" /> Income Tracker
+                    </h1>
+                    <button
+                        onClick={() => {
+                            setShowModal(true);
+                            setEditId(null);
+                            setForm({
+                                category_name: "",
+                                amount: "",
+                                date: new Date().toISOString().split('T')[0],
+                                emoji: "💰",
+                                category_id: "",
+                            });
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
+                    >
+                        <PlusCircle size={18} /> Add New Income
+                    </button>
+                </div>
 
-              {/* 📅 Date Picker (Giữ nguyên) */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Date</label>
-                <input
-                  type="date"
-                  name="date"
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-
-              {/* 🗂️ Category Selector (Giữ nguyên) */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Category</label>
-                <select
-                  // Đảm bảo giá trị lựa chọn là ID UUID thật
-                  value={form.category_id || ""} 
-                  onChange={(e) => {
-                    const selectedId = e.target.value;
-                    
-                    // Nếu chọn option mặc định (ID trống)
-                    if (!selectedId) {
-                        return setForm({ ...form, category_id: "", category_name: "", emoji: "💰" });
-                    }
-                    
-                    // ✅ KHẮC PHỤC: Sử dụng String() cho cả hai bên để đảm bảo so sánh chuỗi
-                    const found = categories.find((c) => 
-                        String(c.id).toLowerCase() === selectedId.toLowerCase()
-                    ); 
-                    
-                    if (found) {
-                        setForm({
-                            ...form,
-                            category_id: found.id,
-                            category_name: found.name,
-                            emoji: found.icon || "💰",
-                            is_user_category: found.is_user_category,
-                        });
-                    } else {
-                        // Vẫn cảnh báo nếu tìm không thấy, nhưng lỗi này không nên xảy ra
-                        console.warn("Category not found for ID:", selectedId);
-                    }
-                  }}
-                  className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
+                {/* Summary Card */}
+                <div
+                    className={`p-6 rounded-2xl shadow-lg flex justify-between items-center ${
+                        isDark ? "bg-[#1e293b]" : "bg-white"
+                    }`}
                 >
-                  <option value="">-- Select Category --</option>
-                  {/* Đảm bảo c.id được dùng làm value */}
-                  {categories.map((c, idx) => (
-                    <option key={c.id || idx} value={c.id}> 
-                      {c.icon ? `${c.icon} ` : ""}{c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    <div>
+                        <h3 className="text-lg font-semibold mb-1">Total Income</h3>
+                        <p className="text-4xl font-bold text-blue-500">
+                            ${totalIncome.toLocaleString()}
+                        </p>
+                    </div>
+                </div>
 
-              {/* 😄 Emoji Display (Giữ nguyên) */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Selected Emoji</label>
-                <input
-                  type="text"
-                  value={form.emoji}
-                  readOnly
-                  className={`w-full px-3 py-2 rounded-lg border outline-none text-center text-2xl ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
+                {/* Chart Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* 📊 CHART CARD 1: Bar Chart (Tổng thu nhập theo danh mục) */}
+                    <div
+                        className={`lg:col-span-2 p-6 rounded-2xl shadow-lg ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3">Top 5 Income by Category</h3>
+                        <div style={{ width: '100%', height: 350 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart 
+                                    data={categoryChartData}
+                                    layout="vertical"
+                                    margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#E2E8F0"} />
+                                    <XAxis 
+                                        type="number" 
+                                        stroke={isDark ? "#94A3B8" : "#334155"}
+                                        tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`} // Format trục X
+                                    />
+                                    <YAxis 
+                                        dataKey="category" 
+                                        type="category" 
+                                        stroke={isDark ? "#94A3B8" : "#334155"}
+                                        width={80} 
+                                    />
+                                    <Tooltip
+                                        formatter={(value) => [`$${value.toLocaleString()}`, "Total Income"]}
+                                        contentStyle={{
+                                            background: isDark ? "#1E293B" : "#F1F5F9",
+                                            border: "none",
+                                        }}
+                                    />
+                                    <Bar 
+                                        dataKey="total" 
+                                        fill="#3B82F6" // Màu xanh dương cho Income
+                                        radius={[0, 10, 10, 0]}
+                                        label={renderCustomBarLabel}
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
 
-              {/* 💾 Save / Update Button (Giữ nguyên) */}
-              <button
-                onClick={handleSave} // Sử dụng hàm handleSave đã được định nghĩa
-                className="w-full mt-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2"
-              >
-                <DollarSign size={18} />
-                {editId ? "Update Income" : "Save Income"}
-              </button>
-            </div>
-          </div>
+                    {/* Recent Incomes List */}
+                    <div
+                        className={`p-6 rounded-2xl shadow-lg ${
+                            isDark ? "bg-[#1e293b]" : "bg-white"
+                        }`}
+                    >
+                        <h3 className="text-lg font-semibold mb-3">Recent Incomes</h3>
+                        <ul className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                            {incomes.slice(0, 5).map((income) => (
+                                <li
+                                    key={income.id}
+                                    className={`flex justify-between items-center p-3 rounded-lg ${
+                                        isDark ? "bg-gray-700/50" : "bg-gray-100"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-2xl">{income.emoji}</span>
+                                        <div>
+                                            <p className="font-medium text-sm">
+                                                {income.category_name}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                {income.date}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <p className="font-bold text-blue-500">
+                                        +${income.amount.toLocaleString()}
+                                    </p>
+                                </li>
+                            ))}
+                            {incomes.length === 0 && !loading && (
+                                <li className="text-center py-4 text-gray-500">
+                                    No income records found.
+                                </li>
+                            )}
+                        </ul>
+                    </div>
+                </div>
+
+                {/* 📈 CHART CARD 2: Area Chart (Xu hướng thu nhập theo Ngày) */}
+                <div
+                    className={`p-6 rounded-2xl shadow-lg ${
+                        isDark ? "bg-[#1e293b]" : "bg-white"
+                    }`}
+                >
+                    <h3 className="text-lg font-semibold mb-3">Daily Income Trend (Area Chart)</h3>
+                    <div style={{ width: '100%', height: 300 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={dailyChartData}>
+                                <defs>
+                                    {/* Gradient fill cho Area Chart */}
+                                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
+                                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#E2E8F0"} />
+                                <XAxis 
+                                    dataKey="date" 
+                                    stroke={isDark ? "#94A3B8" : "#334155"}
+                                    tickFormatter={(dateStr) => dateStr.substring(5)} // Chỉ hiển thị MM-DD
+                                />
+                                <YAxis 
+                                    stroke={isDark ? "#94A3B8" : "#334155"}
+                                    tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
+                                />
+                                <Tooltip
+                                    labelFormatter={(label) => `Date: ${label}`}
+                                    formatter={(value) => [`$${value.toLocaleString()}`, "Total Income"]}
+                                    contentStyle={{
+                                        background: isDark ? "#1E293B" : "#F1F5F9",
+                                        border: "none",
+                                    }}
+                                />
+                                <Area 
+                                    type="monotone" 
+                                    dataKey="amount" 
+                                    stroke="#3B82F6" 
+                                    fillOpacity={1} 
+                                    fill="url(#colorIncome)" 
+                                    strokeWidth={3}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </main>
+            
+            {/* Modal (Giữ nguyên) */}
+            {showModal && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+                    onClick={() => setShowModal(false)}
+                >
+                    <div
+                        className={`rounded-2xl shadow-2xl transition-all w-full max-w-md ${
+                            isDark ? "bg-[#1e293b] text-gray-100" : "bg-white text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-6">
+                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                                <DollarSign size={24} className="text-blue-500" />
+                                {editId ? "Edit Income" : "Add New Income"}
+                            </h2>
+                            <div className="space-y-4">
+                                {/* Amount */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Amount ($)</label>
+                                    <input
+                                        type="number"
+                                        value={form.amount}
+                                        onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                : "bg-gray-100 border-gray-300"
+                                        }`}
+                                        placeholder="e.g. 500.00"
+                                        required
+                                    />
+                                </div>
+                                {/* Date */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Date</label>
+                                    <input
+                                        type="date"
+                                        value={form.date}
+                                        onChange={(e) => setForm({ ...form, date: e.target.value })}
+                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                : "bg-gray-100 border-gray-300"
+                                        }`}
+                                        required
+                                    />
+                                </div>
+                                {/* Category */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Category</label>
+                                    <select
+                                        value={form.category_id}
+                                        onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                : "bg-gray-100 border-gray-300"
+                                        }`}
+                                        required
+                                    >
+                                        <option value="">-- Select Category --</option>
+                                        {categories.map((c, idx) => (
+                                            <option key={c.id || idx} value={c.id}>
+                                                {c.icon ? `${c.icon} ` : ""}{c.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {/* Emoji Display */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Selected Emoji</label>
+                                    <input
+                                        type="text"
+                                        value={form.emoji}
+                                        readOnly
+                                        className={`w-full px-3 py-2 rounded-lg border outline-none text-center text-2xl ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                : "bg-gray-100 border-gray-300"
+                                        }`}
+                                    />
+                                </div>
+                            </div>
+                            {/* Save / Update Button */}
+                            <button
+                                onClick={handleFormSubmit}
+                                className="w-full mt-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2"
+                            >
+                                <DollarSign size={18} />
+                                {editId ? "Update Income" : "Save Income"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 }

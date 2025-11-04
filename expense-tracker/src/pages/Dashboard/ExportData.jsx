@@ -7,7 +7,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { BACKEND_BASE } from "../../services/api";
-import { getToken } from "../../services/incomeService";
+// ✅ Sửa: Import getToken từ incomeService hoặc expenseService
+import { getToken } from "../../services/incomeService"; 
 
 export default function ExportData() {
   const { theme } = useOutletContext();
@@ -17,6 +18,23 @@ export default function ExportData() {
   const [downloaded, setDownloaded] = useState({ income: false, expense: false });
   const [data, setData] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // ✅ THÊM: State để lưu ký hiệu tiền tệ
+  const [currencySymbol, setCurrencySymbol] = useState("$"); 
+
+  // ===========================
+  // 🧩 HELPER: FORMAT TIỀN TỆ (Đồng bộ với Income/Expense.jsx)
+  // ===========================
+  const formatCurrency = (amount, symbol) => {
+    // Sử dụng Intl.NumberFormat để đảm bảo định dạng locale-aware, 
+    // và cấu hình để loại bỏ các số 0 thừa sau dấu thập phân.
+    const formatter = new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2, 
+    });
+    // Trả về ký hiệu tiền tệ + số đã định dạng
+    return `${symbol}${formatter.format(Number(amount))}`;
+  };
+
 
   // ===========================
   // 🧩 Fetch data from backend
@@ -25,6 +43,7 @@ export default function ExportData() {
     try {
       setIsRefreshing(true);
       const token = await getToken();
+      
       const [resIncome, resExpense] = await Promise.all([
         fetch(`${BACKEND_BASE}/incomes`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -37,8 +56,17 @@ export default function ExportData() {
       if (!resIncome.ok || !resExpense.ok)
         throw new Error("Failed to fetch income or expense data");
 
-      const incomeData = await resIncome.json();
-      const expenseData = await resExpense.json();
+      // ✅ FIX CẤU TRÚC PHẢN HỒI MỚI (object: {items: [...], currency_symbol: '...'})
+      const incomeResponse = await resIncome.json();
+      const expenseResponse = await resExpense.json();
+
+      const incomeData = incomeResponse.items;
+      const expenseData = expenseResponse.items;
+      
+      // ✅ CẬP NHẬT KÝ HIỆU TIỀN TỆ
+      if (incomeResponse.currency_symbol) {
+        setCurrencySymbol(incomeResponse.currency_symbol);
+      }
 
       // Gộp dữ liệu lại
       const combined = [
@@ -79,7 +107,8 @@ export default function ExportData() {
   const handleDownload = async (type) => {
     try {
       setIsDownloading(true);
-      const token = await getToken(); // ✅ ĐÚNG: Đã thêm await
+      const token = await getToken(); 
+      // ✅ Lưu ý: Backend phải dùng currency_code của user để format file Excel!
       const endpoint =
         type === "income"
           ? `${BACKEND_BASE}/export/income`
@@ -270,7 +299,10 @@ export default function ExportData() {
                           {item.type}
                         </td>
                         <td className="p-2">{item.category_name}</td>
-                        <td className="p-2">${item.amount}</td>
+                        {/* ✅ FIX: Sử dụng formatCurrency và currencySymbol */}
+                        <td className="p-2">
+                          {formatCurrency(item.amount, currencySymbol)}
+                        </td>
                         <td className="p-2">{item.date}</td>
                         <td className="p-2">{item.emoji}</td>
                       </tr>
@@ -278,7 +310,7 @@ export default function ExportData() {
                   ) : (
                     <tr>
                       <td colSpan="5" className="text-center p-4 text-gray-400">
-                        Loading data...
+                        {isRefreshing ? "Loading data..." : "No data available."}
                       </td>
                     </tr>
                   )}
@@ -290,18 +322,24 @@ export default function ExportData() {
             {data.length > 0 && (
               <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
                 <p>
-                  <strong>Total Income:</strong> $
-                  {data
-                    .filter((d) => d.type === "income")
-                    .reduce((a, b) => a + Number(b.amount || 0), 0)
-                    .toFixed(2)}
+                  <strong>Total Income:</strong>{" "}
+                  {/* ✅ FIX: Sử dụng formatCurrency và currencySymbol */}
+                  {formatCurrency(
+                    data
+                      .filter((d) => d.type === "income")
+                      .reduce((a, b) => a + Number(b.amount || 0), 0),
+                    currencySymbol
+                  )}
                 </p>
                 <p>
-                  <strong>Total Expense:</strong> $
-                  {data
-                    .filter((d) => d.type === "expense")
-                    .reduce((a, b) => a + Number(b.amount || 0), 0)
-                    .toFixed(2)}
+                  <strong>Total Expense:</strong>{" "}
+                  {/* ✅ FIX: Sử dụng formatCurrency và currencySymbol */}
+                  {formatCurrency(
+                    data
+                      .filter((d) => d.type === "expense")
+                      .reduce((a, b) => a + Number(b.amount || 0), 0),
+                    currencySymbol
+                  )}
                 </p>
               </div>
             )}

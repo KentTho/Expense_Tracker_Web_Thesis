@@ -5,6 +5,7 @@ from typing import List
 from cruds.crud_income import list_incomes_for_user, create_income as crud_create_income, delete_income as crud_delete_income, update_income as crud_update_income, get_income_summary
 from db.database import get_db
 from schemas import IncomeOut, IncomeCreate
+from schemas.income_schemas import IncomeListOut
 from services.auth_token_db import get_current_user_db
 
 router = APIRouter(prefix="/incomes", tags=["Income"])
@@ -28,12 +29,14 @@ def create_income(
     )
     return income
 
-@router.get("", response_model=List[IncomeOut])
+# ✅ CẬP NHẬT: Sử dụng response_model=IncomeListOut
+@router.get("", response_model=IncomeListOut)
 def list_incomes(
     current_user = Depends(get_current_user_db),
     db: Session = Depends(get_db)
 ):
-    """Danh sách thu nhập của người dùng."""
+    """Danh sách thu nhập của người dùng kèm cài đặt tiền tệ."""
+    # CRUD đã trả về dict có items, currency_code, currency_symbol, khớp với IncomeListOut
     return list_incomes_for_user(db, current_user.id)
 
 @router.put("/{income_id}", response_model=IncomeOut)

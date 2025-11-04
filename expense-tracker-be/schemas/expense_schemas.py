@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 from uuid import UUID
 from .category_schemas import CategoryOut
@@ -27,6 +27,17 @@ class ExpenseOut(ExpenseBase):
     user_id: UUID
     created_at: Optional[datetime] = None
     category: Optional[CategoryOut] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ✅ THÊM: Schema mới cho API list
+class ExpenseListOut(BaseModel):
+    """Schema phản hồi cho danh sách chi tiêu kèm cài đặt tiền tệ."""
+    items: List[ExpenseOut]
+    currency_code: str
+    currency_symbol: str
 
     class Config:
         from_attributes = True

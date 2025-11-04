@@ -6,7 +6,7 @@ from typing import Optional  # ✅ Cần import Optional
 from sqlalchemy import func
 import models
 from fastapi import HTTPException  # ✅ Cần import HTTPException
-
+from sqlalchemy.orm import Session, joinedload
 
 def create_income(
         db: Session,
@@ -82,13 +82,25 @@ def create_income(
 
 
 def list_incomes_for_user(db: Session, user_id: UUID):
-    """📄 Lấy danh sách thu nhập của người dùng"""
-    return (
+    """🧾 Danh sách thu nhập của người dùng, tải kèm thông tin Category."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # ✅ BỔ SUNG joinedload VÀ SẮP XẾP
+    incomes = (
         db.query(models.Income)
+        .options(joinedload(models.Income.category)) # ⬅️ Tải Category
         .filter(models.Income.user_id == user_id)
         .order_by(models.Income.date.desc())
         .all()
     )
+
+    return {
+        "items": incomes,
+        "currency_code": getattr(user, 'currency_code', 'USD'),
+        "currency_symbol": getattr(user, 'currency_symbol', '$'),
+    }
 
 
 def update_income(db: Session, income_id: UUID, user_id: UUID, update_data: dict):
