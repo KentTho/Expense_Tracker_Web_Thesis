@@ -192,8 +192,11 @@ export default function Income() {
                 <DollarSign size={24} className="text-green-500 p-1 rounded-full bg-green-500/10"/>
                 Total Income
             </h3>
-            <p className="text-3xl font-bold text-green-500">
-                ${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <p className="text-green-400 font-bold">
+              {`+$${Number(inc.amount).toLocaleString(undefined, { 
+                minimumFractionDigits: 0, 
+                maximumFractionDigits: 2 
+              })}`}
             </p>
         </div>
 
