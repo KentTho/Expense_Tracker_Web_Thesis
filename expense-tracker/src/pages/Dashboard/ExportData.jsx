@@ -24,7 +24,7 @@ export default function ExportData() {
   const fetchData = async () => {
     try {
       setIsRefreshing(true);
-      const token = getToken();
+      const token = await getToken();
       const [resIncome, resExpense] = await Promise.all([
         fetch(`${BACKEND_BASE}/incomes`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -79,7 +79,7 @@ export default function ExportData() {
   const handleDownload = async (type) => {
     try {
       setIsDownloading(true);
-      const token = getToken();
+      const token = await getToken(); // ✅ ĐÚNG: Đã thêm await
       const endpoint =
         type === "income"
           ? `${BACKEND_BASE}/export/income`
@@ -244,7 +244,6 @@ export default function ExportData() {
                       isDark ? "bg-gray-700" : "bg-gray-100"
                     } text-left border-b border-gray-600`}
                   >
-                    <th className="p-2">ID</th>
                     <th className="p-2">Type</th>
                     <th className="p-2">Category</th>
                     <th className="p-2">Amount</th>
@@ -261,7 +260,6 @@ export default function ExportData() {
                           isDark ? "border-gray-700" : "border-gray-200"
                         }`}
                       >
-                        <td className="p-2">{item.id}</td>
                         <td
                           className={`p-2 font-medium ${
                             item.type === "income"
@@ -279,7 +277,7 @@ export default function ExportData() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="6" className="text-center p-4 text-gray-400">
+                      <td colSpan="5" className="text-center p-4 text-gray-400">
                         Loading data...
                       </td>
                     </tr>

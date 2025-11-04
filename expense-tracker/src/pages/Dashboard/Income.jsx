@@ -30,6 +30,7 @@ import { BACKEND_BASE } from "../../services/api";
 export default function Income() {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
+  
   const [incomes, setIncomes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -37,7 +38,7 @@ export default function Income() {
   const [form, setForm] = useState({
     category_name: "",
     amount: "",
-    date: "",
+    date: new Date().toISOString().split('T')[0], // Đặt giá trị mặc định cho ngày
     emoji: "💰",
     category_id: "",
   });
@@ -71,6 +72,9 @@ export default function Income() {
     })();
   }, []);
   
+  // ✅ Tính tổng thu nhập
+  const totalIncome = incomes.reduce((sum, income) => sum + Number(income.amount || 0), 0);
+
   // ✅ Chuẩn bị dữ liệu cho biểu đồ (Giữ nguyên)
   const barData = incomes.map((i) => ({
     name: i.category_name || "Unknown",
@@ -96,7 +100,7 @@ export default function Income() {
       setIncomes(updatedList);
       setShowModal(false);
       setEditId(null);
-      setForm({ category_name: "", amount: "", date: "", emoji: "💰", category_id: "" });
+      setForm({ category_name: "", amount: "", date: new Date().toISOString().split('T')[0], emoji: "💰", category_id: "" });
     } catch (err) {
       console.error(err);
       toast.error("Lỗi khi lưu dữ liệu!");
@@ -139,6 +143,8 @@ export default function Income() {
     }
   };
 
+  const cardBg = isDark ? "bg-[#1e293b]" : "bg-white";
+
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${
@@ -156,7 +162,7 @@ export default function Income() {
                 setForm({
                   category_name: "",
                   amount: "",
-                  date: "",
+                  date: new Date().toISOString().split('T')[0],
                   emoji: "💰",
                   category_id: "",
                 });
@@ -178,11 +184,23 @@ export default function Income() {
           </div>
         </div>
 
+        {/* 💵 Tổng Thu Nhập (Total Income Summary - PHẦN MỚI THÊM) */}
+        <div
+            className={`p-6 rounded-2xl shadow-lg ${cardBg} flex items-center justify-between`}
+        >
+            <h3 className="text-xl font-semibold flex items-center gap-3">
+                <DollarSign size={24} className="text-green-500 p-1 rounded-full bg-green-500/10"/>
+                Total Income
+            </h3>
+            <p className="text-3xl font-bold text-green-500">
+                ${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+        </div>
+
+
         {/* Biểu đồ */}
         <div
-          className={`p-6 rounded-2xl shadow-lg ${
-            isDark ? "bg-[#1e293b]" : "bg-white"
-          }`}
+          className={`p-6 rounded-2xl shadow-lg ${cardBg}`}
         >
           <h3 className="text-lg font-semibold mb-4">Income Overview</h3>
           <ResponsiveContainer width="100%" height={250}>
@@ -201,9 +219,7 @@ export default function Income() {
 
         {/* Danh sách */}
         <div
-          className={`p-6 rounded-2xl shadow-lg ${
-            isDark ? "bg-[#1e293b]" : "bg-white"
-          }`}
+          className={`p-6 rounded-2xl shadow-lg ${cardBg}`}
         >
           <h3 className="text-lg font-semibold mb-4">Income Records</h3>
           {incomes.length === 0 ? (
@@ -249,18 +265,19 @@ export default function Income() {
                   <div>
                     <h4 className="font-semibold text-lg mt-2">{inc.category_name}</h4>
                     <p className="text-green-400 font-bold">
-                      +${inc.amount.toLocaleString()}
+                      +${inc.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-sm text-gray-400 flex items-center gap-1 mt-1">
                       <Calendar size={14} />
                       {new Date(inc.date).toLocaleDateString()}
                     </p>
-                    {inc.category && (
+                    {/* Thẻ category cho item trong danh sách (giữ nguyên) */}
+                    {/* {inc.category && (
                       <p className="text-sm mt-1">
                         <span className="mr-1">{inc.category.icon}</span>
                         {inc.category.name}
                       </p>
-                    )}
+                    )} */}
                   </div>
                 </div>
               ))}
@@ -269,7 +286,7 @@ export default function Income() {
         </div>
       </main>
 
-      {/* 🪟 Modal Add/Edit Income */}
+      {/* 🪟 Modal Add/Edit Income (Giữ nguyên) */}
       {showModal && (
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -320,7 +337,7 @@ export default function Income() {
                 />
               </div>
 
-              {/* 🗂️ Category Selector */}
+              {/* 🗂️ Category Selector (Giữ nguyên) */}
               <div>
                 <label className="block text-sm font-medium mb-1">Category</label>
                 <select
@@ -351,7 +368,7 @@ export default function Income() {
                         // Vẫn cảnh báo nếu tìm không thấy, nhưng lỗi này không nên xảy ra
                         console.warn("Category not found for ID:", selectedId);
                     }
-                }}
+                  }}
                   className={`w-full px-3 py-2 rounded-lg border outline-none ${
                     isDark
                       ? "bg-gray-700 border-gray-600 text-white"
@@ -385,37 +402,7 @@ export default function Income() {
 
               {/* 💾 Save / Update Button (Giữ nguyên) */}
               <button
-                onClick={async () => {
-                  // 🧠 Validate dữ liệu trước khi lưu
-                  if (!form.amount || !form.date || !form.category_id)
-                    return toast.error("Please fill in all required fields!");
-
-                  try {
-                    let updatedList;
-                    if (editId) {
-                      const updated = await updateIncome(editId, form);
-                      updatedList = incomes.map((i) => (i.id === editId ? updated : i));
-                      toast.success("Income updated successfully!");
-                    } else {
-                      const created = await createIncome(form);
-                      updatedList = [...incomes, created];
-                      toast.success("New income added!");
-                    }
-                    setIncomes(updatedList);
-                    setShowModal(false);
-                    setEditId(null);
-                    setForm({
-                      category_name: "",
-                      amount: "",
-                      date: "",
-                      emoji: "💰",
-                      category_id: "",
-                    });
-                  } catch (err) {
-                    console.error(err);
-                    toast.error("Error while saving income!");
-                  }
-                }}
+                onClick={handleSave} // Sử dụng hàm handleSave đã được định nghĩa
                 className="w-full mt-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2"
               >
                 <DollarSign size={18} />

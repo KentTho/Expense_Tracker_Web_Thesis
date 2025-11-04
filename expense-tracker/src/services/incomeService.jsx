@@ -75,7 +75,7 @@ export async function getIncomes() {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(err);
+    throw new Error(err.detail || "Failed to fetch incomes!");
   }
   return await res.json();
 }
@@ -95,7 +95,7 @@ export async function updateIncome(id, data) {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(err);
+    throw new Error(err.detail || "Failed to update incomes!");
   }
   return await res.json();
 }

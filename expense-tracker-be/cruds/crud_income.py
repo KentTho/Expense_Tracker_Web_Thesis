@@ -123,5 +123,23 @@ def delete_income(db: Session, income_id: UUID, user_id: UUID):
 
 
 def get_income_summary(db: Session, user_id: UUID):
-    """📊 Tính tổng thu nhập của người dùng (từ bảng Income)"""
-    return db.query(func.coalesce(func.sum(models.Income.amount), 0)).filter(models.Income.user_id == user_id).scalar()
+    """📊 Lấy tổng chi tiêu theo danh mục"""
+    summary = (
+        db.query(
+            models.Income.category_name.label("category_name"),
+            func.sum(models.Income.amount).label("total_amount")
+        )
+        .filter(models.Income.user_id == user_id)
+        .group_by(models.Income.category_name)
+        .order_by(func.sum(models.Income.amount).desc())
+        .all()
+    )
+
+    # Chuyển đổi Decimal sang float để JSON serialization
+    return [
+        {
+            "category_name": s.category_name,
+            "total_amount": float(s.total_amount)
+        }
+        for s in summary
+    ]

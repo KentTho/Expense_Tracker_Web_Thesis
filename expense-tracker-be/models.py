@@ -29,6 +29,10 @@ class User(Base):
     birthday = Column(Date, nullable=True)
     profile_image = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # ✅ THÊM: Cài đặt tiền tệ của người dùng
+    currency_code = Column(String(5), nullable=False, default="USD")
+    currency_symbol = Column(String(5), nullable=False, default="$")
+
 
     # Quan hệ
     incomes = relationship("Income", back_populates="user", cascade="all, delete-orphan")

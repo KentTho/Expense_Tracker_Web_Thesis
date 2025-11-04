@@ -1,4 +1,3 @@
-# crud_expense.py
 from sqlalchemy.orm import Session
 from datetime import date
 from uuid import UUID
@@ -6,17 +5,61 @@ from decimal import Decimal
 from sqlalchemy import func
 import models
 from typing import Optional
+from fastapi import HTTPException  # Cần thiết cho các hàm khác
+
 
 def create_expense(
-    db: Session,
-    user_id: UUID,
-    category_name: Optional[str],
-    amount: Decimal,
-    date_val: date,
-    emoji: Optional[str] = None,
-    category_id: Optional[UUID] = None
+        db: Session,
+        user_id: UUID,
+        category_name: Optional[str],
+        amount: Decimal,
+        date_val: date,
+        emoji: Optional[str] = None,
+        category_id: Optional[UUID] = None
 ):
-    """🟢 Tạo mới chi tiêu (Expense)"""
+    """🟢 Tạo mới chi tiêu (Expense), tự động tạo Category nếu chưa có"""
+
+    # ✅ Logic Category ID Resolution (ĐÃ THÊM)
+    if category_id is None and category_name:
+        # 1. Thử tìm Category của User
+        existing_category = (
+            db.query(models.Category)
+            .filter(
+                models.Category.user_id == user_id,
+                models.Category.name == category_name,
+                models.Category.type == "expense"  # 👈 SỬ DỤNG TYPE "expense"
+            )
+            .first()
+        )
+
+        if existing_category:
+            category_id = existing_category.id
+        else:
+            # 2. Thử tìm Category Mặc Định (user_id=None)
+            default_category = (
+                db.query(models.Category)
+                .filter(
+                    models.Category.user_id == None,
+                    models.Category.name == category_name,
+                    models.Category.type == "expense"  # 👈 SỬ DỤNG TYPE "expense"
+                )
+                .first()
+            )
+
+            if default_category:
+                category_id = default_category.id
+            else:
+                # 3. Tạo Category mới cho User (Nếu không tìm thấy)
+                new_category = models.Category(
+                    user_id=user_id,
+                    name=category_name,
+                    type="expense",  # 👈 SỬ DỤNG TYPE "expense"
+                )
+                db.add(new_category)
+                db.flush()
+                category_id = new_category.id
+
+    # Tạo bản ghi Expense
     exp = models.Expense(
         user_id=user_id,
         category_id=category_id,
@@ -67,12 +110,30 @@ def delete_expense(db: Session, expense_id: UUID, user_id: UUID):
     )
     if not expense:
         return None
+
     db.delete(expense)
     db.commit()
-    return expense
+    return {"message": "Expense deleted successfully"}
 
 
 def get_expense_summary(db: Session, user_id: UUID):
-    """📊 Tính tổng chi tiêu của người dùng (từ bảng Expense)"""
-    # Phiên bản tối ưu:
-    return db.query(func.coalesce(func.sum(models.Expense.amount), 0)).filter(models.Expense.user_id == user_id).scalar()
+    """📊 Lấy tổng chi tiêu theo danh mục"""
+    summary = (
+        db.query(
+            models.Expense.category_name.label("category_name"),
+            func.sum(models.Expense.amount).label("total_amount")
+        )
+        .filter(models.Expense.user_id == user_id)
+        .group_by(models.Expense.category_name)
+        .order_by(func.sum(models.Expense.amount).desc())
+        .all()
+    )
+
+    # Chuyển đổi Decimal sang float để JSON serialization
+    return [
+        {
+            "category_name": s.category_name,
+            "total_amount": float(s.total_amount)
+        }
+        for s in summary
+    ]
