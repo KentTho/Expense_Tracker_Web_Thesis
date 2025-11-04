@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 from decimal import Decimal
 from sqlalchemy import func
@@ -152,3 +152,27 @@ def get_expense_summary(db: Session, user_id: UUID):
         }
         for s in summary
     ]
+
+
+def get_expense_daily_trend(db: Session, user_id: UUID, days: int = 30):
+    """📊 Lấy tổng chi tiêu theo ngày trong N ngày qua (cho Bar Chart)"""
+
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days - 1)  # Lấy N ngày, tính cả ngày hôm nay
+
+    trend_data = (
+        db.query(
+            models.Expense.date.label("date"),
+            func.sum(models.Expense.amount).label("total_amount")
+        )
+        .filter(
+            models.Expense.user_id == user_id,
+            models.Expense.date >= start_date,
+            models.Expense.date <= end_date
+        )
+        .group_by(models.Expense.date)
+        .order_by(models.Expense.date)
+        .all()
+    )
+    # Kết quả trả về là list of Row objects, phù hợp với Pydantic (ExpenseTrendOut)
+    return trend_data

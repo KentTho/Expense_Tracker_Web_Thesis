@@ -7,7 +7,7 @@ from cruds.crud_expense import (
     create_expense as crud_create_expense,
     delete_expense as crud_delete_expense,
     update_expense as crud_update_expense,
-    get_expense_summary,
+    get_expense_summary as crud_get_expense_summary,
     list_expenses_for_user)
 from db.database import get_db
 from schemas import ExpenseOut, ExpenseCreate
@@ -48,3 +48,9 @@ def delete_expense(expense_id: UUID, current_user=Depends(get_current_user_db), 
     if not deleted:
         raise HTTPException(status_code=404, detail="Expense not found")
     return {"message": "Expense deleted successfully"}
+# ...
+@router.get("/summary", response_model=List[dict])
+def get_expense_summary_route(current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
+    """API lấy tổng chi tiêu theo danh mục (cho Pie Chart)."""
+    # ✅ Đây là hàm bạn cần dùng
+    return crud_get_expense_summary(db, current_user.id)

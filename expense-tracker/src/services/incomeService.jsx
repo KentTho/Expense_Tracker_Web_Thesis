@@ -153,3 +153,33 @@ export async function getIncomeSummary() {
   }
   return await res.json();
 }
+
+// ===========================
+// 💰 incomeService.jsx (Bổ sung/Sửa)
+// ===========================
+
+// ... (các hàm hiện có, đảm bảo getToken() vẫn được định nghĩa)
+
+// 📊 GET Financial KPIs
+export async function getFinancialKpiSummary() {
+    const token = await getToken();
+
+    const res = await fetch(`${BACKEND_BASE}/summary/kpis`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // 💡 Xử lý lỗi: Đảm bảo BE đã gửi token hợp lệ và route đã được đăng ký
+    if (!res.ok) {
+        const resText = await res.text();
+        try {
+            // Thử phân tích JSON (nếu BE trả về lỗi dạng JSON, ví dụ: {"detail":"Not Found"})
+            const errJson = JSON.parse(resText);
+            throw new Error(JSON.stringify(errJson));
+        } catch (e) {
+            // Nếu không phải JSON, hoặc lỗi network (Failed to fetch)
+            throw new Error(resText || `Failed to fetch KPIs: Status ${res.status}`);
+        }
+    }
+    return await res.json();
+}

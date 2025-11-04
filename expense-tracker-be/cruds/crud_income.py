@@ -155,3 +155,25 @@ def get_income_summary(db: Session, user_id: UUID):
         }
         for s in summary
     ]
+
+
+# cruds/crud_income.py (Phần cuối)
+# ... (Đảm bảo đã import models, Decimal và func)
+
+# Lưu ý: Hàm này cần import models.Expense, models.Income và func
+def get_financial_kpi_summary(db: Session, user_id: UUID):
+    """💰 Lấy tổng thu và tổng chi cho KPI Cards"""
+
+    # 1. Tổng thu (total_income)
+    total_income = db.query(func.sum(models.Income.amount)).filter(
+        models.Income.user_id == user_id).scalar() or Decimal(0)
+
+    # 2. Tổng chi (total_expense)
+    total_expense = db.query(func.sum(models.Expense.amount)).filter(
+        models.Expense.user_id == user_id).scalar() or Decimal(0)
+
+    # Trả về Dict, sẽ được Pydantic KpiSummaryOut validate
+    return {
+        "total_income": total_income,
+        "total_expense": total_expense,
+    }

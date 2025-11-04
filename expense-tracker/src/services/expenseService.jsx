@@ -179,3 +179,54 @@ export async function getExpenseSummary() {
     }
     return await res.json();
 }
+
+
+// ... (Giữ nguyên các hàm hiện có)
+
+// 📊 GET Expense Daily Trend (Lấy dữ liệu cho Bar Chart)
+// Backend API: GET /summary/expenses/trend/daily?days=30
+export async function getExpenseDailyTrend(days = 30) {
+    const token = await getToken();
+
+    const res = await fetch(`${BACKEND_BASE}/summary/expenses/trend/daily?days=${days}`, { 
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+        const errText = await res.text();
+        try {
+            const errJson = JSON.parse(errText);
+            throw new Error(errJson.detail || "Failed to fetch expense daily trend!");
+        } catch (e) {
+            throw new Error(errText || "Failed to fetch expense daily trend!");
+        }
+    }
+    // BE nên trả về dạng: [{ day: "2025-10-01", expense: 150.50 }, ...]
+    return await res.json();
+}
+
+// 📊 GET Expense Breakdown (Lấy dữ liệu cho Pie Chart)
+// Hàm này là bản sao của getExpenseSummary nhưng dùng route /summary/expense-breakdown 
+// để tách logic Dashboard ra khỏi Expense Page.
+// Backend API: GET /summary/expense-breakdown
+export async function getExpenseBreakdown() {
+    const token = await getToken();
+    
+    // 💡 Sử dụng API Dashboard mới: /summary/expense-breakdown
+    const res = await fetch(`${BACKEND_BASE}/summary/expense-breakdown`, { 
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+        const errText = await res.text();
+        try {
+            const errJson = JSON.parse(errText);
+            throw new Error(errJson.detail || "Failed to fetch expense breakdown!");
+        } catch (e) {
+            throw new Error(errText || "Failed to fetch expense breakdown!");
+        }
+    }
+    return await res.json();
+}

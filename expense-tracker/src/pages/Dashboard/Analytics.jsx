@@ -20,11 +20,9 @@ import {
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
 
-// ✅ IMPORTS DỊCH VỤ CƠ BẢN
+// IMPORTS DỊCH VỤ CƠ BẢN
 import { getIncomes } from "../../services/incomeService";
 import { getExpenses } from "../../services/expenseService";
-
-// ✅ IMPORTS MỚI: DÙNG ĐỂ LẤY TẤT CẢ CATEGORIES CHO FILTER
 import { getCategories } from "../../services/categoryService"; 
 
 export default function Analytics() {
@@ -32,9 +30,8 @@ export default function Analytics() {
     const isDark = theme === "dark";
 
     const [transactions, setTransactions] = useState([]); // All combined transactions
-    // Categories for the filter dropdown
     const [categories, setCategories] = useState([]); 
-    const [loading, setLoading] = useState(false); // Loading state
+    const [loading, setLoading] = useState(false); 
 
     const [filters, setFilters] = useState({
         type: "all",
@@ -46,7 +43,7 @@ export default function Analytics() {
     const [filteredData, setFilteredData] = useState([]);
 
 // ----------------------------------------------------
-// 🧩 Function to fetch and normalize all data (Giữ nguyên logic trước đó)
+// 🧩 Function to fetch and normalize all data (ĐÃ SỬA CHUẨN HÓA AMOUNT)
 // ----------------------------------------------------
 const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -77,27 +74,36 @@ const fetchTransactions = useCallback(async () => {
         const allTransactions = [
             ...incomes.map((inc) => {
                 const categoryName = inc.category?.name || inc.category_name || "N/A";
+                const safeAmount = Number(inc.amount) || 0; 
+                
+                if (safeAmount === 0 || isNaN(safeAmount)) return null; 
+
                 return {
                     id: inc.id,
                     type: "income",
                     category: categoryName, 
-                    amount: Number(inc.amount),
+                    amount: safeAmount,
                     date: inc.date,
                     emoji: inc.emoji || inc.category?.emoji || inc.category?.icon || categoryMap.get(categoryName) || "💰",
                 };
             }),
             ...expenses.map((exp) => {
                 const categoryName = exp.category?.name || exp.category_name || "N/A";
+                const safeAmount = Number(exp.amount) || 0; 
+                
+                if (safeAmount === 0 || isNaN(safeAmount)) return null; 
+
                 return {
                     id: exp.id,
                     type: "expense",
                     category: categoryName,
-                    amount: Number(exp.amount),
+                    amount: safeAmount,
                     date: exp.date,
                     emoji: exp.emoji || exp.category?.emoji || exp.category?.icon || categoryMap.get(categoryName) || "💸",
                 };
             }),
-        ].sort((a, b) => new Date(b.date) - new Date(a.date)); 
+        ].filter(t => t !== null) // ✅ Lọc bỏ giao dịch lỗi/amount=0
+         .sort((a, b) => new Date(b.date) - new Date(a.date)); 
 
         setTransactions(allTransactions);
 
@@ -128,33 +134,31 @@ const fetchTransactions = useCallback(async () => {
 }, []);
 
     // ----------------------------------------------------
-    // ⬇️ Function to Export Data to CSV (MỚI)
+    // ⬇️ Function to Export Data to CSV (Giữ nguyên)
     // ----------------------------------------------------
     const exportToCSV = (data, filename) => {
         if (data.length === 0) {
-            toast.error("No data to export based on current filters.");
+            toast.error("Không có dữ liệu để xuất dựa trên các bộ lọc hiện tại.");
             return;
         }
 
-        // 1. Định nghĩa Headers (Sử dụng tiêu đề tiếng Việt và loại bỏ 'emoji' và 'id')
-        const headers = ["ID", "Date", "Type", "Category", "Amount"];
+        const headers = ["ID", "Ngày", "Loại Giao Dịch", "Danh Mục", "Số Tiền"];
+        const delimiter = ";"; 
         
-        // 2. Tạo nội dung CSV
         const csvContent = 
-            // Header Row
-            headers.join(",") + "\n" + 
-            // Data Rows
+            headers.join(delimiter) + "\n" + 
             data.map(t => [
-                // Loại bỏ emoji khỏi Category Name khi xuất ra file
                 `"${t.id}"`,
                 `"${t.date}"`,
-                `"${t.type.charAt(0).toUpperCase() + t.type.slice(1)}"`, // Type
-                `"${t.category.replace(/"/g, '""')}"`, // Category (Escape quotes)
-                t.amount // Amount
-            ].join(",")).join("\n");
+                `"${t.type.charAt(0).toUpperCase() + t.type.slice(1)}"`, 
+                `"${t.category.replace(/"/g, '""')}"`, 
+                t.amount.toString().replace('.', ',') 
+            ].join(delimiter)).join("\n");
 
-        // 3. Kích hoạt tải file
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const BOM = "\uFEFF"; 
+        const finalCsvContent = BOM + csvContent;
+
+        const blob = new Blob([finalCsvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.setAttribute('href', url);
@@ -163,29 +167,22 @@ const fetchTransactions = useCallback(async () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        toast.success(`Exported ${data.length} transactions to ${filename}`);
+        toast.success(`Đã xuất ${data.length} giao dịch vào ${filename}`);
     };
 
-    // ----------------------------------------------------
-    // 🔄 Handler cho nút Export
-    // ----------------------------------------------------
     const handleDownloadReport = () => {
         const filename = `Transactions_Report_${new Date().toISOString().slice(0, 10)}.csv`;
-        // ✅ GỌI HÀM EXPORT MỚI VỚI DỮ LIỆU ĐÃ LỌC
         exportToCSV(filteredData, filename);
     };
 
 
     // ----------------------------------------------------
-    // 🔄 Initial Data Fetch (Giữ nguyên)
+    // 🔄 Initial Data Fetch & Filter Update (Giữ nguyên)
     // ----------------------------------------------------
     useEffect(() => {
         fetchTransactions();
     }, [fetchTransactions]);
 
-// ----------------------------------------------------
-// ⚙️ Xử lý lọc dữ liệu (Giữ nguyên)
-// ----------------------------------------------------
     useEffect(() => {
         let data = [...transactions];
         if (filters.type !== "all")
@@ -218,18 +215,20 @@ const fetchTransactions = useCallback(async () => {
         .reduce((sum, t) => sum + t.amount, 0);
     const totalBalance = totalIncome - totalExpense;
 
-    // --- Chart Data (Giữ nguyên) ---
+    // --- Chart Data ---
     const barData = [
         { name: "Income", amount: totalIncome, color: "#10B981" },
         { name: "Expense", amount: totalExpense, color: "#EF4444" },
     ];
 
-    const pieData = filteredData
-        .filter(t => filters.type === 'all' || t.type === filters.type)
+    // ✅ FIX: Sửa logic tính toán Pie Data
+    const pieData = filteredData 
         .reduce((acc, cur) => {
             const found = acc.find((a) => a.category === cur.category);
-            if (found) found.amount += cur.amount;
-            else acc.push({ category: cur.category, amount: cur.amount });
+            if (cur.category && cur.category !== "N/A" && cur.amount > 0) { // ✅ Lọc cả amount > 0
+                if (found) found.amount += cur.amount;
+                else acc.push({ category: cur.category, amount: cur.amount });
+            }
             return acc;
         }, [])
         .sort((a, b) => b.amount - a.amount);
@@ -253,13 +252,13 @@ const fetchTransactions = useCallback(async () => {
             <Toaster position="top-right" reverseOrder={false} />
 
             <main className="p-8 space-y-8">
-                {/* ... (Header) ... */}
+                
+                {/* ... (Header & Export Button) ... */}
                 <div className="flex justify-between items-center">
                     <h1 className="text-3xl font-bold flex items-center gap-2">
                         <BarChart3 className="text-blue-500" /> Analytics Dashboard
                     </h1>
 
-                    {/* ✅ Nút Export Report ĐÃ KÍCH HOẠT */}
                     <button
                         onClick={handleDownloadReport}
                         className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition"
@@ -268,7 +267,7 @@ const fetchTransactions = useCallback(async () => {
                     </button>
                 </div>
 
-                {/* --- Bộ lọc (Giữ nguyên logic Category đã cập nhật) --- */}
+                {/* --- Bộ lọc (Giữ nguyên) --- */}
                 <div
                     className={`p-6 rounded-2xl shadow-lg ${
                         isDark ? "bg-[#1e293b]" : "bg-white"
@@ -279,7 +278,7 @@ const fetchTransactions = useCallback(async () => {
                     </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        {/* Loại giao dịch (Giữ nguyên) */}
+                        {/* Loại giao dịch */}
                         <div>
                             <label className="block text-sm mb-1">Transaction Type</label>
                             <select
@@ -297,7 +296,7 @@ const fetchTransactions = useCallback(async () => {
                             </select>
                         </div>
 
-                        {/* Danh mục (Dynamic) - Đã có Emoji */}
+                        {/* Danh mục (Có Emoji) */}
                         <div>
                             <label className="block text-sm mb-1">Category</label>
                             <select
@@ -318,7 +317,7 @@ const fetchTransactions = useCallback(async () => {
                             </select>
                         </div>
 
-                        {/* Ngày bắt đầu (Giữ nguyên) */}
+                        {/* Ngày bắt đầu/kết thúc (Giữ nguyên) */}
                         <div>
                             <label className="block text-sm mb-1">Start Date</label>
                             <input
@@ -333,7 +332,6 @@ const fetchTransactions = useCallback(async () => {
                             />
                         </div>
 
-                        {/* Ngày kết thúc (Giữ nguyên) */}
                         <div>
                             <label className="block text-sm mb-1">End Date</label>
                             <input
@@ -352,6 +350,7 @@ const fetchTransactions = useCallback(async () => {
 
                 {/* --- Tổng hợp thống kê (Giữ nguyên) --- */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* ... (Total Balance, Income, Expense) ... */}
                     <div
                         className={`p-6 rounded-2xl shadow-lg flex flex-col justify-between ${
                             isDark ? "bg-[#1e293b]" : "bg-white"
@@ -390,7 +389,7 @@ const fetchTransactions = useCallback(async () => {
                     </div>
                 </div>
 
-                {/* --- Biểu đồ (Giữ nguyên) --- */}
+                {/* --- Biểu đồ --- */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Bar Chart (Giữ nguyên) */}
                     <div
@@ -421,7 +420,7 @@ const fetchTransactions = useCallback(async () => {
                         </ResponsiveContainer>
                     </div>
 
-                    {/* Pie Chart (Giữ nguyên) */}
+                    {/* Pie Chart - Đã fix lỗi Recharts -1 và lỗi logic Pie Data */}
                     <div
                         className={`p-6 rounded-2xl shadow-lg ${
                             isDark ? "bg-[#1e293b]" : "bg-white"
@@ -431,8 +430,9 @@ const fetchTransactions = useCallback(async () => {
                             <PieChart /> Category Distribution ({filters.type === 'all' ? 'All Transactions' : filters.type === 'income' ? 'Income' : 'Expense'})
                         </h3>
                          <div className="flex justify-center items-center h-[250px]">
-                            {pieData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
+                            {/* Luôn luôn render ResponsiveContainer */}
+                            <ResponsiveContainer width="100%" height="100%"> 
+                                {pieData.length > 0 ? (
                                     <RePieChart>
                                         <Pie
                                             data={pieData}
@@ -457,10 +457,13 @@ const fetchTransactions = useCallback(async () => {
                                             itemStyle={{ color: isDark ? "#E2E8F0" : "#334155" }}
                                         />
                                     </RePieChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <p className="text-gray-500">No category data for the selected filters.</p>
-                            )}
+                                ) : (
+                                    // Hiển thị thông báo bên trong ResponsiveContainer khi không có dữ liệu
+                                    <div className="flex items-center justify-center w-full h-full">
+                                        <p className="text-gray-500">No category data for the selected filters.</p>
+                                    </div>
+                                )}
+                            </ResponsiveContainer>
                         </div>
                     </div>
                 </div>

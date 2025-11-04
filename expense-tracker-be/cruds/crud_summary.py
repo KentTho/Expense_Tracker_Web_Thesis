@@ -1,8 +1,11 @@
 # crud_summary.py
+from decimal import Decimal
+
 from sqlalchemy.orm import Session
 from uuid import UUID
 from sqlalchemy import func, desc
 import models
+from datetime import datetime, timedelta
 # Giả sử crud_income và crud_expense đã được import để lấy các hàm summary
 # from .crud_income import get_income_summary
 # from .crud_expense import get_expense_summary
@@ -170,3 +173,46 @@ def get_analytics_trends_data(db: Session, user_id: UUID):
         "income_trend": [{"date": str(d), "amount": float(a)} for d, a in income_data],
         "expense_trend": [{"date": str(d), "amount": float(a)} for d, a in expense_data],
     }
+
+
+def get_expense_daily_trend(db: Session, user_id: UUID, days: int = 30):
+    """Lấy tổng chi tiêu theo ngày trong N ngày gần nhất (từ bảng Expense)."""
+    # Lấy ngày bắt đầu N ngày trước
+    start_date = datetime.now().date() - timedelta(days=days - 1)
+
+    expense_data = (
+        db.query(models.Expense.date, func.sum(models.Expense.amount).label("total"))
+        .filter(models.Expense.user_id == user_id, models.Expense.date >= start_date)
+        .group_by(models.Expense.date)
+        .order_by(models.Expense.date.asc())  # Sắp xếp tăng dần theo ngày
+        .all()
+    )
+
+    # Chuẩn hóa kết quả
+    return [
+        {"date": str(r.date), "total_amount": float(r.total)}
+        for r in expense_data
+    ]
+
+
+# cruds/crud_summary.py (Hoặc cuối crud_income.py)
+# ... (imports)
+
+def get_financial_kpi_summary(db: Session, user_id: UUID):
+    """💰 Lấy tổng thu và tổng chi cho KPI Cards"""
+
+    # 1. Tổng thu
+    total_income = db.query(func.sum(models.Income.amount)).filter(
+        models.Income.user_id == user_id).scalar() or Decimal(0)
+
+    # 2. Tổng chi
+    total_expense = db.query(func.sum(models.Expense.amount)).filter(
+        models.Expense.user_id == user_id).scalar() or Decimal(0)
+
+    return {
+        "total_income": total_income,
+        "total_expense": total_expense,
+    }
+
+# Sử dụng lại get_expense_summary từ crud_expense.py cho Breakdown Pie Chart:
+# get_expense_summary(db: Session, user_id: UUID)
