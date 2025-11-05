@@ -5,7 +5,7 @@ from typing import List
 from cruds.crud_income import list_incomes_for_user, create_income as crud_create_income, delete_income as crud_delete_income, update_income as crud_update_income, get_income_summary
 from db.database import get_db
 from schemas import IncomeOut, IncomeCreate
-from schemas.income_schemas import IncomeListOut
+from schemas.income_schemas import IncomeListOut, IncomeSummaryOut
 from services.auth_token_db import get_current_user_db
 
 router = APIRouter(prefix="/incomes", tags=["Income"])
@@ -63,3 +63,19 @@ def delete_income(
     if not deleted:
         raise HTTPException(status_code=404, detail="Income not found")
     return {"message": "Income deleted successfully"}
+
+
+@router.get("/summary", response_model=List[IncomeSummaryOut])
+def get_summary(
+        current_user=Depends(get_current_user_db),
+        db: Session = Depends(get_db)
+):
+    """📊 Lấy tổng thu nhập theo danh mục (cho Bar Chart)"""
+    # Hàm get_income_summary được import từ cruds.crud_income
+    summary_data = get_income_summary(db, current_user.id)
+
+    if not summary_data:
+        # Trả về list rỗng nếu không có dữ liệu
+        return []
+
+    return summary_data

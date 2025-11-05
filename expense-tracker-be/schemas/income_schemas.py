@@ -41,3 +41,19 @@ class IncomeListOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# income_schemas.py (Phần cuối)
+# ... (Đảm bảo đã import Decimal)
+
+class IncomeSummaryOut(BaseModel):
+    """Schema cho Tổng quan Thu nhập theo danh mục (Bar Chart)"""
+    category_name: str
+    total_amount: Decimal # Tổng tiền của danh mục
+
+    class Config:
+        from_attributes = True
+        # FastAPI/Pydantic cần chuyển Decimal thành float/str khi serialize JSON
+        json_encoders = {
+            Decimal: lambda v: str(v),
+        }

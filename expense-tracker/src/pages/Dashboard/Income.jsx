@@ -6,16 +6,20 @@ import {
     Edit,
     DollarSign,
     Loader2,
+    Calendar,
+    Download,
+    X,
+    BarChart3, 
 } from "lucide-react";
 import {
     ResponsiveContainer,
-    BarChart, // Cho Category Summary
+    BarChart,
     Bar,
     XAxis,
     YAxis,
     Tooltip,
     CartesianGrid,
-    AreaChart, // 📊 ĐÃ CHUYỂN SANG AreaChart cho xu hướng theo ngày
+    AreaChart,
     Area,
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
@@ -24,8 +28,39 @@ import {
     createIncome,
     updateIncome,
     deleteIncome,
+    getIncomeSummary,
 } from "../../services/incomeService";
 import { getCategories } from "../../services/categoryService"; 
+import { format } from "date-fns";
+
+// Màu sắc
+const INCOME_TREND_COLOR = "#10B981"; 
+
+// 💡 Danh sách các đơn vị tiền tệ
+const CURRENCIES = [
+    { code: "USD", name: "US Dollar ($)" },
+    { code: "VND", name: "Vietnamese Dong (₫)" },
+    { code: "EUR", name: "Euro (€)" },
+    { code: "JPY", name: "Japanese Yen (¥)" },
+    { code: "GBP", name: "British Pound (£)" },
+];
+
+// ====================================================
+// 💡 HELPER: ĐỊNH DẠNG TIỀN TỆ (Sử dụng đơn vị đã chọn)
+// ====================================================
+const formatAmountDisplay = (amount, currencyCode) => {
+    // 1. Chuyển sang kiểu số và làm tròn để loại bỏ số thập phân
+    const roundedAmount = Math.round(Number(amount));
+    
+    // 2. Định dạng theo đơn vị tiền tệ đã chọn
+    return new Intl.NumberFormat('en-US', { // Sử dụng 'en-US' locale để có định dạng số chuẩn
+        style: 'currency',
+        currency: currencyCode,
+        minimumFractionDigits: 0, 
+        maximumFractionDigits: 0,
+    }).format(roundedAmount);
+};
+
 
 export default function Income() {
     const { theme } = useOutletContext();
@@ -33,98 +68,93 @@ export default function Income() {
 
     const [incomes, setIncomes] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [showModal, setShowModal] = useState(false);
+    const [incomeSummary, setIncomeSummary] = useState([]); 
+    const [totalIncome, setTotalIncome] = useState(0); 
+    const [showModal, setShowModal] = useState(false); 
+    const [showSummaryModal, setShowSummaryModal] = useState(false); 
     const [editId, setEditId] = useState(null);
     const [loading, setLoading] = useState(false);
+    
+    const [filterDate, setFilterDate] = useState(""); 
+    
+    // 💡 State mới: Lưu đơn vị tiền tệ đang hiển thị (Mặc định: USD)
+    const [displayCurrency, setDisplayCurrency] = useState("USD"); 
+    
     const [form, setForm] = useState({
         category_name: "",
         amount: "",
-        date: new Date().toISOString().split('T')[0], // Mặc định ngày hiện tại
+        date: new Date().toISOString().split('T')[0],
         emoji: "💰",
         category_id: "",
     });
 
-    // -----------------------------------------------------------------
-    // 🧩 1. Data Fetching
-    // -----------------------------------------------------------------
-    const fetchIncomes = useCallback(async () => {
+    // ... (Giữ nguyên logic fetchData, handleFormSubmit, handleEdit, handleDelete, handleCloseModal) ...
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            // 1. Fetch Categories
-            const categoriesData = await getCategories("income");
-            setCategories(categoriesData);
+            const [incomesResult, categoriesResult, summaryResult] = await Promise.all([
+                getIncomes(),
+                getCategories("income"),
+                getIncomeSummary(),
+            ]);
 
-            // 2. Fetch Incomes
-            const incomesData = await getIncomes();
+            const formattedSummary = summaryResult.map(item => ({
+                name: item.category_name,
+                value: Number(item.total_amount) || 0,
+            })).filter(item => item.value > 0);
 
-            // 3. Process data
-            const processedIncomes = incomesData
-                .map(inc => ({
-                    ...inc,
-                    amount: Number(inc.amount), // Đảm bảo Amount là Number
-                    category_name: inc.category?.name || inc.category_name || 'N/A',
-                    emoji: inc.category?.icon || inc.emoji || '💰'
-                }))
-                // Sắp xếp theo ngày mới nhất
-                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            // 💡 Tính Total Income
+            const calculatedTotalIncome = incomesResult.reduce((sum, income) => 
+                sum + Number(income.amount), 0
+            );
+            
+            setTotalIncome(calculatedTotalIncome); 
+            setIncomes(incomesResult);
+            setCategories(categoriesResult);
+            setIncomeSummary(formattedSummary);
 
-            setIncomes(processedIncomes);
-
-        } catch (error) {
-            console.error("Error fetching incomes/categories:", error);
+        } catch (err) {
+            console.error("Error fetching data:", err);
             toast.error("Failed to load income data.");
-            setIncomes([]);
-            setCategories([]);
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchIncomes();
-    }, [fetchIncomes]);
+        fetchData();
+    }, [fetchData]);
 
-    // -----------------------------------------------------------------
-    // 🧩 2. Logic Form & CRUD (Đã tối ưu)
-    // -----------------------------------------------------------------
-    useEffect(() => {
-        const selectedCat = categories.find(c => c.id === form.category_id);
-        if (selectedCat) {
-            setForm(prev => ({
-                ...prev,
-                category_name: selectedCat.name,
-                emoji: selectedCat.icon || "💰"
-            }));
-        }
-    }, [form.category_id, categories]);
 
     const handleFormSubmit = async () => {
-        if (!form.amount || !form.date || !form.category_id) {
-            toast.error("Please fill all required fields!");
+        if (!form.amount || !form.date) {
+            toast.error("Please fill in required fields (Amount and Date)!");
             return;
         }
-
+        
+        let finalForm = { ...form };
+        if (!finalForm.category_id && finalForm.category_name) {
+            const foundCategory = categories.find(c => c.name.toLowerCase() === finalForm.category_name.toLowerCase());
+            if (foundCategory) {
+                finalForm.category_id = foundCategory.id;
+                finalForm.emoji = foundCategory.icon || finalForm.emoji;
+            }
+        }
+        
         try {
             let updatedList;
-            let result;
             if (editId) {
-                result = await updateIncome(editId, form);
-                updatedList = incomes.map((i) => (i.id === editId ? result : i));
+                const updated = await updateIncome(editId, finalForm);
+                updatedList = incomes.map((i) => (i.id === editId ? updated : i));
                 toast.success("Income updated successfully!");
             } else {
-                result = await createIncome(form);
-                updatedList = [result, ...incomes];
+                const created = await createIncome(finalForm);
+                updatedList = [...incomes, created];
                 toast.success("New income added!");
             }
+            setIncomes(updatedList);
+            await fetchData(); 
             
-            // Cập nhật lại list sau khi thêm/sửa, và sắp xếp lại
-            setIncomes(updatedList.map(inc => ({
-                ...inc,
-                amount: Number(inc.amount),
-                category_name: inc.category?.name || inc.category_name || 'N/A',
-                emoji: inc.category?.icon || inc.emoji || '💰'
-            })).sort((a, b) => new Date(b.date) - new Date(a.date)));
-
             setShowModal(false);
             setEditId(null);
             setForm({
@@ -141,14 +171,14 @@ export default function Income() {
     };
     
     const handleEdit = (income) => {
+        setEditId(income.id);
         setForm({
             category_name: income.category_name,
-            amount: income.amount.toString(),
+            amount: String(income.amount),
             date: income.date,
             emoji: income.emoji,
-            category_id: income.category_id,
+            category_id: income.category?.id || '',
         });
-        setEditId(income.id);
         setShowModal(true);
     };
 
@@ -157,6 +187,7 @@ export default function Income() {
             try {
                 await deleteIncome(id);
                 setIncomes(incomes.filter((i) => i.id !== id));
+                await fetchData(); 
                 toast.success("Income deleted successfully!");
             } catch (err) {
                 console.error(err);
@@ -164,96 +195,95 @@ export default function Income() {
             }
         }
     };
+    
+    const handleCloseModal = () => {
+        setShowModal(false);
+        setEditId(null);
+        setForm({
+            category_name: "",
+            amount: "",
+            date: new Date().toISOString().split('T')[0],
+            emoji: "💰",
+            category_id: "",
+        });
+    }
 
-    // -----------------------------------------------------------------
-    // 🧩 3. Data Summary & Chart Data 
-    // -----------------------------------------------------------------
-    const totalIncome = incomes.reduce((sum, income) => sum + income.amount, 0);
+    const filteredIncomes = useMemo(() => {
+        if (!filterDate) return incomes;
+        return incomes.filter(i => i.date === filterDate);
+    }, [incomes, filterDate]);
 
-    // 📊 Dữ liệu cho Bar Chart (Summary theo Danh mục)
-    const categoryChartData = useMemo(() => {
-        const dataMap = incomes.reduce((acc, income) => {
-            const name = income.category_name || "Khác";
-            acc[name] = (acc[name] || 0) + income.amount;
-            return acc;
-        }, {});
-        
-        return Object.keys(dataMap)
-            .map(name => ({
-                category: name,
-                total: dataMap[name],
-            }))
-            // Chỉ lấy top 5 danh mục thu nhập cao nhất
-            .sort((a, b) => b.total - a.total)
-            .slice(0, 5); 
-    }, [incomes]);
+    const summaryData = useMemo(() => {
+        return [...incomeSummary].sort((a, b) => b.value - a.value); 
+    }, [incomeSummary]);
 
-    // 📈 Dữ liệu cho Area Chart (Xu hướng thu nhập theo Ngày)
-    const dailyChartData = useMemo(() => {
-        // Gom nhóm thu nhập theo ngày (date)
+    const dailyTrendData = useMemo(() => {
         const dailyMap = incomes.reduce((acc, income) => {
             const dateStr = income.date;
-            acc[dateStr] = (acc[dateStr] || 0) + income.amount;
+            acc[dateStr] = (acc[dateStr] || 0) + Number(income.amount);
             return acc;
         }, {});
 
-        // Chuyển sang mảng, sắp xếp theo ngày cũ nhất lên trước
         return Object.keys(dailyMap)
-            .map(date => ({
-                date: date,
-                amount: dailyMap[date],
-            }))
-            .sort((a, b) => new Date(a.date) - new Date(b.date));
+            .sort()
+            .map(dateStr => ({
+                date: format(new Date(dateStr), 'dd/MM'), 
+                amount: dailyMap[dateStr],
+            }));
     }, [incomes]);
-    
-    // Custom Label cho Bar Chart (hiển thị số tiền phía trên cột)
-    const renderCustomBarLabel = ({ x, y, width, value }) => {
-        // Chỉ hiển thị label nếu cột đủ rộng
-        if (width < 30) return null; 
 
-        return (
-            <text 
-                x={x + width / 2} 
-                y={y} 
-                fill={isDark ? "#E2E8F0" : "#4A5568"} 
-                textAnchor="middle" 
-                dy={-6} // Đẩy label lên trên cột
-                fontSize={12}
-            >
-                {/* Format số tiền gọn gàng */}
-                ${(value / 1000).toFixed(0)}k 
-            </text>
-        );
+    const handleCategoryChange = (e) => {
+        const categoryId = e.target.value;
+        const selectedCategory = categories.find(c => c.id === categoryId);
+        
+        setForm({ 
+            ...form, 
+            category_id: categoryId,
+            category_name: selectedCategory ? selectedCategory.name : "",
+            emoji: selectedCategory ? selectedCategory.icon : form.emoji || "💰",
+        });
     };
-
-    // -----------------------------------------------------------------
-    // 🧩 4. JSX Rendering
-    // -----------------------------------------------------------------
+    // ----------------------------------------------------
+    // 🖼️ 5. PHẦN RENDER GIAO DIỆN
+    // ----------------------------------------------------
 
     return (
-        <div
-            className={`min-h-screen transition-colors duration-300 ${
-                isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
-            } relative`}
-        >
-            {/* ⚠️ Loading Overlay */}
-            {loading && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <Loader2 className="animate-spin text-white h-10 w-10" />
-                </div>
-            )}
+        <div className={`p-6 ${isDark ? "text-gray-100" : "text-gray-800"}`}>
+            <Toaster />
 
-            <Toaster position="top-right" reverseOrder={false} />
+            {/* HEADER & BUTTONS (ADD & SUMMARY & CURRENCY) */}
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold flex items-center gap-2">
+                    <DollarSign size={24} className="text-green-500" /> Income Transactions
+                </h1>
+                <div className="flex gap-3 items-center">
+                    {/* 💡 Currency Selector */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium">Currency:</label>
+                        <select
+                            value={displayCurrency}
+                            onChange={(e) => setDisplayCurrency(e.target.value)}
+                            className={`px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                        >
+                            {CURRENCIES.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                    {c.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
-            <main className="p-8 space-y-8">
-                {/* Header & Add Button */}
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <DollarSign className="text-blue-500" /> Income Tracker
-                    </h1>
+                    {/* Nút mở Summary Modal */}
+                    <button
+                        onClick={() => setShowSummaryModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium shadow-md shadow-purple-500/50"
+                        title="View Income Summary by Category"
+                    >
+                        <BarChart3 size={20} /> View Summary
+                    </button>
+                    {/* Nút Add New Income */}
                     <button
                         onClick={() => {
-                            setShowModal(true);
                             setEditId(null);
                             setForm({
                                 category_name: "",
@@ -262,255 +292,289 @@ export default function Income() {
                                 emoji: "💰",
                                 category_id: "",
                             });
+                            setShowModal(true);
                         }}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-md shadow-blue-500/50"
                     >
-                        <PlusCircle size={18} /> Add New Income
+                        <PlusCircle size={20} /> Add New Income
                     </button>
                 </div>
+            </div>
 
-                {/* Summary Card */}
-                <div
-                    className={`p-6 rounded-2xl shadow-lg flex justify-between items-center ${
-                        isDark ? "bg-[#1e293b]" : "bg-white"
-                    }`}
-                >
-                    <div>
-                        <h3 className="text-lg font-semibold mb-1">Total Income</h3>
-                        <p className="text-4xl font-bold text-blue-500">
-                            ${totalIncome.toLocaleString()}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Chart Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* 📊 CHART CARD 1: Bar Chart (Tổng thu nhập theo danh mục) */}
-                    <div
-                        className={`lg:col-span-2 p-6 rounded-2xl shadow-lg ${
-                            isDark ? "bg-[#1e293b]" : "bg-white"
-                        }`}
-                    >
-                        <h3 className="text-lg font-semibold mb-3">Top 5 Income by Category</h3>
-                        <div style={{ width: '100%', height: 350 }}>
+            {/* 💡 --- BỐ CỤC 2 CỘT CHÍNH (Trend Chart & Transaction List) --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* 📊 CỘT 1: INCOME TREND (Area Chart) - Chiếm 2/3 chiều rộng */}
+                <div className="lg:col-span-2">
+                    <div className={`${isDark ? "bg-gray-800" : "bg-white"} p-4 rounded-xl shadow-lg h-full`}>
+                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                            <Calendar size={20} className="text-green-500" /> Income Trend by Date
+                        </h2>
+                        {/* Biểu đồ Area Chart - Tăng chiều cao để rõ ràng hơn */}
+                        <div className="h-96"> 
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart 
-                                    data={categoryChartData}
-                                    layout="vertical"
-                                    margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
-                                >
-                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#E2E8F0"} />
-                                    <XAxis 
-                                        type="number" 
-                                        stroke={isDark ? "#94A3B8" : "#334155"}
-                                        tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`} // Format trục X
-                                    />
+                                <AreaChart data={dailyTrendData}
+                                    margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} />
+                                    <XAxis dataKey="date" stroke={isDark ? "#9CA3AF" : "#6B7280"} angle={-45} textAnchor="end" height={50} /> 
                                     <YAxis 
-                                        dataKey="category" 
-                                        type="category" 
-                                        stroke={isDark ? "#94A3B8" : "#334155"}
-                                        width={80} 
-                                    />
-                                    <Tooltip
-                                        formatter={(value) => [`$${value.toLocaleString()}`, "Total Income"]}
-                                        contentStyle={{
-                                            background: isDark ? "#1E293B" : "#F1F5F9",
-                                            border: "none",
+                                        stroke={isDark ? "#9CA3AF" : "#6B7280"} 
+                                        tickFormatter={(value) => formatAmountDisplay(value, displayCurrency)} // 💡 Sử dụng Currency Code
+                                    /> 
+                                    <Tooltip 
+                                        formatter={(value) => [`${formatAmountDisplay(value, displayCurrency)}`, "Amount"]} // 💡 Sử dụng Currency Code
+                                        contentStyle={{ 
+                                            backgroundColor: isDark ? "#1F2937" : "#FFFFFF", 
+                                            borderColor: isDark ? "#4B5563" : "#D1D5DB", 
+                                            borderRadius: "8px" 
                                         }}
                                     />
-                                    <Bar 
-                                        dataKey="total" 
-                                        fill="#3B82F6" // Màu xanh dương cho Income
-                                        radius={[0, 10, 10, 0]}
-                                        label={renderCustomBarLabel}
-                                    />
-                                </BarChart>
+                                    <Area type="monotone" dataKey="amount" stroke={INCOME_TREND_COLOR} fill={INCOME_TREND_COLOR} fillOpacity={0.5} />
+                                </AreaChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
+                </div>
 
-                    {/* Recent Incomes List */}
-                    <div
-                        className={`p-6 rounded-2xl shadow-lg ${
-                            isDark ? "bg-[#1e293b]" : "bg-white"
-                        }`}
-                    >
-                        <h3 className="text-lg font-semibold mb-3">Recent Incomes</h3>
-                        <ul className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                            {incomes.slice(0, 5).map((income) => (
-                                <li
-                                    key={income.id}
-                                    className={`flex justify-between items-center p-3 rounded-lg ${
-                                        isDark ? "bg-gray-700/50" : "bg-gray-100"
-                                    }`}
+                {/* 📜 CỘT 2: RECENT INCOMES LIST - Chiếm 1/3 chiều rộng */}
+                <div className="lg:col-span-1">
+                    <div className={`${isDark ? "bg-gray-800" : "bg-white"} p-4 rounded-xl shadow-lg h-full`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-semibold">Recent Incomes</h2>
+                            <button className={`px-3 py-2 rounded-lg border transition ${isDark ? "bg-gray-700 border-gray-600 hover:bg-gray-600" : "bg-gray-100 border-gray-300 hover:bg-gray-200"}`} title="Export Data">
+                                <Download size={20} />
+                            </button>
+                        </div>
+
+                        {/* Thanh lọc/tìm kiếm & Nút View All */}
+                        <div className="mb-4 flex gap-2 items-center">
+                            <div className="relative flex-grow">
+                                <input
+                                    type="date"
+                                    value={filterDate}
+                                    onChange={(e) => setFilterDate(e.target.value)}
+                                    className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"}`}
+                                />
+                            </div>
+                            {/* Nút Clear Filter / View All */}
+                            {filterDate && (
+                                <button
+                                    onClick={() => setFilterDate("")}
+                                    className={`px-3 py-2 rounded-lg transition font-medium text-sm ${isDark ? "bg-red-700/50 hover:bg-red-700 text-white" : "bg-red-100 hover:bg-red-200 text-red-600"}`}
+                                    title="Clear Date Filter (View All)"
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-2xl">{income.emoji}</span>
-                                        <div>
-                                            <p className="font-medium text-sm">
-                                                {income.category_name}
+                                    <X size={18} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Danh sách giao dịch - Thêm cuộn dọc (overflow-y-auto) */}
+                        {loading ? (
+                            <div className="flex justify-center items-center py-10 h-[300px]">
+                                <Loader2 size={32} className="animate-spin text-blue-500" />
+                            </div>
+                        ) : filteredIncomes.length === 0 ? (
+                            <p className="text-center py-10 text-gray-500">No income transactions found.</p>
+                        ) : (
+                            <div className="space-y-4 overflow-y-auto pr-2" style={{ maxHeight: '300px' }}> {/* Giới hạn chiều cao cho scroll */}
+                                {filteredIncomes.map((income) => (
+                                    <div
+                                        key={income.id}
+                                        className={`flex justify-between items-center py-3 px-2 rounded-lg hover:shadow-md transition ${isDark ? "hover:bg-gray-700/50" : "hover:bg-gray-50/50"}`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xl">{income.emoji || income.category?.icon || '❓'}</span>
+                                            <div>
+                                                <p className="font-medium text-sm">{income.category_name}</p>
+                                                <p className="text-xs text-gray-400">{income.date ? format(new Date(income.date), "dd/MM/yyyy") : 'N/A'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <p className="font-semibold text-sm text-green-500">
+                                                + {formatAmountDisplay(income.amount, displayCurrency)} {/* 💡 Sử dụng Currency Code */}
                                             </p>
-                                            <p className="text-xs text-gray-500">
-                                                {income.date}
-                                            </p>
+                                            <div className="flex gap-2 mt-1">
+                                                <button
+                                                    onClick={() => handleEdit(income)}
+                                                    className="text-blue-500 hover:text-blue-700 transition"
+                                                    aria-label="Edit Income"
+                                                    title="Edit"
+                                                >
+                                                    <Edit size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(income.id)}
+                                                    className="text-red-500 hover:text-red-700 transition"
+                                                    aria-label="Delete Income"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                    <p className="font-bold text-blue-500">
-                                        +${income.amount.toLocaleString()}
-                                    </p>
-                                </li>
-                            ))}
-                            {incomes.length === 0 && !loading && (
-                                <li className="text-center py-4 text-gray-500">
-                                    No income records found.
-                                </li>
-                            )}
-                        </ul>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* 📈 CHART CARD 2: Area Chart (Xu hướng thu nhập theo Ngày) */}
-                <div
-                    className={`p-6 rounded-2xl shadow-lg ${
-                        isDark ? "bg-[#1e293b]" : "bg-white"
-                    }`}
-                >
-                    <h3 className="text-lg font-semibold mb-3">Daily Income Trend (Area Chart)</h3>
-                    <div style={{ width: '100%', height: 300 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={dailyChartData}>
-                                <defs>
-                                    {/* Gradient fill cho Area Chart */}
-                                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
-                                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#E2E8F0"} />
-                                <XAxis 
-                                    dataKey="date" 
-                                    stroke={isDark ? "#94A3B8" : "#334155"}
-                                    tickFormatter={(dateStr) => dateStr.substring(5)} // Chỉ hiển thị MM-DD
-                                />
-                                <YAxis 
-                                    stroke={isDark ? "#94A3B8" : "#334155"}
-                                    tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
-                                />
-                                <Tooltip
-                                    labelFormatter={(label) => `Date: ${label}`}
-                                    formatter={(value) => [`$${value.toLocaleString()}`, "Total Income"]}
-                                    contentStyle={{
-                                        background: isDark ? "#1E293B" : "#F1F5F9",
-                                        border: "none",
-                                    }}
-                                />
-                                <Area 
-                                    type="monotone" 
-                                    dataKey="amount" 
-                                    stroke="#3B82F6" 
-                                    fillOpacity={1} 
-                                    fill="url(#colorIncome)" 
-                                    strokeWidth={3}
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
+            </div>
+            
+            {/* --- KHU VỰC THÔNG TIN BỔ SUNG (Total Income Card) --- */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                 {/* Card Tổng thu nhập */}
+                <div className="md:col-span-1">
+                    <div className={`p-6 rounded-xl shadow-lg border-t-4 border-green-500 ${isDark ? "bg-gray-800" : "bg-white"}`}>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-semibold text-green-500 flex items-center gap-2">
+                                <DollarSign size={24} /> Total Income (All Time)
+                            </h3>
+                        </div>
+                        <p className={`text-4xl font-extrabold mt-2 ${isDark ? "text-white" : "text-gray-900"}`}>
+                            {formatAmountDisplay(totalIncome, displayCurrency)} {/* 💡 Sử dụng Currency Code */}
+                        </p>
+                        <p className="text-sm text-gray-400 mt-1">
+                            Calculated from {incomes.length} transactions.
+                        </p>
                     </div>
                 </div>
-            </main>
+                
+                {/* Bổ sung thêm 2 cột trống */}
+                <div className="md:col-span-2">
+                    {/* Có thể thêm các biểu đồ/KPI khác ở đây */}
+                </div>
+                
+            </div>
             
-            {/* Modal (Giữ nguyên) */}
+            {/* --- MODAL CHUNG (CREATE/UPDATE) --- */}
             {showModal && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
-                    onClick={() => setShowModal(false)}
-                >
-                    <div
-                        className={`rounded-2xl shadow-2xl transition-all w-full max-w-md ${
-                            isDark ? "bg-[#1e293b] text-gray-100" : "bg-white text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="p-6">
-                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                                <DollarSign size={24} className="text-blue-500" />
-                                {editId ? "Edit Income" : "Add New Income"}
-                            </h2>
-                            <div className="space-y-4">
-                                {/* Amount */}
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Amount ($)</label>
-                                    <input
-                                        type="number"
-                                        value={form.amount}
-                                        onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                                            isDark
-                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                        }`}
-                                        placeholder="e.g. 500.00"
-                                        required
-                                    />
-                                </div>
-                                {/* Date */}
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Date</label>
-                                    <input
-                                        type="date"
-                                        value={form.date}
-                                        onChange={(e) => setForm({ ...form, date: e.target.value })}
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                                            isDark
-                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                        }`}
-                                        required
-                                    />
-                                </div>
-                                {/* Category */}
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Category</label>
-                                    <select
-                                        value={form.category_id}
-                                        onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                                            isDark
-                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                        }`}
-                                        required
-                                    >
-                                        <option value="">-- Select Category --</option>
-                                        {categories.map((c, idx) => (
-                                            <option key={c.id || idx} value={c.id}>
-                                                {c.icon ? `${c.icon} ` : ""}{c.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                {/* Emoji Display */}
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Selected Emoji</label>
-                                    <input
-                                        type="text"
-                                        value={form.emoji}
-                                        readOnly
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none text-center text-2xl ${
-                                            isDark
-                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                        }`}
-                                    />
-                                </div>
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className={`w-full max-w-md p-6 rounded-xl shadow-2xl relative ${isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
+                        
+                        <button 
+                            onClick={handleCloseModal}
+                            className={`absolute top-4 right-4 text-gray-500 transition hover:text-red-500 ${isDark ? "hover:text-red-400" : "hover:text-red-600"}`}
+                            aria-label="Close modal"
+                        >
+                            <X size={24} />
+                        </button>
+
+                        <h3 className="text-2xl font-bold mb-4">
+                            {editId ? "Edit Income" : "Add New Income"}
+                        </h3>
+                        
+                        <div className="space-y-4">
+                            {/* Form fields here (Amount, Date, Category, Emoji) */}
+                            <div>
+                                {/* 💡 CHÚ Ý: Tại đây, chúng ta vẫn mặc định hiển thị USD để tránh người dùng bị nhầm lẫn khi nhập */}
+                                <label className="block text-sm font-medium mb-1">Amount (USD)</label> 
+                                <input
+                                    type="number"
+                                    value={form.amount}
+                                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                                    className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                                    placeholder="e.g., 1000"
+                                    required
+                                />
                             </div>
-                            {/* Save / Update Button */}
+                            
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Date</label>
+                                <input
+                                    type="date"
+                                    value={form.date}
+                                    onChange={(e) => setForm({ ...form, date: e.target.value })}
+                                    className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                                    required
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Category</label>
+                                <select
+                                    value={form.category_id}
+                                    onChange={handleCategoryChange}
+                                    className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                                >
+                                    <option value="">-- Select Category --</option>
+                                    {categories.map((c) => (
+                                        <option key={c.id} value={c.id}> 
+                                            {c.icon ? `${c.icon} ` : ""}{c.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="w-20">
+                                <label className="block text-sm font-medium mb-1">Emoji</label>
+                                <input
+                                    type="text"
+                                    value={form.emoji}
+                                    readOnly
+                                    className={`w-full px-3 py-2 rounded-lg border outline-none text-center text-2xl ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                                />
+                            </div>
+                            
                             <button
                                 onClick={handleFormSubmit}
-                                className="w-full mt-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2"
+                                className="w-full mt-4 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition font-semibold shadow-lg shadow-blue-500/50"
                             >
                                 <DollarSign size={18} />
                                 {editId ? "Update Income" : "Save Income"}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* --- MODAL CHO SUMMARY CHART --- */}
+            {showSummaryModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                    <div className={`w-full max-w-3xl p-6 rounded-xl shadow-2xl relative ${isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
+                        
+                        <button 
+                            onClick={() => setShowSummaryModal(false)}
+                            className={`absolute top-4 right-4 text-gray-500 transition hover:text-red-500 ${isDark ? "hover:text-red-400" : "hover:text-red-600"}`}
+                            aria-label="Close Summary Chart"
+                        >
+                            <X size={24} />
+                        </button>
+
+                        <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                            <BarChart3 size={24} className="text-purple-500" /> Income Summary by Category (Top 10)
+                        </h3>
+
+                        <div className="h-96">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart 
+                                    data={summaryData.slice(0, 10)} 
+                                    layout="vertical" 
+                                    margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} />
+                                    <XAxis 
+                                        type="number" 
+                                        stroke={isDark ? "#9CA3AF" : "#6B7280"} 
+                                        tickFormatter={(value) => formatAmountDisplay(value, displayCurrency)} // 💡 Sử dụng Currency Code
+                                    />
+                                    <YAxis 
+                                        dataKey="name" 
+                                        type="category" 
+                                        stroke={isDark ? "#9CA3AF" : "#6B7280"} 
+                                        width={100} 
+                                    />
+                                    <Tooltip 
+                                        formatter={(value) => [`${formatAmountDisplay(value, displayCurrency)}`, "Amount"]} // 💡 Sử dụng Currency Code
+                                        contentStyle={{ 
+                                            backgroundColor: isDark ? "#1F2937" : "#FFFFFF", 
+                                            borderColor: isDark ? "#4B5563" : "#D1D5DB", 
+                                            borderRadius: "8px" 
+                                        }}
+                                    />
+                                    <Bar dataKey="value" fill={INCOME_TREND_COLOR} radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
                 </div>
