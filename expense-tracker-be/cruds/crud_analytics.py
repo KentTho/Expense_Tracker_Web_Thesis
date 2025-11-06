@@ -14,7 +14,7 @@ from schemas.analytics_schemas import CategorySummary, AnalyticsFilter, Analytic
 # =========================================================
 def get_user_currency_symbol(db: Session, user_id: UUID) -> str:
     """Lấy ký hiệu tiền tệ của người dùng từ cài đặt."""
-    # ✅ DỰA VÀO models.py: User model đã có trường currency_symbol
+    # ✅ DỰA VÀO model.py: User model đã có trường currency_symbol
     user = db.query(models.User.currency_symbol).filter(models.User.id == user_id).first()
     return user[0] if user and user[0] else "$"
 

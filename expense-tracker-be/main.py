@@ -4,16 +4,15 @@ import json
 from contextlib import contextmanager
 
 # Thư viện ngoài (External Libraries)
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 import firebase_admin
-from firebase_admin import credentials, auth as fb_auth
+from firebase_admin import credentials
 
 # Thư viện nội bộ (Internal Imports)
-import models
-from db.database import SessionLocal, engine, get_db
+
+from db.database import SessionLocal, engine, Base
 from cruds.crud_category import seed_default_categories
 from routes import (
     auth_route, income_route, category_route, expense_route,
@@ -49,7 +48,7 @@ if not firebase_admin._apps:
 # -------------------------------------------------
 
 # Đảm bảo các bảng được tạo (Migration/Schema creation)
-models.Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 
 # Helper để lấy DB session an toàn

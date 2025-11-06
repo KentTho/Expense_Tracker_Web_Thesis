@@ -1,7 +1,7 @@
 from sqlalchemy import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import or_  # Cần import 'or_' để dùng cho filter
-import models
+from models import category_model
 import uuid
 
 
@@ -10,7 +10,7 @@ import uuid
 # =========================================================
 
 def create_category(db: Session, user_id: UUID, name: str, type: str, color: str = None, icon: str = None):
-    category = models.Category(
+    category = category_model.Category(
         id=uuid.uuid4(),  # ✅ tự tạo ID nếu model chưa sinh tự động
         user_id=user_id,
         name=name,
@@ -25,10 +25,10 @@ def create_category(db: Session, user_id: UUID, name: str, type: str, color: str
 
 
 def list_categories_for_user(db: Session, user_id: UUID, type_filter: str = None):
-    query = db.query(models.Category).filter(models.Category.user_id == user_id)
+    query = db.query(category_model.Category).filter(category_model.Category.user_id == user_id)
     if type_filter:
-        query = query.filter(models.Category.type == type_filter)
-    return query.order_by(models.Category.created_at.desc()).all()
+        query = query.filter(category_model.Category.type == type_filter)
+    return query.order_by(category_model.Category.created_at.desc()).all()
 
 
 # ✅ HÀM MỚI: Lấy cả User-defined và Default Categories từ DB
@@ -38,23 +38,23 @@ def list_all_categories_for_user(db: Session, user_id: UUID, type_filter: str = 
     1. Categories do người dùng tạo (user_id == user_id)
     2. Default Categories (user_id == None)
     """
-    query = db.query(models.Category).filter(
+    query = db.query(category_model.Category).filter(
         or_(
-            models.Category.user_id == user_id,
-            models.Category.user_id == None
+            category_model.Category.user_id == user_id,
+            category_model.Category.user_id == None
         )
     )
     if type_filter:
-        query = query.filter(models.Category.type == type_filter)
+        query = query.filter(category_model.Category.type == type_filter)
 
     # Sắp xếp: User categories lên trên, Default categories xuống dưới (hoặc theo tên)
-    return query.order_by(models.Category.user_id.desc(), models.Category.name.asc()).all()
+    return query.order_by(category_model.Category.user_id.desc(), category_model.Category.name.asc()).all()
 
 
 def update_category(db: Session, category_id: UUID, user_id: UUID, update_data: dict):
     category = (
-        db.query(models.Category)
-        .filter(models.Category.id == category_id, models.Category.user_id == user_id)
+        db.query(category_model.Category)
+        .filter(category_model.Category.id == category_id, category_model.Category.user_id == user_id)
         .first()
     )
     if not category:
@@ -68,8 +68,8 @@ def update_category(db: Session, category_id: UUID, user_id: UUID, update_data: 
 
 def delete_category(db: Session, category_id: UUID, user_id: UUID):
     category = (
-        db.query(models.Category)
-        .filter(models.Category.id == category_id, models.Category.user_id == user_id)
+        db.query(category_model.Category)
+        .filter(category_model.Category.id == category_id, category_model.Category.user_id == user_id)
         .first()
     )
     if not category:
@@ -120,14 +120,14 @@ def seed_default_categories(db: Session):
     for cat_type in ["income", "expense"]:
         defaults = get_default_categories(cat_type)
         for cat in defaults:
-            existing = db.query(models.Category).filter(
-                models.Category.name == cat["name"],
-                models.Category.type == cat_type,
-                models.Category.user_id == None  # Mặc định (không gắn user)
+            existing = db.query(category_model.Category).filter(
+                category_model.Category.name == cat["name"],
+                category_model.Category.type == cat_type,
+                category_model.Category.user_id == None  # Mặc định (không gắn user)
             ).first()
 
             if not existing:
-                new_cat = models.Category(
+                new_cat = category_model.Category(
                     id=uuid.uuid4(),  # ✅ tạo UUID thật
                     user_id=None,  # category mặc định dùng chung
                     name=cat["name"],

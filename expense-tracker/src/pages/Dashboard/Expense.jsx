@@ -5,6 +5,10 @@ import {
     TrendingDown,
     DollarSign,
     Loader2,
+    BarChart3, // For category summary/breakdown
+    LineChart, // For daily trend
+    Trash2,
+    Edit,
 } from "lucide-react";
 import {
     ResponsiveContainer,
@@ -13,8 +17,8 @@ import {
     Bar,
     XAxis,
     YAxis,
-    CartesianGrid, // Thêm CartesianGrid cho lưới
-    LineChart, // Thêm LineChart cho xu hướng theo ngày
+    CartesianGrid,
+    LineChart as RechartsLineChart, // Rename LineChart from recharts to avoid conflict
     Line,
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
@@ -23,121 +27,168 @@ import {
     getExpenses,
     updateExpense,
     deleteExpense,
-} from "../../services/expenseService"; 
-import { getCategories } from "../../services/categoryService"; 
+    getExpenseDailyTrend,
+    getExpenseBreakdown,
+} from "../../services/expenseService";
+import { getCategories } from "../../services/categoryService";
 
+// Helper: Định dạng tiền tệ
+const formatAmountDisplay = (amount, decimals = 0) => {
+    const numberAmount = Number(amount);
+    if (isNaN(numberAmount)) return `$0`;
+
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    }).format(numberAmount);
+};
+
+// Custom Tooltip for Recharts (Bar/Line Chart)
+const CustomTooltip = ({ active, payload, label }) => {
+    const isExpense = payload?.[0]?.dataKey === 'amount' || payload?.[0]?.dataKey === 'expense';
+    const isBreakdown = payload?.[0]?.dataKey === 'total_amount';
+
+    if (active && payload && payload.length) {
+        let value = payload[0].value;
+        let name = payload[0].name;
+
+        if (isBreakdown) {
+            name = payload[0].payload.category_name;
+            value = payload[0].value;
+        }
+
+        // Vẫn giữ số thập phân trong Tooltip để đảm bảo dữ liệu chi tiết
+        return (
+            <div className="p-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 rounded shadow-lg">
+                <p className="text-sm font-semibold">{isBreakdown ? name : `Date: ${label}`}</p>
+                <p className="text-sm" style={{ color: isExpense ? '#ef4444' : '#22c55e' }}>
+                    {isBreakdown ? 'Total Spent' : (isExpense ? 'Expense' : 'Amount')}: {formatAmountDisplay(value, 2)}
+                </p>
+            </div>
+        );
+    }
+    return null;
+};
+
+// =================================================================
+// Main Expense Component
+// =================================================================
 export default function Expense() {
     const { theme } = useOutletContext();
     const isDark = theme === "dark";
 
+    // Data and State Management
     const [expenses, setExpenses] = useState([]);
     const [categories, setCategories] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editId, setEditId] = useState(null);
     const [loading, setLoading] = useState(false);
+
+    // 📊 Chart States
+    const [dailyTrend, setDailyTrend] = useState([]);
+    const [breakdownData, setBreakdownData] = useState([]);
+    const [chartView, setChartView] = useState('trend');
+    const [chartDays, setChartDays] = useState(7); // Đặt mặc định là 7 ngày
+
     const [form, setForm] = useState({
         category_name: "",
         amount: "",
         date: new Date().toISOString().split('T')[0],
-        emoji: "💸",
+        emoji: "💸", // Default expense emoji
         category_id: "",
     });
 
-    // -----------------------------------------------------------------
-    // 🧩 1. Data Fetching
-    // -----------------------------------------------------------------
-    const fetchExpenses = useCallback(async () => {
+    // Helper: Calculate total expense from current list - LÀM TRÒN SỐ NGUY
+    const totalExpense = useMemo(() => {
+        // FIX: Explicitly convert exp.amount to a Number to prevent NaN/string concatenation/NaN
+        const total = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+        return Math.round(total); // Làm tròn số nguyên
+    }, [expenses]);
+
+    // ----------------------------------------------------
+    // ⚙️ Data Fetching
+    // ----------------------------------------------------
+
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const categoriesData = await getCategories("expense");
-            setCategories(categoriesData);
+            const expenseData = await getExpenses();
+            setExpenses(expenseData);
 
-            const expensesData = await getExpenses();
+            const categoryData = await getCategories('expense');
+            setCategories(categoryData);
 
-            const processedExpenses = expensesData
-                .map(exp => ({
-                    ...exp,
-                    amount: Number(exp.amount),
-                    category_name: exp.category?.name || exp.category_name || 'N/A',
-                    emoji: exp.category?.icon || exp.emoji || '💸'
-                }))
-                // Sắp xếp theo ngày mới nhất (để hiển thị trong bảng)
-                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            const trendData = await getExpenseDailyTrend(chartDays);
+            setDailyTrend(trendData);
 
-            setExpenses(processedExpenses);
+            const breakdown = await getExpenseBreakdown();
+            setBreakdownData(breakdown);
 
         } catch (error) {
-            console.error("Error fetching expenses/categories:", error);
-            toast.error("Failed to load expense data.");
-            setExpenses([]); 
-            setCategories([]);
-
+            console.error("Error fetching data:", error);
+            toast.error(error.message || "Failed to load data.");
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [chartDays]);
 
     useEffect(() => {
-        fetchExpenses();
-    }, [fetchExpenses]);
+        fetchData();
+    }, [fetchData]);
 
-    // -----------------------------------------------------------------
-    // 🧩 2. Logic Form & CRUD (Giữ nguyên)
-    // -----------------------------------------------------------------
-    useEffect(() => {
-        const selectedCat = categories.find(c => c.id === form.category_id);
-        if (selectedCat) {
-            setForm(prev => ({
-                ...prev,
-                category_name: selectedCat.name,
-                emoji: selectedCat.icon || "💸"
-            }));
+    // ----------------------------------------------------
+    // 📝 Form and Modal Logic (Giữ nguyên)
+    // ----------------------------------------------------
+
+    const handleFormChange = (e) => {
+        const { name, value } = e.target;
+        setForm(prev => ({ ...prev, [name]: value }));
+
+        if (name === 'category_name') {
+            const selectedCat = categories.find(c => c.name === value);
+            if (selectedCat) {
+                setForm(prev => ({
+                    ...prev,
+                    emoji: selectedCat.emoji,
+                    category_id: selectedCat.id,
+                }));
+            } else {
+                setForm(prev => ({ ...prev, emoji: "❓", category_id: "" }));
+            }
         }
-    }, [form.category_id, categories]);
-
+    };
 
     const handleFormSubmit = async () => {
-        if (!form.amount || !form.date || !form.category_id) {
-            toast.error("Please fill all required fields!");
+        if (!form.amount || !form.category_name || !form.date) {
+            toast.error("Please fill out all required fields.");
             return;
         }
 
+        setLoading(true);
         try {
-            let updatedList;
-            let result;
             if (editId) {
-                result = await updateExpense(editId, form);
-                updatedList = expenses.map((i) => (i.id === editId ? result : i));
+                await updateExpense(editId, form);
                 toast.success("Expense updated successfully!");
             } else {
-                result = await createExpense(form);
-                updatedList = [result, ...expenses];
-                toast.success("New expense added!");
+                await createExpense(form);
+                toast.success("Expense saved successfully!");
             }
-            
-            setExpenses(updatedList.map(exp => ({
-                ...exp,
-                amount: Number(exp.amount),
-                category_name: exp.category?.name || exp.category_name || 'N/A',
-                emoji: exp.category?.icon || exp.emoji || '💸'
-            })).sort((a, b) => new Date(b.date) - new Date(a.date)));
-
             setShowModal(false);
             setEditId(null);
-            setForm({
-                category_name: "",
-                amount: "",
-                date: new Date().toISOString().split('T')[0],
-                emoji: "💸",
-                category_id: "",
-            });
-        } catch (err) {
-            console.error(err);
-            toast.error(`Error while saving expense: ${err.message}`);
+            setForm({ category_name: "", amount: "", date: new Date().toISOString().split('T')[0], emoji: "💸", category_id: "" });
+            fetchData();
+        } catch (error) {
+            console.error("Submission error:", error);
+            toast.error(error.message || "Failed to save expense.");
+        } finally {
+            setLoading(false);
         }
     };
-    
+
     const handleEdit = (expense) => {
+        setEditId(expense.id);
         setForm({
             category_name: expense.category_name,
             amount: expense.amount.toString(),
@@ -145,349 +196,296 @@ export default function Expense() {
             emoji: expense.emoji,
             category_id: expense.category_id,
         });
-        setEditId(expense.id);
         setShowModal(true);
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm("Are you sure you want to delete this expense?")) {
-            try {
-                await deleteExpense(id);
-                setExpenses(expenses.filter((i) => i.id !== id));
-                toast.success("Expense deleted successfully!");
-            } catch (err) {
-                console.error(err);
-                toast.error("Error deleting expense.");
-            }
+        if (!window.confirm("Are you sure you want to delete this expense?")) return;
+        setLoading(true);
+        try {
+            await deleteExpense(id);
+            toast.success("Expense deleted successfully!");
+            fetchData();
+        } catch (error) {
+            console.error("Deletion error:", error);
+            toast.error(error.message || "Failed to delete expense.");
+        } finally {
+            setLoading(false);
         }
     };
 
-    // -----------------------------------------------------------------
-    // 🧩 3. Data Summary & Chart Data 
-    // -----------------------------------------------------------------
-    const totalExpense = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-
-    // 📊 Dữ liệu cho Bar Chart (Summary theo Danh mục)
-    const categoryChartData = useMemo(() => {
-        const dataMap = expenses.reduce((acc, expense) => {
-            const name = expense.category_name || "Khác";
-            acc[name] = (acc[name] || 0) + expense.amount;
-            return acc;
-        }, {});
-        
-        return Object.keys(dataMap)
-            .map(name => ({
-                category: name,
-                total: dataMap[name],
-            }))
-            // Chỉ lấy top 5 danh mục chi tiêu cao nhất
-            .sort((a, b) => b.total - a.total)
-            .slice(0, 5); 
-
-    }, [expenses]);
-
-    // 📈 Dữ liệu cho Line Chart (Xu hướng chi tiêu theo Ngày)
-    const dailyChartData = useMemo(() => {
-        // Gom nhóm chi tiêu theo ngày (date)
-        const dailyMap = expenses.reduce((acc, expense) => {
-            const dateStr = expense.date; // Ngày đã có format YYYY-MM-DD
-            acc[dateStr] = (acc[dateStr] || 0) + expense.amount;
-            return acc;
-        }, {});
-
-        // Chuyển sang mảng, sắp xếp theo ngày cũ nhất lên trước
-        return Object.keys(dailyMap)
-            .map(date => ({
-                date: date,
-                amount: dailyMap[date],
-            }))
-            .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    }, [expenses]);
-    
-    // Custom Label cho Bar Chart (hiển thị số tiền phía trên cột)
-    const renderCustomBarLabel = ({ x, y, width, value }) => {
-        // Chỉ hiển thị label nếu cột đủ rộng
-        if (width < 30) return null; 
-
-        return (
-            <text 
-                x={x + width / 2} 
-                y={y} 
-                fill={isDark ? "#E2E8F0" : "#4A5568"} 
-                textAnchor="middle" 
-                dy={-6} // Đẩy label lên trên cột
-                fontSize={12}
-            >
-                {/* Format số tiền gọn gàng */}
-                ${(value / 1000).toFixed(0)}k 
-            </text>
-        );
+    const closeModal = () => {
+        setShowModal(false);
+        setEditId(null);
+        setForm({ category_name: "", amount: "", date: new Date().toISOString().split('T')[0], emoji: "💸", category_id: "" });
     };
 
+    // ----------------------------------------------------
+    // 🎨 UI Rendering
+    // ----------------------------------------------------
 
-    // -----------------------------------------------------------------
-    // 🧩 4. JSX Rendering
-    // -----------------------------------------------------------------
+    const chartTitle = chartView === 'trend'
+        ? `Daily Expense Trend (${chartDays} Days)`
+        : 'Expense Breakdown by Category';
+
+    // Line Chart for Daily Trend
+    const TrendChart = (
+        <RechartsLineChart data={dailyTrend}>
+            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#444" : "#ccc"} />
+            <XAxis
+                dataKey="day"
+                angle={-45}
+                textAnchor="end"
+                height={50}
+                tickFormatter={(tick) => tick.substring(5)} // Show MM-DD
+                stroke={isDark ? "#fff" : "#000"}
+                tick={{ fontSize: 10 }}
+            />
+            <YAxis
+                tickFormatter={(value) => formatAmountDisplay(value)} // Sử dụng formatAmountDisplay
+                stroke={isDark ? "#fff" : "#000"}
+                tick={{ fontSize: 10 }}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Line
+                type="monotone"
+                dataKey="expense"
+                stroke="#ef4444"
+                strokeWidth={2}
+                dot={false}
+                fill="#ef444455"
+            />
+        </RechartsLineChart>
+    );
+
+    // Bar Chart for Category Breakdown
+    const SummaryChart = (
+        <BarChart data={breakdownData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#444" : "#ccc"} />
+            <XAxis
+                dataKey="category_name"
+                stroke={isDark ? "#fff" : "#000"}
+                tick={{ fontSize: 10 }}
+            />
+            <YAxis
+                tickFormatter={(value) => formatAmountDisplay(value)} // Sử dụng formatAmountDisplay
+                stroke={isDark ? "#fff" : "#000"}
+                tick={{ fontSize: 10 }}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total_amount" fill="#ef4444" radius={[4, 4, 0, 0]} />
+        </BarChart>
+    );
 
     return (
-        <div
-            className={`min-h-screen transition-colors duration-300 ${
-                isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
-            } relative`}
-        >
-            {/* ⚠️ Loading Overlay */}
-            {loading && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <Loader2 className="animate-spin text-white h-10 w-10" />
-                </div>
-            )}
+        <div className={`p-4 sm:p-6 min-h-screen ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
+            <Toaster position="top-center" />
+            <h1 className="text-3xl font-bold mb-6 flex items-center">
+                <TrendingDown className="mr-2 text-red-500" size={28} />
+                Expense Transactions
+            </h1>
 
-            <Toaster position="top-right" reverseOrder={false} />
+            {/* Top Row: Chart and Total Summary/Recent Transactions - BỐ CỤC 1/3 (LEFT) + 2/3 (RIGHT) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            <main className="p-8 space-y-8">
-                {/* Header & Add Button (Giữ nguyên) */}
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <TrendingDown className="text-red-500" /> Expense Tracker
-                    </h1>
-                    <button
-                        onClick={() => {
-                            setShowModal(true);
-                            setEditId(null);
-                            setForm({
-                                category_name: "",
-                                amount: "",
-                                date: new Date().toISOString().split('T')[0],
-                                emoji: "💸",
-                                category_id: "",
-                            });
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition"
-                    >
-                        <PlusCircle size={18} /> Add New Expense
-                    </button>
-                </div>
+                {/* Left Column: Total Expense Summary & Recent Transactions (1/3) */}
+                <div className="lg:col-span-1 flex flex-col space-y-6">
 
-                {/* Summary Card (Giữ nguyên) */}
-                <div
-                    className={`p-6 rounded-2xl shadow-lg flex justify-between items-center ${
-                        isDark ? "bg-[#1e293b]" : "bg-white"
-                    }`}
-                >
-                    <div>
-                        <h3 className="text-lg font-semibold mb-1">Total Expense</h3>
-                        <p className="text-4xl font-bold text-red-500">
-                            ${totalExpense.toLocaleString()}
+                    {/* Total Expense Card (Nổi bật, không thập phân) */}
+                    <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
+                        <div className="flex justify-between items-center mb-2">
+                            <h2 className="text-xl font-semibold text-gray-500 dark:text-gray-400 flex items-center">
+                                <DollarSign size={20} className="mr-1 text-red-500" />
+                                Total Expense (All Time)
+                            </h2>
+                            <PlusCircle
+                                className="text-red-500 cursor-pointer hover:opacity-80 transition-opacity"
+                                size={24}
+                                onClick={() => setShowModal(true)}
+                            />
+                        </div>
+                        <p className="text-5xl font-extrabold text-red-500 mt-4">
+                            {formatAmountDisplay(totalExpense, 0)} {/* Đã làm tròn số nguyên */}
+                        </p>
+                        <p className="text-sm text-gray-400 mt-2">
+                            Calculated from {expenses.length} transactions
                         </p>
                     </div>
-                </div>
 
-                {/* Chart Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* 📊 CHART CARD 1: Bar Chart (Tổng chi tiêu theo danh mục) */}
-                    <div
-                        className={`lg:col-span-2 p-6 rounded-2xl shadow-lg ${
-                            isDark ? "bg-[#1e293b]" : "bg-white"
-                        }`}
-                    >
-                        <h3 className="text-lg font-semibold mb-3">Top 5 Expense by Category</h3>
-                        <div style={{ width: '100%', height: 350 }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart 
-                                    data={categoryChartData}
-                                    layout="vertical" // Biểu đồ cột ngang dễ đọc tên danh mục hơn
-                                    margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
-                                >
-                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#E2E8F0"} />
-                                    <XAxis 
-                                        type="number" 
-                                        stroke={isDark ? "#94A3B8" : "#334155"}
-                                        tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`} // Format trục X
-                                    />
-                                    <YAxis 
-                                        dataKey="category" 
-                                        type="category" 
-                                        stroke={isDark ? "#94A3B8" : "#334155"}
-                                        width={80} // Tăng chiều rộng để tránh cắt tên danh mục
-                                    />
-                                    <Tooltip
-                                        formatter={(value) => [`$${value.toLocaleString()}`, "Total Expense"]}
-                                        contentStyle={{
-                                            background: isDark ? "#1E293B" : "#F1F5F9",
-                                            border: "none",
-                                        }}
-                                    />
-                                    <Bar 
-                                        dataKey="total" 
-                                        fill="#EF4444" 
-                                        radius={[0, 10, 10, 0]} // Bo góc bên phải
-                                        label={renderCustomBarLabel} // Hiển thị số tiền trên cột
-                                    />
-                                </BarChart>
-                            </ResponsiveContainer>
+                    {/* Recent Transactions List */}
+                    <h2 className="text-2xl font-semibold mb-4 mt-8">Recent Expenses</h2>
+
+                    {loading && expenses.length === 0 ? (
+                        <div className="flex justify-center items-center h-20">
+                            <Loader2 className="animate-spin text-red-500" size={24} />
                         </div>
-                    </div>
-
-                    {/* Recent Expenses List (Giữ nguyên) */}
-                    <div
-                        className={`p-6 rounded-2xl shadow-lg ${
-                            isDark ? "bg-[#1e293b]" : "bg-white"
-                        }`}
-                    >
-                        <h3 className="text-lg font-semibold mb-3">Recent Expenses</h3>
-                        <ul className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                            {expenses.slice(0, 5).map((expense) => (
-                                <li
-                                    key={expense.id}
-                                    className={`flex justify-between items-center p-3 rounded-lg ${
-                                        isDark ? "bg-gray-700/50" : "bg-gray-100"
-                                    }`}
-                                >
+                    ) : expenses.length > 0 ? (
+                        <div className={`space-y-3 p-4 rounded-xl shadow-md ${isDark ? "bg-gray-800" : "bg-white"}`}>
+                            {expenses.slice(0, 5).map(expense => ( // Chỉ hiện 5 giao dịch gần nhất
+                                <div key={expense.id} className={`flex items-center justify-between p-3 rounded-lg transition-colors ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}>
                                     <div className="flex items-center gap-3">
                                         <span className="text-2xl">{expense.emoji}</span>
                                         <div>
-                                            <p className="font-medium text-sm">
-                                                {expense.category_name}
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                                {expense.date}
-                                            </p>
+                                            <p className="font-medium">{expense.category_name}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">{expense.date}</p>
                                         </div>
                                     </div>
-                                    <p className="font-bold text-red-500">
-                                        -${expense.amount.toLocaleString()}
-                                    </p>
-                                </li>
+                                    <div className="flex items-center gap-4">
+                                        <p className="font-semibold text-red-500">
+                                            - {formatAmountDisplay(expense.amount, 0)}
+                                        </p>
+                                        <button
+                                            onClick={() => handleEdit(expense)}
+                                            className="p-1 text-gray-500 hover:text-red-600 dark:hover:text-red-400"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(expense.id)}
+                                            className="p-1 text-gray-500 hover:text-red-600 dark:hover:text-red-400"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
                             ))}
-                            {expenses.length === 0 && !loading && (
-                                <li className="text-center py-4 text-gray-500">
-                                    No expense records found.
-                                </li>
-                            )}
-                        </ul>
+                        </div>
+                    ) : (
+                        <p className="text-center py-4 text-gray-500 dark:text-gray-400">No expenses recorded yet. Click the + icon to add one!</p>
+                    )}
+                </div>
+
+                {/* Right Column: Chart Section (2/3) */}
+                <div className="lg:col-span-2">
+                    <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-semibold">{chartTitle}</h2>
+                            <div className="flex items-center space-x-2">
+                                {/* Days Selector for Trend View */}
+                                {chartView === 'trend' && (
+                                    <select
+                                        value={chartDays}
+                                        onChange={(e) => setChartDays(Number(e.target.value))}
+                                        className={`text-sm py-1 px-2 rounded-lg border ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                                        disabled={loading}
+                                    >
+                                        <option value={7}>Last 7 Days</option>
+                                        <option value={30}>Last 30 Days</option>
+                                        <option value={90}>Last 90 Days</option>
+                                    </select>
+                                )}
+                                {/* View More/Toggle Button */}
+                                <button
+                                    onClick={() => setChartView(chartView === 'trend' ? 'summary' : 'trend')}
+                                    className={`flex items-center text-sm px-3 py-1 rounded-full font-medium transition-all ${
+                                        chartView === 'trend'
+                                            ? "bg-red-600 hover:bg-red-500 text-white"
+                                            : "bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                    }`}
+                                    disabled={loading}
+                                >
+                                    {chartView === 'trend' ? <BarChart3 size={16} className="mr-1" /> : <LineChart size={16} className="mr-1" />}
+                                    View {chartView === 'trend' ? 'Category Summary' : 'Daily Trend'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Chart Area */}
+                        {loading ? (
+                            <div className="flex justify-center items-center h-96">
+                                <Loader2 className="animate-spin text-red-500" size={32} />
+                            </div>
+                        ) : (
+                            <div className="h-96 w-full"> {/* Giữ chiều cao cố định */}
+                                {/* FIX: Thêm key để buộc ResponsiveContainer tính toán lại kích thước, khắc phục lỗi width/height -1 */}
+                                <ResponsiveContainer key={chartView + chartDays} width="100%" height="100%"> 
+                                    {chartView === 'trend' ? TrendChart : SummaryChart}
+                                </ResponsiveContainer>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* 📈 CHART CARD 2: Line Chart (Xu hướng chi tiêu theo Ngày) */}
-                <div
-                    className={`p-6 rounded-2xl shadow-lg ${
-                        isDark ? "bg-[#1e293b]" : "bg-white"
-                    }`}
-                >
-                    <h3 className="text-lg font-semibold mb-3">Daily Expense Trend</h3>
-                    <div style={{ width: '100%', height: 300 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={dailyChartData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#E2E8F0"} />
-                                <XAxis 
-                                    dataKey="date" 
-                                    stroke={isDark ? "#94A3B8" : "#334155"}
-                                    tickFormatter={(dateStr) => dateStr.substring(5)} // Chỉ hiển thị MM-DD
-                                />
-                                <YAxis 
-                                    stroke={isDark ? "#94A3B8" : "#334155"}
-                                    tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
-                                />
-                                <Tooltip
-                                    labelFormatter={(label) => `Date: ${label}`}
-                                    formatter={(value) => [`$${value.toLocaleString()}`, "Total Expense"]}
-                                    contentStyle={{
-                                        background: isDark ? "#1E293B" : "#F1F5F9",
-                                        border: "none",
-                                    }}
-                                />
-                                <Line 
-                                    type="monotone" 
-                                    dataKey="amount" 
-                                    stroke="#EF4444" 
-                                    strokeWidth={3}
-                                    dot={{ fill: '#EF4444', r: 4 }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </main>
-            
-            {/* Modal (Giữ nguyên) */}
+            </div>
+
+            {/* ======================================================= */}
+            {/* ➕ Add/Edit Expense Modal (Form chữ to rõ) */}
+            {/* ======================================================= */}
             {showModal && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
-                    onClick={() => setShowModal(false)}
-                >
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div
-                        className={`rounded-2xl shadow-2xl transition-all w-full max-w-md ${
-                            isDark ? "bg-[#1e293b] text-gray-100" : "bg-white text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
+                        className={`w-full max-w-md p-6 rounded-2xl shadow-2xl transition-all transform relative ${isDark ? "bg-gray-800" : "bg-white"}`}
                     >
-                        <div className="p-6">
-                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                                <TrendingDown size={24} className="text-red-500" />
-                                {editId ? "Edit Expense" : "Add New Expense"}
-                            </h2>
-                            <div className="space-y-4">
-                                {/* Amount */}
+                        <h2 className="text-2xl font-bold mb-4">
+                            {editId ? "Edit Expense" : "Add New Expense"}
+                        </h2>
+                        <button
+                            onClick={closeModal}
+                            className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 dark:hover:text-white"
+                            aria-label="Close modal"
+                        >
+                            &times;
+                        </button>
+
+                        <div className="space-y-4">
+                            {/* Category Select - Đã tăng kích thước */}
+                            <div>
+                                <label htmlFor="category_name" className="block text-sm font-medium mb-1">
+                                    Category
+                                </label>
+                                <select
+                                    id="category_name"
+                                    name="category_name"
+                                    value={form.category_name}
+                                    onChange={handleFormChange}
+                                    className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${ // 💡 Cải thiện kích thước form (to rõ)
+                                        isDark
+                                            ? "bg-gray-700 border-gray-600 text-white"
+                                            : "bg-gray-100 border-gray-300"
+                                    }`}
+                                >
+                                    <option value="">Select Category</option>
+                                    {categories.map((cat) => (
+                                        <option key={cat.id} value={cat.name}>
+                                            {cat.emoji} {cat.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Amount and Date */}
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Amount ($)</label>
+                                    <label htmlFor="amount" className="block text-sm font-medium mb-1">
+                                        Amount ($)
+                                    </label>
                                     <input
                                         type="number"
+                                        id="amount"
+                                        name="amount"
                                         value={form.amount}
-                                        onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
+                                        onChange={handleFormChange}
+                                        placeholder="e.g. 50.00"
+                                        min="0.01"
+                                        step="0.01"
+                                        className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${ // 💡 Cải thiện kích thước form (to rõ)
                                             isDark
                                                 ? "bg-gray-700 border-gray-600 text-white"
                                                 : "bg-gray-100 border-gray-300"
                                         }`}
-                                        placeholder="e.g. 150.00"
-                                        required
                                     />
                                 </div>
-                                {/* Date */}
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Date</label>
+                                    <label htmlFor="date" className="block text-sm font-medium mb-1">
+                                        Date
+                                    </label>
                                     <input
                                         type="date"
+                                        id="date"
+                                        name="date"
                                         value={form.date}
-                                        onChange={(e) => setForm({ ...form, date: e.target.value })}
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                                            isDark
-                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                        }`}
-                                        required
-                                    />
-                                </div>
-                                {/* Category */}
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Category</label>
-                                    <select
-                                        value={form.category_id}
-                                        onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                                            isDark
-                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                        }`}
-                                        required
-                                    >
-                                        <option value="">-- Select Category --</option>
-                                        {categories.map((c, idx) => (
-                                            <option key={c.id || idx} value={c.id}>
-                                                {c.icon ? `${c.icon} ` : ""}{c.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                {/* Emoji Display */}
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Selected Emoji</label>
-                                    <input
-                                        type="text"
-                                        value={form.emoji}
-                                        readOnly
-                                        className={`w-full px-3 py-2 rounded-lg border outline-none text-center text-2xl ${
+                                        onChange={handleFormChange}
+                                        className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${ // 💡 Cải thiện kích thước form (to rõ)
                                             isDark
                                                 ? "bg-gray-700 border-gray-600 text-white"
                                                 : "bg-gray-100 border-gray-300"
@@ -495,11 +493,29 @@ export default function Expense() {
                                     />
                                 </div>
                             </div>
+
+                            {/* Emoji Display */}
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Selected Emoji</label>
+                                <input
+                                    type="text"
+                                    value={form.emoji}
+                                    readOnly
+                                    className={`w-full px-4 py-3 rounded-lg border outline-none text-center text-2xl ${ // 💡 Cải thiện kích thước form (to rõ)
+                                        isDark
+                                            ? "bg-gray-700 border-gray-600 text-white"
+                                            : "bg-gray-100 border-gray-300"
+                                    }`}
+                                />
+                            </div>
+
                             {/* Save / Update Button */}
                             <button
                                 onClick={handleFormSubmit}
-                                className="w-full mt-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2"
+                                disabled={loading}
+                                className="w-full mt-4 py-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-md shadow-red-500/50"
                             >
+                                {loading && <Loader2 className="animate-spin" size={18} />}
                                 <TrendingDown size={18} />
                                 {editId ? "Update Expense" : "Save Expense"}
                             </button>

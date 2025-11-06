@@ -1,0 +1,34 @@
+import uuid
+from sqlalchemy import (
+    Column,
+    String,
+    Numeric,
+    Date,
+    DateTime,
+    ForeignKey,
+    func
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from db.database import Base
+
+# ======================================================
+# 💰 INCOME MODEL
+# ======================================================
+class Income(Base):
+    __tablename__ = "incomes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False)
+
+    category_name = Column(String(255))
+    amount = Column(Numeric(14, 2), nullable=False)
+    currency_code = Column(String(3), default="USD", nullable=False)  # 💡 Bổ sung
+    date = Column(Date, nullable=False)
+    emoji = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Quan hệ
+    user = relationship("User", back_populates="incomes")
+    category = relationship("Category", back_populates="incomes")

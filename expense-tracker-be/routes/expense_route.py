@@ -22,6 +22,7 @@ def create_expense(payload: ExpenseCreate, current_user=Depends(get_current_user
         db=db,
         user_id=current_user.id,
         amount=payload.amount,
+        currency_code=payload.currency_code,
         date_val=payload.date,
         emoji=payload.emoji,
         category_id=payload.category_id,

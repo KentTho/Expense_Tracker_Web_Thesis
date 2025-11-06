@@ -23,6 +23,7 @@ def create_income(
         user_id=current_user.id,
         category_name=payload.category_name,
         amount=payload.amount,
+        currency_code=payload.currency_code,
         date_val=payload.date,
         emoji=payload.emoji,
         category_id=payload.category_id,

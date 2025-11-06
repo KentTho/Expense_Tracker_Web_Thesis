@@ -4,27 +4,27 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from uuid import UUID
 from sqlalchemy import func, desc
-import models
+from models import transaction_model, category_model, income_model, expense_model
 from datetime import datetime, timedelta
 # Giả sử crud_income và crud_expense đã được import để lấy các hàm summary
 # from .crud_income import get_income_summary
 # from .crud_expense import get_expense_summary
 
-# Lưu ý: Vì bạn chưa cung cấp file models, tôi giữ lại các hàm summary trong file này
+# Lưu ý: Vì bạn chưa cung cấp file transaction_model, tôi giữ lại các hàm summary trong file này
 # và giả sử các hàm get_income_summary/get_expense_summary đã được định nghĩa
 # hoặc import đúng cách nếu sử dụng dashboard.
 
 def get_financial_summary_from_transactions(db: Session, user_id: UUID):
     """Tính tổng thu nhập, chi tiêu và số dư (dùng bảng Transaction)."""
     total_income = (
-        db.query(func.sum(models.Transaction.amount))
-        .filter(models.Transaction.user_id == user_id, models.Transaction.type == "income")
+        db.query(func.sum(transaction_model.Transaction.amount))
+        .filter(transaction_model.Transaction.user_id == user_id, transaction_model.Transaction.type == "income")
         .scalar()
         or 0
     )
     total_expense = (
-        db.query(func.sum(models.Transaction.amount))
-        .filter(models.Transaction.user_id == user_id, models.Transaction.type == "expense")
+        db.query(func.sum(transaction_model.Transaction.amount))
+        .filter(transaction_model.Transaction.user_id == user_id, transaction_model.Transaction.type == "expense")
         .scalar()
         or 0
     )
@@ -40,12 +40,12 @@ def get_expense_by_category(db: Session, user_id: UUID):
     """Tính tổng chi tiêu theo Category (dùng bảng Transaction)."""
     result = (
         db.query(
-            models.Category.name,
-            func.sum(models.Transaction.amount).label("total_amount")
+            category_model.Category.name,
+            func.sum(transaction_model.Transaction.amount).label("total_amount")
         )
-        .join(models.Transaction, models.Transaction.category_id == models.Category.id)
-        .filter(models.Transaction.user_id == user_id, models.Transaction.type == "expense")
-        .group_by(models.Category.name)
+        .join(transaction_model.Transaction, transaction_model.Transaction.category_id == category_model.Category.id)
+        .filter(transaction_model.Transaction.user_id == user_id, transaction_model.Transaction.type == "expense")
+        .group_by(category_model.Category.name)
         .all()
     )
     return [{"category": r[0], "total": float(r[1])} for r in result]
@@ -55,22 +55,22 @@ def get_monthly_summary(db: Session, user_id: UUID, year: int):
     """Tính tổng thu nhập và chi tiêu theo từng tháng (dùng bảng Transaction)."""
     result = (
         db.query(
-            func.date_trunc('month', models.Transaction.transaction_date).label('month'),
+            func.date_trunc('month', transaction_model.Transaction.transaction_date).label('month'),
             func.sum(
                 func.case(
-                    (models.Transaction.type == 'income', models.Transaction.amount),
+                    (transaction_model.Transaction.type == 'income', transaction_model.Transaction.amount),
                     else_=0
                 )
             ).label('total_income'),
             func.sum(
                 func.case(
-                    (models.Transaction.type == 'expense', models.Transaction.amount),
+                    (transaction_model.Transaction.type == 'expense', transaction_model.Transaction.amount),
                     else_=0
                 )
             ).label('total_expense'),
         )
-        .filter(models.Transaction.user_id == user_id)
-        .group_by(func.date_trunc('month', models.Transaction.transaction_date))
+        .filter(transaction_model.Transaction.user_id == user_id)
+        .group_by(func.date_trunc('month', transaction_model.Transaction.transaction_date))
         .order_by('month')
         .all()
     )
@@ -88,25 +88,25 @@ def get_dashboard_data(db: Session, user_id: UUID):
     # Bạn sẽ cần thay thế các hàm này bằng cách import từ crud_income/crud_expense
     # Hoặc định nghĩa lại chúng tại đây nếu không muốn import chéo.
     # Để code chạy được độc lập, ta định nghĩa lại (dù đã có trong crud_income/expense)
-    total_income = db.query(func.coalesce(func.sum(models.Income.amount), 0)).filter(models.Income.user_id == user_id).scalar()
-    total_expense = db.query(func.coalesce(func.sum(models.Expense.amount), 0)).filter(models.Expense.user_id == user_id).scalar()
+    total_income = db.query(func.coalesce(func.sum(income_model.Income.amount), 0)).filter(income_model.Income.user_id == user_id).scalar()
+    total_expense = db.query(func.coalesce(func.sum(expense_model.Expense.amount), 0)).filter(expense_model.Expense.user_id == user_id).scalar()
     balance = float(total_income) - float(total_expense)
 
     # Giao dịch gần đây (Union từ Income và Expense)
     recent = (
-        db.query(models.Income.category_name.label("name"),
-                 models.Income.amount,
-                 models.Income.date,
-                 models.Income.emoji,
+        db.query(income_model.Income.category_name.label("name"),
+                 income_model.Income.amount,
+                 income_model.Income.date,
+                 income_model.Income.emoji,
                  func.literal("income").label("type"))
-        .filter(models.Income.user_id == user_id)
+        .filter(income_model.Income.user_id == user_id)
         .union_all(
-            db.query(models.Expense.category_name.label("name"),
-                     models.Expense.amount,
-                     models.Expense.date,
-                     models.Expense.emoji,
+            db.query(expense_model.Expense.category_name.label("name"),
+                     expense_model.Expense.amount,
+                     expense_model.Expense.date,
+                     expense_model.Expense.emoji,
                      func.literal("expense").label("type"))
-            .filter(models.Expense.user_id == user_id)
+            .filter(expense_model.Expense.user_id == user_id)
         )
         .order_by(desc("date"))
         .limit(10)
@@ -115,19 +115,19 @@ def get_dashboard_data(db: Session, user_id: UUID):
 
     # Chart dữ liệu Income
     income_chart = (
-        db.query(models.Income.date, func.sum(models.Income.amount).label("total"))
-        .filter(models.Income.user_id == user_id)
-        .group_by(models.Income.date)
-        .order_by(models.Income.date.desc())
+        db.query(income_model.Income.date, func.sum(income_model.Income.amount).label("total"))
+        .filter(income_model.Income.user_id == user_id)
+        .group_by(income_model.Income.date)
+        .order_by(income_model.Income.date.desc())
         .limit(30)
         .all()
     )
     # Chart dữ liệu Expense
     expense_chart = (
-        db.query(models.Expense.date, func.sum(models.Expense.amount).label("total"))
-        .filter(models.Expense.user_id == user_id)
-        .group_by(models.Expense.date)
-        .order_by(models.Expense.date.desc())
+        db.query(expense_model.Expense.date, func.sum(expense_model.Expense.amount).label("total"))
+        .filter(expense_model.Expense.user_id == user_id)
+        .group_by(expense_model.Expense.date)
+        .order_by(expense_model.Expense.date.desc())
         .limit(30)
         .all()
     )
@@ -151,20 +151,20 @@ def get_analytics_trends_data(db: Session, user_id: UUID):
 
     # Dữ liệu xu hướng Income
     income_data = (
-        db.query(models.Income.date, func.sum(models.Income.amount))
-        .filter(models.Income.user_id == user_id)
-        .group_by(models.Income.date)
-        .order_by(models.Income.date)
+        db.query(income_model.Income.date, func.sum(income_model.Income.amount))
+        .filter(income_model.Income.user_id == user_id)
+        .group_by(income_model.Income.date)
+        .order_by(income_model.Income.date)
         .limit(60)
         .all()
     )
 
     # Dữ liệu xu hướng Expense
     expense_data = (
-        db.query(models.Expense.date, func.sum(models.Expense.amount))
-        .filter(models.Expense.user_id == user_id)
-        .group_by(models.Expense.date)
-        .order_by(models.Expense.date)
+        db.query(expense_model.Expense.date, func.sum(expense_model.Expense.amount))
+        .filter(expense_model.Expense.user_id == user_id)
+        .group_by(expense_model.Expense.date)
+        .order_by(expense_model.Expense.date)
         .limit(60)
         .all()
     )
@@ -181,10 +181,10 @@ def get_expense_daily_trend(db: Session, user_id: UUID, days: int = 30):
     start_date = datetime.now().date() - timedelta(days=days - 1)
 
     expense_data = (
-        db.query(models.Expense.date, func.sum(models.Expense.amount).label("total"))
-        .filter(models.Expense.user_id == user_id, models.Expense.date >= start_date)
-        .group_by(models.Expense.date)
-        .order_by(models.Expense.date.asc())  # Sắp xếp tăng dần theo ngày
+        db.query(expense_model.Expense.date, func.sum(expense_model.Expense.amount).label("total"))
+        .filter(expense_model.Expense.user_id == user_id, expense_model.Expense.date >= start_date)
+        .group_by(expense_model.Expense.date)
+        .order_by(expense_model.Expense.date.asc())  # Sắp xếp tăng dần theo ngày
         .all()
     )
 
@@ -202,12 +202,12 @@ def get_financial_kpi_summary(db: Session, user_id: UUID):
     """💰 Lấy tổng thu và tổng chi cho KPI Cards"""
 
     # 1. Tổng thu
-    total_income = db.query(func.sum(models.Income.amount)).filter(
-        models.Income.user_id == user_id).scalar() or Decimal(0)
+    total_income = db.query(func.sum(income_model.Income.amount)).filter(
+        income_model.Income.user_id == user_id).scalar() or Decimal(0)
 
     # 2. Tổng chi
-    total_expense = db.query(func.sum(models.Expense.amount)).filter(
-        models.Expense.user_id == user_id).scalar() or Decimal(0)
+    total_expense = db.query(func.sum(expense_model.Expense.amount)).filter(
+        expense_model.Expense.user_id == user_id).scalar() or Decimal(0)
 
     return {
         "total_income": total_income,

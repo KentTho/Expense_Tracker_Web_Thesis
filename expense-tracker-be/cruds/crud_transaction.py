@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import date
 from uuid import UUID
 from decimal import Decimal
-import models
+from models import transaction_model
 
 def create_transaction(
     db: Session,
@@ -15,7 +15,7 @@ def create_transaction(
     transaction_date: date = None,
 ):
     """Tạo giao dịch mới (Income/Expense chung)."""
-    transaction = models.Transaction(
+    transaction = transaction_model.Transaction(
         user_id=user_id,
         category_id=category_id,
         type=type,
@@ -32,9 +32,9 @@ def create_transaction(
 def list_transactions_for_user(db: Session, user_id: UUID):
     """Lấy danh sách tất cả giao dịch (Transaction) của người dùng."""
     return (
-        db.query(models.Transaction)
-        .filter(models.Transaction.user_id == user_id)
-        .order_by(models.Transaction.transaction_date.desc())
+        db.query(transaction_model.Transaction)
+        .filter(transaction_model.Transaction.user_id == user_id)
+        .order_by(transaction_model.Transaction.transaction_date.desc())
         .all()
     )
 
@@ -42,8 +42,8 @@ def list_transactions_for_user(db: Session, user_id: UUID):
 def update_transaction(db: Session, transaction_id: UUID, user_id: UUID, update_data: dict):
     """Cập nhật thông tin giao dịch."""
     transaction = (
-        db.query(models.Transaction)
-        .filter(models.Transaction.id == transaction_id, models.Transaction.user_id == user_id)
+        db.query(transaction_model.Transaction)
+        .filter(transaction_model.Transaction.id == transaction_id, transaction_model.Transaction.user_id == user_id)
         .first()
     )
     if not transaction:
@@ -58,8 +58,8 @@ def update_transaction(db: Session, transaction_id: UUID, user_id: UUID, update_
 def delete_transaction(db: Session, transaction_id: int, user_id: UUID):
     """Xóa giao dịch."""
     transaction = (
-        db.query(models.Transaction)
-        .filter(models.Transaction.id == transaction_id, models.Transaction.user_id == user_id)
+        db.query(transaction_model.Transaction)
+        .filter(transaction_model.Transaction.id == transaction_id, transaction_model.Transaction.user_id == user_id)
         .first()
     )
     if not transaction:
@@ -72,9 +72,9 @@ def delete_transaction(db: Session, transaction_id: int, user_id: UUID):
 def get_recent_transactions(db: Session, user_id: UUID, limit: int = 10):
     """Lấy danh sách các giao dịch gần đây từ bảng Transaction."""
     recent = (
-        db.query(models.Transaction)
-        .filter(models.Transaction.user_id == user_id)
-        .order_by(models.Transaction.transaction_date.desc())
+        db.query(transaction_model.Transaction)
+        .filter(transaction_model.Transaction.user_id == user_id)
+        .order_by(transaction_model.Transaction.transaction_date.desc())
         .limit(limit)
         .all()
     )
