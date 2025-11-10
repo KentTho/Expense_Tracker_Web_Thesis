@@ -1,17 +1,16 @@
 // ===========================
-// 💸 expenseService.jsx
+// 💸 expenseService.jsx (ĐÃ SỬA LỖI ĐỒNG BỘ)
 // ===========================
 import { auth } from "../components/firebase";
 import { BACKEND_BASE } from "./api";
 import { onAuthStateChanged } from "firebase/auth";
 
 // ----------------------------------------------------
-// 🧩 Helper: Lấy Firebase token hiện tại
+// 🧩 Helper: Lấy Firebase token hiện tại (Giữ nguyên)
 // ----------------------------------------------------
 export const getToken = async () => {
   const user = auth.currentUser;
   if (!user) {
-    // Đợi user login nếu chưa có
     await new Promise((resolve) => {
       const unsubscribe = onAuthStateChanged(auth, (u) => {
         if (u) {
@@ -21,12 +20,10 @@ export const getToken = async () => {
       });
     });
   }
-  // Kiểm tra lần nữa sau khi chờ
   const currentUser = auth.currentUser;
   if (!currentUser) {
     throw new Error("User not authenticated after waiting.");
   }
-  // Thêm xử lý lỗi chi tiết hơn nếu cần
   try {
     return await currentUser.getIdToken();
   } catch (error) {
@@ -36,30 +33,32 @@ export const getToken = async () => {
 };
 
 // ----------------------------------------------------
-// 🧩 Helper: Chuẩn hóa payload để gửi cho backend (Quan trọng)
+// 🧩 Helper: Chuẩn hóa payload để gửi cho backend
 // ----------------------------------------------------
 function buildExpensePayload(form) {
     const payload = {
-        // Gửi cả name và id, backend sẽ tự quyết định
-        category_name: form.category_name || null,
+        // ✅ Đảm bảo gửi category_id lên BE, đây là điều kiện để BE lưu đúng Category
+        category_id: form.category_id || null, 
+        
+        // ✅ Gửi category_name (Dùng cho trường hợp tạo category mới hoặc fallback)
+        category_name: form.category_name || null, 
+        
         amount: Number(form.amount),
         date: form.date,
         emoji: form.emoji || null,
-        // GỬI category_id: Đây là ID UUID thật từ DB (Default hoặc User Category)
-        category_id: form.category_id || null, 
+        currency_code: form.currency_code || "USD",
     };
-    
     return payload;
 }
 
 // ----------------------------------------------------
-// ➕ CREATE Expense
+// ➕ CREATE Expense (Giữ nguyên, buildExpensePayload đã sửa)
 // ----------------------------------------------------
 export async function createExpense(data) {
   const token = await getToken();
-  const payload = buildExpensePayload(data);
+  const payload = buildExpensePayload(data); // Đã bao gồm currency_code
 
-  const res = await fetch(`${BACKEND_BASE}/expenses/`, { // Backend route: POST /expenses/
+  const res = await fetch(`${BACKEND_BASE}/expenses/`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -70,7 +69,6 @@ export async function createExpense(data) {
 
   if (!res.ok) {
     const errText = await res.text();
-    // Cố gắng parse JSON để lấy chi tiết lỗi
     try {
         const errJson = JSON.parse(errText);
         throw new Error(errJson.detail || "Failed to create expense!");
@@ -81,11 +79,9 @@ export async function createExpense(data) {
   return await res.json();
 }
 
-// expenseService.jsx
-
-// (Giữ nguyên các hàm khác)
-
+// ----------------------------------------------------
 // 🔍 GET Expenses List
+// ----------------------------------------------------
 export async function getExpenses() {
   const token = await getToken();
 
@@ -104,19 +100,20 @@ export async function getExpenses() {
     }
   }
 
-  // ✅ ĐÃ SỬA: Trả về trường 'items' chứa danh sách giao dịch
+  // ✅ SỬA LỖI: Trả về toàn bộ object (chứa items và currency)
+  // để đồng bộ với schema ExpenseListOut
   const data = await res.json();
-  return data.items || []; 
+  return data; 
 }
 
-// (Giữ nguyên các hàm khác)
-
-// ✏️ UPDATE Expense
+// ----------------------------------------------------
+// ✏️ UPDATE Expense (Giữ nguyên, buildExpensePayload đã sửa)
+// ----------------------------------------------------
 export async function updateExpense(id, data) {
   const token = await getToken();
-  const payload = buildExpensePayload(data);
+  const payload = buildExpensePayload(data); // Đã bao gồm currency_code
 
-  const res = await fetch(`${BACKEND_BASE}/expenses/${id}`, { // Backend route: PUT /expenses/{id}
+  const res = await fetch(`${BACKEND_BASE}/expenses/${id}`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -137,11 +134,13 @@ export async function updateExpense(id, data) {
   return await res.json();
 }
 
-// 🗑️ DELETE Expense
+// ----------------------------------------------------
+// 🗑️ DELETE Expense (Giữ nguyên)
+// ----------------------------------------------------
 export async function deleteExpense(id) {
   const token = await getToken();
 
-  const res = await fetch(`${BACKEND_BASE}/expenses/${id}`, { // Backend route: DELETE /expenses/{id}
+  const res = await fetch(`${BACKEND_BASE}/expenses/${id}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -155,40 +154,19 @@ export async function deleteExpense(id) {
         throw new Error(errText || "Failed to delete expense!");
     }
   }
-  // DELETE thường trả về 200/204, không có body.
-  return true;
-}
-
-// 📊 GET Expense Summary
-export async function getExpenseSummary() {
-    const token = await getToken();
-
-    const res = await fetch(`${BACKEND_BASE}/expenses/summary`, { // Backend route: GET /expenses/summary
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!res.ok) {
-        const errText = await res.text();
-        try {
-            const errJson = JSON.parse(errText);
-            throw new Error(errJson.detail || "Failed to fetch expense summary!");
-        } catch (e) {
-            throw new Error(errText || "Failed to fetch expense summary!");
-        }
-    }
-    return await res.json();
+  // Backend (crud_expense.py) trả về JSON message
+  return await res.json();
 }
 
 
-// ... (Giữ nguyên các hàm hiện có)
-
-// 📊 GET Expense Daily Trend (Lấy dữ liệu cho Bar Chart)
-// Backend API: GET /summary/expenses/trend/daily?days=30
+// ----------------------------------------------------
+// 📊 GET Expense Daily Trend (Lấy dữ liệu cho Line Chart)
+// ----------------------------------------------------
 export async function getExpenseDailyTrend(days = 30) {
     const token = await getToken();
 
-    const res = await fetch(`${BACKEND_BASE}/summary/expenses/trend/daily?days=${days}`, { 
+    // ✅ SỬA LỖI (404): Đường dẫn đúng là /expenses/summary/expense-trend/daily
+    const res = await fetch(`${BACKEND_BASE}/expenses/summary/expense-trend/daily?days=${days}`, { 
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
     });
@@ -202,19 +180,18 @@ export async function getExpenseDailyTrend(days = 30) {
             throw new Error(errText || "Failed to fetch expense daily trend!");
         }
     }
-    // BE nên trả về dạng: [{ day: "2025-10-01", expense: 150.50 }, ...]
+    // BE trả về: [{ date: "2025-10-01", total_amount: 150.50 }, ...]
     return await res.json();
 }
 
-// 📊 GET Expense Breakdown (Lấy dữ liệu cho Pie Chart)
-// Hàm này là bản sao của getExpenseSummary nhưng dùng route /summary/expense-breakdown 
-// để tách logic Dashboard ra khỏi Expense Page.
-// Backend API: GET /summary/expense-breakdown
+// ----------------------------------------------------
+// 📊 GET Expense Breakdown (Lấy dữ liệu cho Bar Chart/Pie Chart)
+// ----------------------------------------------------
 export async function getExpenseBreakdown() {
     const token = await getToken();
     
-    // 💡 Sử dụng API Dashboard mới: /summary/expense-breakdown
-    const res = await fetch(`${BACKEND_BASE}/summary/expense-breakdown`, { 
+    // ✅ SỬA LỖI (404): Đường dẫn đúng là /expenses/summary
+    const res = await fetch(`${BACKEND_BASE}/expenses/summary`, { 
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
     });
@@ -228,5 +205,7 @@ export async function getExpenseBreakdown() {
             throw new Error(errText || "Failed to fetch expense breakdown!");
         }
     }
+    
+    // BE trả về: [{ category_name: "Food", total_amount: 500.00 }, ...]
     return await res.json();
 }

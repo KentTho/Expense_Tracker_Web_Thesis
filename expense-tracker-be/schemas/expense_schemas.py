@@ -42,3 +42,15 @@ class ExpenseListOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# 💡 THÊM: Schema cho Daily Trend (Xu hướng theo ngày)
+class ExpenseTrendItem(BaseModel):
+    """Schema cho một mục dữ liệu xu hướng chi tiêu theo ngày."""
+    # crud_expense.py trả về trường 'date' (là date.date) và 'total_amount' (là float)
+    date: date
+    total_amount: float # Đã được chuyển từ Decimal sang float trong CRUD
+
+    class Config:
+        from_attributes = True
+        # Allow population by field name (e.g., 'total_amount')

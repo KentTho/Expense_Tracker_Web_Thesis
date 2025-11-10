@@ -232,6 +232,20 @@ export default function Income() {
             }));
     }, [incomes]);
 
+    const handleFormChange = (e) => {
+        const { name, value } = e.target;
+        
+        if (name === 'amount') {
+            // FIX: Restrict amount input to non-negative integers only (since decimals = 0 is used)
+            const re = /^\d*$/;
+            if (value === '' || re.test(value)) {
+                setForm(prev => ({ ...prev, [name]: value }));
+            }
+        } else {
+            setForm(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
     const handleCategoryChange = (e) => {
         const categoryId = e.target.value;
         const selectedCategory = categories.find(c => c.id === categoryId);
@@ -466,27 +480,71 @@ export default function Income() {
                         
                         <div className="space-y-4">
                             {/* Form fields here (Amount, Date, Category, Emoji) */}
-                            <div>
-                                {/* 💡 CHÚ Ý: Tại đây, chúng ta vẫn mặc định hiển thị USD để tránh người dùng bị nhầm lẫn khi nhập */}
-                                <label className="block text-sm font-medium mb-1">Amount (USD)</label> 
-                                <input
-                                    type="number"
-                                    value={form.amount}
-                                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                                    className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
-                                    placeholder="e.g., 1000"
-                                    required
-                                />
+                            <div className="grid grid-cols-3 gap-4">
+                                {/* 💰 Amount Input (Col 1/3) */}
+                                <div className="col-span-2">
+                                    <label htmlFor="amount" className="block text-sm font-medium mb-1">
+                                        Amount
+                                    </label>
+                                    <input
+                                        type="number"
+                                        id="amount"
+                                        name="amount" 
+                                        value={form.amount}
+                                        onChange={handleFormChange}
+                                        placeholder="e.g. 1000"
+                                        min="0.01"
+                                        step="1" // Đã đổi về step 1 để khớp với logic chỉ nhận số nguyên
+                                        className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                : "bg-gray-100 border-gray-300"
+                                        }`}
+                                    />
+                                </div>
+
+                                {/* 💵 Currency Select (Col 2/3) */}
+                                <div>
+                                    <label htmlFor="currency_code" className="block text-sm font-medium mb-1">
+                                        Currency
+                                    </label>
+                                    <select
+                                        id="currency_code"
+                                        name="currency_code" // Tên phải khớp với form state
+                                        value={form.currency_code} // Giá trị phải được bind vào state
+                                        onChange={handleFormChange} // Sử dụng hàm chung để cập nhật state
+                                        className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${
+                                            isDark
+                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                : "bg-gray-100 border-gray-300"
+                                        }`}
+                                    >
+                                        {/* CURRENCIES đã được định nghĩa ở đầu file */}
+                                        {CURRENCIES.map(c => (
+                                            <option key={c.code} value={c.code}>
+                                                {c.code}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                             
+                            {/* Date Input (Tách riêng hoặc bạn có thể gộp vào grid 3 cột nếu thích) */}
                             <div>
-                                <label className="block text-sm font-medium mb-1">Date</label>
+                                <label htmlFor="date" className="block text-sm font-medium mb-1">
+                                    Date
+                                </label>
                                 <input
                                     type="date"
+                                    id="date"
+                                    name="date" 
                                     value={form.date}
-                                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                                    className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
-                                    required
+                                    onChange={handleFormChange}
+                                    className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${
+                                        isDark
+                                            ? "bg-gray-700 border-gray-600 text-white"
+                                            : "bg-gray-100 border-gray-300"
+                                    }`}
                                 />
                             </div>
                             
@@ -506,7 +564,7 @@ export default function Income() {
                                 </select>
                             </div>
 
-                            <div className="w-20">
+                            <div >
                                 <label className="block text-sm font-medium mb-1">Emoji</label>
                                 <input
                                     type="text"

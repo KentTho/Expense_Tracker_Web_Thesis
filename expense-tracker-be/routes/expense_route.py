@@ -1,5 +1,5 @@
 # routes/expense_route.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List
@@ -8,10 +8,11 @@ from cruds.crud_expense import (
     delete_expense as crud_delete_expense,
     update_expense as crud_update_expense,
     get_expense_summary as crud_get_expense_summary,
+    get_expense_daily_trend as crud_get_expense_daily_trend,
     list_expenses_for_user)
 from db.database import get_db
 from schemas import ExpenseOut, ExpenseCreate
-from schemas.expense_schemas import ExpenseListOut
+from schemas.expense_schemas import ExpenseListOut, ExpenseTrendItem
 from services.auth_token_db import get_current_user_db
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
@@ -55,3 +56,21 @@ def get_expense_summary_route(current_user=Depends(get_current_user_db), db: Ses
     """API lấy tổng chi tiêu theo danh mục (cho Pie Chart)."""
     # ✅ Đây là hàm bạn cần dùng
     return crud_get_expense_summary(db, current_user.id)
+
+
+# 💡 ROUTE MỚI: Daily Trend (SỬA LỖI 404)
+# Route đầy đủ: GET /expenses/summary/expense-trend/daily?days=N
+# FE cần điều chỉnh đường dẫn gọi API để khớp với prefix /expenses/
+@router.get("/summary/expense-trend/daily", response_model=List[ExpenseTrendItem])
+def get_daily_trend(
+    current_user=Depends(get_current_user_db),
+    db: Session = Depends(get_db),
+    days: int = Query(7, ge=1, description="Số ngày cần lấy dữ liệu xu hướng")
+):
+    """
+    📊 Lấy dữ liệu tổng chi tiêu theo ngày trong N ngày qua (cho Line Chart).
+    """
+    trend_data = crud_get_expense_daily_trend(db, current_user.id, days=days)
+    return trend_data
+
+
