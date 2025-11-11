@@ -20,6 +20,7 @@ import {
     Pie,
     PieChart as RePieChart,
     Cell, 
+    Legend, 
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -32,6 +33,7 @@ import { getCategories } from "../../services/categoryService";
 // 💡 HELPER: Định dạng tiền tệ
 // ----------------------------------------------------
 const formatAmountDisplay = (amount, currencyCode = 'USD', decimals = 0) => {
+    // (Giữ nguyên, không thay đổi)
     const numberAmount = Number(amount);
     if (isNaN(numberAmount)) return 'N/A';
     try {
@@ -51,13 +53,15 @@ const formatAmountDisplay = (amount, currencyCode = 'USD', decimals = 0) => {
     }
 };
 
-// 💡 HELPER: Custom Tooltip cho Biểu đồ (Giữ nguyên)
+// 💡 HELPER: Custom Tooltip cho Biểu đồ
 const CustomTooltip = ({ active, payload, label, currencyCode, isPie }) => {
+    // (Giữ nguyên, không thay đổi)
     if (active && payload && payload.length) {
         const item = payload[0].payload;
+        // Sửa nhỏ: ưu tiên payload[0].color vì item.color sẽ bị xóa
         const value = item.value || payload[0].value;
         const name = item.name || label;
-        const color = item.color || payload[0].color;
+        const color = payload[0].color || item.color; // Ưu tiên màu fill thực tế
         
         return (
             <div className="p-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 rounded shadow-lg">
@@ -78,25 +82,54 @@ const CustomTooltip = ({ active, payload, label, currencyCode, isPie }) => {
     return null;
 };
 
-// Màu sắc mặc định cho Pie Chart
-const PIE_COLORS = ['#EF4444', '#F97316', '#F59E0B', '#10B981', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#9CA3AF'];
+// 💡 HELPER: Custom Label cho Pie Chart (Giữ nguyên)
+const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+    // (Giữ nguyên, không thay đổi)
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
+    const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
+
+    if (percent > 0.05) { 
+        return (
+            <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs font-semibold">
+                {`${(percent * 100).toFixed(0)}%`}
+            </text>
+        );
+    }
+    return null;
+};
+
+
+// ✅ FIX 2: Hợp nhất dải màu cố định (giống File 1)
+const PIE_COLORS = [
+    '#3B82F6', // Blue
+    '#10B981', // Green
+    '#F59E0B', // Amber
+    '#EF4444', // Red
+    '#8B5CF6', // Violet
+    '#06B6D4', // Cyan
+    '#EC4899', // Pink
+    '#14B8A6', // Teal
+    '#F97316', // Orange
+    '#6366F1', // Indigo
+    '#6B7280', // Gray
+    '#A8A29E', // Stone
+];
 
 // ----------------------------------------------------
-// ✅ FIX CORE: Hàm trích xuất dữ liệu an toàn 
+// ✅ Hàm trích xuất dữ liệu an toàn (Giữ nguyên)
 // ----------------------------------------------------
 const extractItemsAndCurrency = (response, defaultCurrency = 'USD') => {
+    // (Giữ nguyên, không thay đổi)
     let items = [];
     let currencyCode = defaultCurrency;
     
     if (Array.isArray(response)) {
-        // Case 1: API trả về mảng transactions trực tiếp
         items = response;
     } else if (response && Array.isArray(response.items)) {
-        // Case 2: API trả về object có thuộc tính 'items'
         items = response.items;
         currencyCode = response.currency_code || defaultCurrency;
     }
-    // Gán currency_code cho từng item nếu item chưa có
     items = items.map(item => ({
         ...item,
         currency_code: item.currency_code || currencyCode,
@@ -127,44 +160,48 @@ export default function Analytics() {
 
     const [filteredData, setFilteredData] = useState([]);
 
-    // ----------------------------------------------------
-    // 🧩 Function to fetch and process all transactions
-    // ----------------------------------------------------
+    // ✅ FIX 1: Sửa lại logic fetch categories
     const fetchTransactions = useCallback(async () => {
         setLoading(true);
         try {
-            // 1. Fetch data: Lấy response thô (hoặc fallback object nếu lỗi)
-            const [incomeResponse, expenseResponse, categoryData] = await Promise.all([
-                getIncomes().catch((e) => { console.error("Income fetch error:", e); return []; }), // Fallback array []
-                getExpenses().catch((e) => { console.error("Expense fetch error:", e); return []; }), // Fallback array []
-                getCategories('all').catch((e) => { console.error("Category fetch error:", e); return []; }), 
+            // Thay vì getCategories('all'), gọi riêng lẻ
+            const [incomeResponse, expenseResponse, incomeCats, expenseCats] = await Promise.all([
+                getIncomes().catch((e) => { console.error("Income fetch error:", e); return []; }), 
+                getExpenses().catch((e) => { console.error("Expense fetch error:", e); return []; }), 
+                getCategories('income').catch((e) => { console.error("Income Category fetch error:", e); return []; }),
+                getCategories('expense').catch((e) => { console.error("Expense Category fetch error:", e); return []; }),
             ]);
 
-            // ✅ Đồng bộ Category list
-            setCategories(categoryData);
+            // Gộp 2 mảng categories lại
+            const allFetchedCategories = [
+                ...(Array.isArray(incomeCats) ? incomeCats : []), 
+                ...(Array.isArray(expenseCats) ? expenseCats : [])
+            ];
+            
+            // Sắp xếp và set state
+            setCategories(allFetchedCategories.sort((a, b) => a.name.localeCompare(b.name)));
 
-            // 2. ✅ FIX: Trích xuất dữ liệu an toàn
             const { items: incomeItems } = extractItemsAndCurrency(incomeResponse, PRIMARY_CURRENCY);
             const { items: expenseItems } = extractItemsAndCurrency(expenseResponse, PRIMARY_CURRENCY);
 
-            // 3. Combine and Standardize Transactions
+            // Combine and Standardize Transactions (Giữ nguyên logic chuẩn hóa)
             const allTransactions = [
-                // Chuẩn hóa Income
                 ...incomeItems.map(t => ({
                     ...t,
                     type: 'income',
                     category: t.category?.name || t.category_name || 'Uncategorized (Income)',
+                    category_id: t.category?.id || t.category_id || 'uncat_inc', 
                     emoji: t.category?.emoji || t.emoji || '💰',
                     currency_code: t.currency_code || PRIMARY_CURRENCY, 
                     date: t.date ? t.date.split('T')[0] : 'N/A',
                     amount: Number(t.amount || 0), 
                 })),
                 
-                // Chuẩn hóa Expense
                 ...expenseItems.map(t => ({
                     ...t,
                     type: 'expense',
                     category: t.category?.name || t.category_name || 'Uncategorized (Expense)',
+                    category_id: t.category?.id || t.category_id || 'uncat_exp', 
                     emoji: t.category?.emoji || t.emoji || '💸',
                     currency_code: t.currency_code || PRIMARY_CURRENCY, 
                     date: t.date ? t.date.split('T')[0] : 'N/A',
@@ -175,7 +212,7 @@ export default function Analytics() {
             allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             setTransactions(allTransactions);
-            setFilteredData(allTransactions);
+            setFilteredData(allTransactions); // Cập nhật filteredData ban đầu
             
         } catch (error) {
             console.error("Error fetching transactions:", error);
@@ -198,16 +235,12 @@ export default function Analytics() {
         if (filters.type !== 'all') {
             data = data.filter(t => t.type === filters.type);
         }
-
         if (filters.category !== 'all') {
-            // Lọc theo tên Category
-            data = data.filter(t => t.category === filters.category);
+            data = data.filter(t => t.category_id === filters.category);
         }
-
         if (filters.startDate) {
             data = data.filter(t => new Date(t.date) >= new Date(filters.startDate));
         }
-
         if (filters.endDate) {
             const endDate = new Date(filters.endDate);
             endDate.setHours(23, 59, 59, 999); 
@@ -221,38 +254,43 @@ export default function Analytics() {
         applyFilters();
     }, [applyFilters]);
 
-    // ----------------------------------------------------
-    // 📈 KPI and Chart Data Calculation (Giữ nguyên)
-    // ----------------------------------------------------
+    // ✅ FIX 2: Sửa logic tính toán màu sắc
     const { totalIncome, totalExpense, netBalance, barData, expensePieData, incomePieData } = useMemo(() => {
         let totalIncome = 0;
         let totalExpense = 0;
         const expenseBreakdown = {};
         const incomeBreakdown = {};
 
+        // Bỏ logic categoryMap vì không dùng để lấy màu nữa
+        // const categoryMap = new Map(categories.map(c => [c.id, c]));
+
         filteredData.forEach(t => {
             const amount = Number(t.amount);
             const categoryName = t.category;
-            const categoryColor = categories.find(c => c.name === categoryName)?.color || (t.type === 'income' ? '#10B981' : '#EF4444');
+            
+            // Xóa bỏ logic lấy màu động
+            // const categoryInfo = categoryMap.get(t.category_id);
+            // const categoryColor = categoryInfo?.color;
+            // const fallbackColor = t.type === 'income' ? '#10B981' : '#EF4444';
 
             if (t.type === 'income') {
                 totalIncome += amount;
                 if (!incomeBreakdown[categoryName]) {
-                    incomeBreakdown[categoryName] = { name: categoryName, value: 0, color: categoryColor };
+                    // Chỉ cần name và value
+                    incomeBreakdown[categoryName] = { name: categoryName, value: 0 }; 
                 }
                 incomeBreakdown[categoryName].value += amount;
             } else {
                 totalExpense += amount;
                 if (!expenseBreakdown[categoryName]) {
-                    expenseBreakdown[categoryName] = { name: categoryName, value: 0, color: categoryColor };
+                    // Chỉ cần name và value
+                    expenseBreakdown[categoryName] = { name: categoryName, value: 0 }; 
                 }
                 expenseBreakdown[categoryName].value += amount;
             }
         });
 
         const netBalance = totalIncome - totalExpense;
-
-        // Bar Chart Data
         const barData = [
             { name: 'Income', value: totalIncome, color: '#10B981' },
             { name: 'Expense', value: totalExpense, color: '#EF4444' },
@@ -261,7 +299,8 @@ export default function Analytics() {
         // Expense Pie Chart Data
         const expensePieDataRaw = Object.values(expenseBreakdown).sort((a, b) => b.value - a.value);
         const totalExpensePie = expensePieDataRaw.reduce((sum, item) => sum + item.value, 0);
-        const expensePieData = expensePieDataRaw.map(item => ({
+        // Bỏ gán màu động ở đây
+        const expensePieData = expensePieDataRaw.map((item) => ({
             ...item,
             percent: totalExpensePie === 0 ? 0 : item.value / totalExpensePie,
         }));
@@ -269,17 +308,18 @@ export default function Analytics() {
         // Income Pie Chart Data
         const incomePieDataRaw = Object.values(incomeBreakdown).sort((a, b) => b.value - a.value);
         const totalIncomePie = incomePieDataRaw.reduce((sum, item) => sum + item.value, 0);
-        const incomePieData = incomePieDataRaw.map(item => ({
+        // Bỏ gán màu động ở đây
+        const incomePieData = incomePieDataRaw.map((item) => ({
             ...item,
             percent: totalIncomePie === 0 ? 0 : item.value / totalIncomePie,
         }));
 
 
         return { totalIncome, totalExpense, netBalance, barData, expensePieData, incomePieData };
-    }, [filteredData, categories]);
+    }, [filteredData]); // Bỏ 'categories' ra khỏi dependency array
     
     // ----------------------------------------------------
-    // 🎨 UI Rendering
+    // 🎨 UI Rendering (Giữ nguyên UI của File 2)
     // ----------------------------------------------------
 
     const handleFilterChange = (e) => {
@@ -296,10 +336,9 @@ export default function Analytics() {
         });
     };
 
-    // Placeholder function for Export
     const handleExport = () => {
+        // (Tạm thời giữ nguyên)
         toast.success(`Exporting ${filteredData.length} transactions... (Functionality to be implemented)`);
-        // Logic to export filteredData to CSV/PDF
     };
 
     return (
@@ -316,7 +355,7 @@ export default function Analytics() {
                 </div>
             ) : (
                 <main>
-                    {/* 📊 KPI Cards */}
+                    {/* 📊 KPI Cards (Giữ nguyên) */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                         {/* Total Income */}
                         <div className={`p-6 rounded-xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border"}`}>
@@ -349,10 +388,10 @@ export default function Analytics() {
                         </div>
                     </div>
 
-                    {/* 📊 Charts Section (3 Charts) */}
+                    {/* 📊 Charts Section */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                         
-                        {/* 1. Bar Chart: Income vs Expense */}
+                        {/* 1. Bar Chart: Income vs Expense (Giữ nguyên) */}
                         <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border"}`}>
                             <h2 className="text-xl font-semibold mb-4 flex items-center">
                                 <BarChart3 size={20} className="mr-2 text-blue-500" /> Income vs Expense
@@ -377,22 +416,33 @@ export default function Analytics() {
                             <h2 className="text-xl font-semibold mb-4 flex items-center text-red-500">
                                 <PieChart size={20} className="mr-2 text-red-500" /> Expense Breakdown
                             </h2>
-                            <div className="h-80 w-full flex items-center justify-center min-h-80">
+                            <div className="h-80 w-full flex flex-col items-center justify-center min-h-80">
                                 {expensePieData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <RePieChart>
+                                            <Legend 
+                                                layout="horizontal" 
+                                                verticalAlign="bottom" 
+                                                align="center" 
+                                                wrapperStyle={{ padding: "0 10px", fontSize: '12px' }}
+                                            /> 
                                             <Pie
                                                 data={expensePieData}
                                                 dataKey="value"
                                                 nameKey="name"
                                                 cx="50%"
-                                                cy="50%"
-                                                outerRadius={80}
+                                                cy="45%" 
+                                                innerRadius={40} 
+                                                outerRadius={100} 
                                                 labelLine={false}
-                                                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                                                label={renderCustomLabel} 
                                             >
+                                                {/* ✅ FIX 2: Áp dụng màu cố định */}
                                                 {expensePieData.map((entry, index) => (
-                                                    <Cell key={`cell-exp-${index}`} fill={entry.color || PIE_COLORS[index % PIE_COLORS.length]} />
+                                                    <Cell 
+                                                        key={`cell-exp-${index}`} 
+                                                        fill={PIE_COLORS[index % PIE_COLORS.length]} 
+                                                    />
                                                 ))}
                                             </Pie>
                                             <Tooltip content={<CustomTooltip currencyCode={PRIMARY_CURRENCY} isPie={true} />} />
@@ -409,22 +459,33 @@ export default function Analytics() {
                             <h2 className="text-xl font-semibold mb-4 flex items-center text-green-500">
                                 <PieChart size={20} className="mr-2 text-green-500" /> Income Breakdown
                             </h2>
-                            <div className="h-80 w-full flex items-center justify-center min-h-80">
+                            <div className="h-80 w-full flex flex-col items-center justify-center min-h-80">
                                 {incomePieData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <RePieChart>
+                                            <Legend 
+                                                layout="horizontal" 
+                                                verticalAlign="bottom" 
+                                                align="center" 
+                                                wrapperStyle={{ padding: "0 10px", fontSize: '12px' }}
+                                            /> 
                                             <Pie
                                                 data={incomePieData}
                                                 dataKey="value"
                                                 nameKey="name"
                                                 cx="50%"
-                                                cy="50%"
-                                                outerRadius={80}
+                                                cy="45%" 
+                                                innerRadius={40} 
+                                                outerRadius={100} 
                                                 labelLine={false}
-                                                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                                                label={renderCustomLabel} 
                                             >
+                                                {/* ✅ FIX 2: Áp dụng màu cố định */}
                                                 {incomePieData.map((entry, index) => (
-                                                    <Cell key={`cell-inc-${index}`} fill={entry.color || PIE_COLORS[index % PIE_COLORS.length]} />
+                                                    <Cell 
+                                                        key={`cell-inc-${index}`} 
+                                                        fill={PIE_COLORS[index % PIE_COLORS.length]} 
+                                                    />
                                                 ))}
                                             </Pie>
                                             <Tooltip content={<CustomTooltip currencyCode={PRIMARY_CURRENCY} isPie={true} />} />
@@ -440,6 +501,7 @@ export default function Analytics() {
                     
                     {/* ⚙️ Filter and Transactions Table */}
                     <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border"}`}>
+                        {/* (Giữ nguyên phần Header) */}
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-2xl font-semibold">Transaction History ({filteredData.length} items)</h2>
                             <div className="flex space-x-2">
@@ -449,7 +511,6 @@ export default function Analytics() {
                                 >
                                     Reset Filters
                                 </button>
-                                {/* Nút Xuất Báo cáo */}
                                 <button 
                                     onClick={handleExport}
                                     className="px-3 py-1 text-sm rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center transition-colors"
@@ -477,7 +538,7 @@ export default function Analytics() {
                                 </select>
                             </div>
 
-                            {/* Category Filter */}
+                            {/* ✅ FIX 1: Dropdown này sẽ hoạt động vì 'categories' state đã có dữ liệu */}
                             <div>
                                 <label htmlFor="filterCategory" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
                                 <select 
@@ -487,12 +548,12 @@ export default function Analytics() {
                                     onChange={handleFilterChange}
                                     className={`p-2 rounded-lg border text-sm ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
                                 >
-                                    <option value="all">All Categories</option>
-                                    {/* Hiển thị Category của CẢ Income và Expense */}
-                                    {categories.map(cat => (
-                                        <option key={cat.name} value={cat.name}>
-                                        {cat.emoji ? `${cat.emoji} ` : ""}{cat.name}
-                                    </option>
+                                    <option value="all">All Categories</option> 
+                                    {/* Lặp qua state 'categories' đã được sửa */}
+                                    {categories.map(c => (
+                                        <option key={c.id} value={c.id}> 
+                                            {c.icon} {c.name} ({c.type})
+                                        </option>
                                     ))}
                                 </select>
                             </div>
@@ -525,7 +586,7 @@ export default function Analytics() {
                         </div>
 
 
-                        {/* Table */}
+                        {/* Table (Giữ nguyên) */}
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead>
