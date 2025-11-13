@@ -1,12 +1,12 @@
 # routes/transaction_route.py
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
 
 from cruds.crud_summary import get_financial_summary_from_transactions
 from cruds.crud_transaction import get_recent_transactions, create_transaction, delete_transaction, update_transaction, list_transactions_for_user
 from db.database import get_db
-from schemas import TransactionOut, SummaryOut
+from schemas import TransactionOut, SummaryOut, RecentTransactionOut
 from services.auth_token_db import get_current_user_db
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
@@ -28,3 +28,14 @@ def get_summary(current_user=Depends(get_current_user_db), db: Session = Depends
 @router.get("/category-summary", response_model=List[dict])
 def get_expense_by_category(current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
     return get_expense_by_category(db, current_user.id)
+
+
+@router.get("/recent", response_model=List[RecentTransactionOut])
+def get_recent_transactions_route(
+    current_user=Depends(get_current_user_db),
+    db: Session = Depends(get_db),
+    limit: int = Query(10, description="Number of recent transactions to return")
+):
+    """Lấy danh sách các giao dịch thu nhập và chi tiêu gần đây."""
+    # Hàm crud_transaction.get_recent_transactions cần phải được import
+    return get_recent_transactions(db, current_user.id, limit=limit)
