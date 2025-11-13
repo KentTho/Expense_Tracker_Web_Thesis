@@ -83,7 +83,7 @@ def startup_event():
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://expense-tracker-web-thesis-4uad7x4q3-kents-projects-d0ea1a96.vercel.app"# Thêm domain frontend của bạn tại đây
+    "https://expense-tracker-web-thesis-z6ye.vercel.app/"# Thêm domain frontend của bạn tại đây
 ]
 
 app.add_middleware(
