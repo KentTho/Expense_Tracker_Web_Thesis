@@ -5,9 +5,14 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 3000,      // ✅ Đặt cổng chạy FE là 3000
-    open: true       // Tùy chọn: Tự động mở trình duyệt khi chạy
+    port: 3000,      
+    open: true       
   },
+  // 👇 BẠN THÊM ĐOẠN NÀY VÀO NHÉ
+  build: {
+    chunkSizeWarningLimit: 1600, // Tăng giới hạn lên 1600kB (1.6MB) để tắt cảnh báo
+  },
+  // 👆 KẾT THÚC ĐOẠN THÊM
   optimizeDeps: {
     include: ['react-is'],
   },
