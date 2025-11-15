@@ -22,6 +22,9 @@ class UserOut(BaseModel):
     gender: Optional[str]
     birthday: Optional[date]
     created_at: datetime
+    firebase_uid: Optional[str] = None
+    is_2fa_enabled: bool = False
+    restrict_multi_device: bool = False
 
     class Config:
         from_attributes = True

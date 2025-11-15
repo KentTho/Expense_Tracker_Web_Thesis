@@ -16,7 +16,7 @@ from db.database import SessionLocal, engine, Base
 from cruds.crud_category import seed_default_categories
 from routes import (
     auth_route, income_route, category_route, expense_route,
-    transaction_route, dashboard_route, export_route, analytics_route, summary_route
+    transaction_route, dashboard_route, export_route, analytics_route, summary_route, security_route
 )
 
 # -------------------------------------------------
@@ -105,6 +105,7 @@ app.include_router(export_route.router)
 app.include_router(analytics_route.router)
 app.include_router(summary_route.router)
 # Route cơ bản
+app.include_router(security_route.router)
 @app.get("/", tags=["Root"])
 def root():
     return {"message": "Expense Tracker API is running successfully!"}

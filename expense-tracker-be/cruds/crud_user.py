@@ -10,9 +10,24 @@ def get_user_by_email(db: Session, email: str):
     """Tìm người dùng bằng Email."""
     return db.query(user_model.User).filter(user_model.User.email == email).first()
 
-def create_user(db: Session, firebase_uid: str = None, email: str = None, name: str = None, profile_image: str = None, password: str = None):
+def create_user(db: Session,
+                firebase_uid: str = None,
+                email: str = None,
+                name: str = None,
+                profile_image: str = None,
+                password: str = None,):
     """Tạo người dùng mới."""
-    user = user_model.User(firebase_uid=firebase_uid, email=email, name=name, profile_image=profile_image, password=password)
+    user = user_model.User(
+        firebase_uid=firebase_uid,
+        email=email,
+        name=name,
+        password=password,
+        profile_image=profile_image,
+        is_2fa_enabled=False,
+        restrict_multi_device=False,
+        otp_secret=None,
+        last_session_key=None
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

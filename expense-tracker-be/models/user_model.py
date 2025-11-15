@@ -10,6 +10,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from db.database import Base # Giả định Base được import từ đây
+import sqlalchemy as sa
 
 # ======================================================
 # 👤 USER MODEL
@@ -28,6 +29,20 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     currency_code = Column(String(5), nullable=False, default="USD")
     currency_symbol = Column(String(5), nullable=False, default="$")
+
+    # --- CÁC CỘT MỚI CHO BẢO MẬT ---
+
+    # 1. Cho Xác thực 2 yếu tố (2FA)
+    is_2fa_enabled: sa.Column[bool] = sa.Column(sa.Boolean, default=False, nullable=False)
+
+    # Secret key (dạng text) để tạo mã 2FA, được mã hóa trước khi lưu
+    otp_secret: sa.Column[str] = sa.Column(sa.String, nullable=True)
+
+    # 2. Cho Giới hạn phiên đăng nhập
+    restrict_multi_device: sa.Column[bool] = sa.Column(sa.Boolean, default=False, nullable=False)
+
+    # (Tùy chọn nâng cao) Lưu phiên đăng nhập cuối cùng
+    last_session_key: sa.Column[str] = sa.Column(sa.String, nullable=True)
 
     # Quan hệ (Relationship)
     incomes = relationship("Income", back_populates="user", cascade="all, delete-orphan")
