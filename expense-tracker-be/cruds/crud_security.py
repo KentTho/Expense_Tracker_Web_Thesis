@@ -3,6 +3,10 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from models import user_model  # Giả sử model User của bạn ở đây
 from schemas.security_schemas import SecuritySettingsUpdate
+# --- Logic cho 2FA (Sẽ phức tạp hơn, đây là bản cơ bản) ---
+# Bạn sẽ cần thư viện: pip install pyotp
+import pyotp
+
 
 
 def get_user_security_settings(db: Session, user_id: UUID):
@@ -31,11 +35,6 @@ def update_user_security_settings(db: Session, user_id: UUID, settings: Security
     db.commit()
     db.refresh(user)
     return user
-
-
-# --- Logic cho 2FA (Sẽ phức tạp hơn, đây là bản cơ bản) ---
-# Bạn sẽ cần thư viện: pip install pyotp
-import pyotp
 
 
 def enable_2fa_generate_secret(db: Session, user_id: UUID):

@@ -586,8 +586,8 @@ export default function Analytics() {
                         </div>
 
 
-                        {/* Table (Giữ nguyên) */}
-                        <div className="overflow-x-auto">
+                        {/* Table (ĐÃ CẬP NHẬT) */}
+                        <div className="overflow-x-auto max-h-96 overflow-y-auto">
                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead>
                                     <tr>

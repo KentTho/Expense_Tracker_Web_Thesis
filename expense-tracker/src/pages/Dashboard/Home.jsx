@@ -292,11 +292,13 @@ export default function Home() {
                             <Link to="/analytics" className="text-sm text-blue-500 hover:text-blue-400">
                                 View All
                             </Link> {/* ✅ ĐÃ SỬA LỖI Ở ĐÂY */}
+                        {/* ... (Phần tiêu đề 'Recent Transactions' và link 'View All') ... */}
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-96 overflow-y-auto"> {/* 👈 THAY ĐỔI Ở ĐÂY */}
                             {recentTransactions.length > 0 ? (
                                 recentTransactions.map((tx) => (
                                     <div
+// ... (phần còn lại của map) ...
                                         key={tx.id}
                                         className="flex items-center justify-between py-3 border-b last:border-b-0"
                                     >

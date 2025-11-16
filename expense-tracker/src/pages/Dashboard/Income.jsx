@@ -1,3 +1,9 @@
+// Income.jsx
+// - ĐÃ CẬP NHẬT: Bố cục 1-2-3 (Giống Expense).
+// - ĐÃ CẬP NHẬT: Delete Modal Custom.
+// - ĐÃ CẬP NHẬT: Chart Font Size to (14px).
+// - ĐÃ CẬP NHẬT: Thẻ Total Income (Mini-stats & Decor).
+
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
@@ -9,7 +15,10 @@ import {
     Calendar,
     Download,
     X,
-    BarChart3, 
+    BarChart3,
+    AlertTriangle, // Icon cho Delete Modal
+    Activity,      // Icon Mini-stat
+    ArrowUpRight,  // Icon Mini-stat
 } from "lucide-react";
 import {
     ResponsiveContainer,
@@ -33,10 +42,10 @@ import {
 import { getCategories } from "../../services/categoryService"; 
 import { format } from "date-fns";
 
-// Màu sắc
+// Màu sắc chủ đạo
 const INCOME_TREND_COLOR = "#10B981"; 
 
-// 💡 Danh sách các đơn vị tiền tệ
+// Danh sách đơn vị tiền tệ
 const CURRENCIES = [
     { code: "USD", name: "US Dollar ($)" },
     { code: "VND", name: "Vietnamese Dong (₫)" },
@@ -45,22 +54,40 @@ const CURRENCIES = [
     { code: "GBP", name: "British Pound (£)" },
 ];
 
-// ====================================================
-// 💡 HELPER: ĐỊNH DẠNG TIỀN TỆ (Sử dụng đơn vị đã chọn)
-// ====================================================
+// HELPER: ĐỊNH DẠNG TIỀN TỆ
 const formatAmountDisplay = (amount, currencyCode) => {
-    // 1. Chuyển sang kiểu số và làm tròn để loại bỏ số thập phân
     const roundedAmount = Math.round(Number(amount));
-    
-    // 2. Định dạng theo đơn vị tiền tệ đã chọn
-    return new Intl.NumberFormat('en-US', { // Sử dụng 'en-US' locale để có định dạng số chuẩn
-        style: 'currency',
-        currency: currencyCode,
-        minimumFractionDigits: 0, 
-        maximumFractionDigits: 0,
-    }).format(roundedAmount);
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currencyCode,
+            minimumFractionDigits: 0, 
+            maximumFractionDigits: 0,
+        }).format(roundedAmount);
+    } catch (e) {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0, 
+            maximumFractionDigits: 0,
+        }).format(roundedAmount);
+    }
 };
 
+// Custom Tooltip (Style giống Expense)
+const CustomTooltip = ({ active, payload, label, currencyCode }) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="p-3 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl backdrop-blur-sm">
+                <p className="text-sm font-bold mb-1 text-gray-700 dark:text-gray-200">{`Date: ${label}`}</p>
+                <p className="text-base font-bold text-green-500">
+                    Income: {formatAmountDisplay(payload[0].value, currencyCode)}
+                </p>
+            </div>
+        );
+    }
+    return null;
+};
 
 export default function Income() {
     const { theme } = useOutletContext();
@@ -69,15 +96,16 @@ export default function Income() {
     const [incomes, setIncomes] = useState([]);
     const [categories, setCategories] = useState([]);
     const [incomeSummary, setIncomeSummary] = useState([]); 
-    const [totalIncome, setTotalIncome] = useState(0); 
+    
+    // Modal States
     const [showModal, setShowModal] = useState(false); 
     const [showSummaryModal, setShowSummaryModal] = useState(false); 
+    const [showDeleteModal, setShowDeleteModal] = useState(false); // 🔔 Delete Modal
+    const [deleteId, setDeleteId] = useState(null);
+
     const [editId, setEditId] = useState(null);
     const [loading, setLoading] = useState(false);
-    
     const [filterDate, setFilterDate] = useState(""); 
-    
-    // 💡 State mới: Lưu đơn vị tiền tệ đang hiển thị (Mặc định: USD)
     const [displayCurrency, setDisplayCurrency] = useState("USD"); 
     
     const [form, setForm] = useState({
@@ -88,7 +116,19 @@ export default function Income() {
         category_id: "",
     });
 
-    // ... (Giữ nguyên logic fetchData, handleFormSubmit, handleEdit, handleDelete, handleCloseModal) ...
+    // 📊 TÍNH TOÁN CHỈ SỐ (Total, Avg, Max)
+    const { totalIncome, avgIncome, maxIncome } = useMemo(() => {
+        const total = incomes.reduce((sum, income) => sum + Number(income.amount), 0);
+        const avg = incomes.length > 0 ? total / incomes.length : 0;
+        const max = incomes.length > 0 ? Math.max(...incomes.map(i => Number(i.amount))) : 0;
+
+        return { 
+            totalIncome: total,
+            avgIncome: Math.round(avg),
+            maxIncome: Math.round(max)
+        };
+    }, [incomes]);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
@@ -103,12 +143,6 @@ export default function Income() {
                 value: Number(item.total_amount) || 0,
             })).filter(item => item.value > 0);
 
-            // 💡 Tính Total Income
-            const calculatedTotalIncome = incomesResult.reduce((sum, income) => 
-                sum + Number(income.amount), 0
-            );
-            
-            setTotalIncome(calculatedTotalIncome); 
             setIncomes(incomesResult);
             setCategories(categoriesResult);
             setIncomeSummary(formattedSummary);
@@ -124,7 +158,6 @@ export default function Income() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-
 
     const handleFormSubmit = async () => {
         if (!form.amount || !form.date) {
@@ -174,7 +207,7 @@ export default function Income() {
         setEditId(income.id);
         setForm({
             category_name: income.category_name,
-            amount: String(income.amount),
+            amount: String(Math.round(income.amount)), // Làm tròn khi edit
             date: income.date,
             emoji: income.emoji,
             category_id: income.category?.id || '',
@@ -182,17 +215,25 @@ export default function Income() {
         setShowModal(true);
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm("Are you sure you want to delete this income?")) {
-            try {
-                await deleteIncome(id);
-                setIncomes(incomes.filter((i) => i.id !== id));
-                await fetchData(); 
-                toast.success("Income deleted successfully!");
-            } catch (err) {
-                console.error(err);
-                toast.error("Error deleting income.");
-            }
+    // 🔔 Logic Delete mới
+    const initiateDelete = (id) => {
+        setDeleteId(id);
+        setShowDeleteModal(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteId) return;
+        try {
+            await deleteIncome(deleteId);
+            setIncomes(incomes.filter((i) => i.id !== deleteId));
+            await fetchData(); 
+            toast.success("Income deleted successfully!");
+        } catch (err) {
+            console.error(err);
+            toast.error("Error deleting income.");
+        } finally {
+            setShowDeleteModal(false);
+            setDeleteId(null);
         }
     };
     
@@ -234,9 +275,7 @@ export default function Income() {
 
     const handleFormChange = (e) => {
         const { name, value } = e.target;
-        
         if (name === 'amount') {
-            // FIX: Restrict amount input to non-negative integers only (since decimals = 0 is used)
             const re = /^\d*$/;
             if (value === '' || re.test(value)) {
                 setForm(prev => ({ ...prev, [name]: value }));
@@ -249,7 +288,6 @@ export default function Income() {
     const handleCategoryChange = (e) => {
         const categoryId = e.target.value;
         const selectedCategory = categories.find(c => c.id === categoryId);
-        
         setForm({ 
             ...form, 
             category_id: categoryId,
@@ -257,45 +295,40 @@ export default function Income() {
             emoji: selectedCategory ? selectedCategory.icon : form.emoji || "💰",
         });
     };
+
     // ----------------------------------------------------
-    // 🖼️ 5. PHẦN RENDER GIAO DIỆN
+    // 🖼️ UI RENDER
     // ----------------------------------------------------
 
     return (
-        <div className={`p-6 ${isDark ? "text-gray-100" : "text-gray-800"}`}>
-            <Toaster />
+        <div className={`p-4 sm:p-6 min-h-screen ${isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
+            <Toaster position="top-center" />
 
-            {/* HEADER & BUTTONS (ADD & SUMMARY & CURRENCY) */}
-            <div className="flex justify-between items-center mb-6">
+            {/* HEADER */}
+            <div className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold flex items-center gap-2">
-                    <DollarSign size={24} className="text-green-500" /> Income Transactions
+                    <DollarSign size={32} className="text-green-500" /> Income Transactions
                 </h1>
                 <div className="flex gap-3 items-center">
-                    {/* 💡 Currency Selector */}
-                    <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium">Currency:</label>
+                    {/* Currency Selector */}
+                    <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                         <select
                             value={displayCurrency}
                             onChange={(e) => setDisplayCurrency(e.target.value)}
-                            className={`px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                            className={`px-2 py-1 text-sm bg-transparent outline-none font-medium ${isDark ? "text-white" : "text-gray-700"}`}
                         >
                             {CURRENCIES.map((c) => (
-                                <option key={c.code} value={c.code}>
-                                    {c.name}
-                                </option>
+                                <option key={c.code} value={c.code}>{c.code}</option>
                             ))}
                         </select>
                     </div>
 
-                    {/* Nút mở Summary Modal */}
                     <button
                         onClick={() => setShowSummaryModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium shadow-md shadow-purple-500/50"
-                        title="View Income Summary by Category"
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium shadow-lg"
                     >
                         <BarChart3 size={20} /> View Summary
                     </button>
-                    {/* Nút Add New Income */}
                     <button
                         onClick={() => {
                             setEditId(null);
@@ -308,121 +341,125 @@ export default function Income() {
                             });
                             setShowModal(true);
                         }}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-md shadow-blue-500/50"
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium shadow-lg transform hover:scale-105 active:scale-95"
                     >
-                        <PlusCircle size={20} /> Add New Income
+                        <PlusCircle size={20} /> Add Income
                     </button>
                 </div>
             </div>
 
-            {/* 💡 --- BỐ CỤC 2 CỘT CHÍNH (Trend Chart & Transaction List) --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 💡 --- ROW 1: KPI & LIST (Bố cục 1-2-3 giống Expense) --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 
-                {/* 📊 CỘT 1: INCOME TREND (Area Chart) - Chiếm 2/3 chiều rộng */}
-                <div className="lg:col-span-2">
-                    <div className={`${isDark ? "bg-gray-800" : "bg-white"} p-4 rounded-xl shadow-lg h-full`}>
-                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                            <Calendar size={20} className="text-green-500" /> Income Trend by Date
+                {/* 1. TOTAL INCOME CARD (ĐÃ NÂNG CẤP) */}
+                <div className={`lg:col-span-1 relative overflow-hidden p-6 rounded-2xl shadow-xl flex flex-col justify-between ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
+                     {/* Decor Background Icon */}
+                     <div className="absolute -right-6 -bottom-6 opacity-5 dark:opacity-[0.03] pointer-events-none">
+                        <DollarSign size={180} className={isDark ? "text-white" : "text-black"} />
+                    </div>
+
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-500 dark:text-gray-400 flex items-center mb-4">
+                            <DollarSign size={20} className="mr-1 text-green-500" />
+                            Total Income (All Time)
                         </h2>
-                        {/* Biểu đồ Area Chart - Tăng chiều cao để rõ ràng hơn */}
-                        <div className="h-96"> 
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={dailyTrendData}
-                                    margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} />
-                                    <XAxis dataKey="date" stroke={isDark ? "#9CA3AF" : "#6B7280"} angle={-45} textAnchor="end" height={50} /> 
-                                    <YAxis 
-                                        stroke={isDark ? "#9CA3AF" : "#6B7280"} 
-                                        tickFormatter={(value) => formatAmountDisplay(value, displayCurrency)} // 💡 Sử dụng Currency Code
-                                    /> 
-                                    <Tooltip 
-                                        formatter={(value) => [`${formatAmountDisplay(value, displayCurrency)}`, "Amount"]} // 💡 Sử dụng Currency Code
-                                        contentStyle={{ 
-                                            backgroundColor: isDark ? "#1F2937" : "#FFFFFF", 
-                                            borderColor: isDark ? "#4B5563" : "#D1D5DB", 
-                                            borderRadius: "8px" 
-                                        }}
-                                    />
-                                    <Area type="monotone" dataKey="amount" stroke={INCOME_TREND_COLOR} fill={INCOME_TREND_COLOR} fillOpacity={0.5} />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                        <p className="text-5xl font-extrabold text-green-500 tracking-tight leading-tight">
+                            {formatAmountDisplay(totalIncome, displayCurrency)}
+                        </p>
+                        <p className="text-sm text-gray-400 mt-2 mb-6">
+                            Calculated from {incomes.length} transactions.
+                        </p>
+                    </div>
+
+                    {/* Mini Stats Grid */}
+                    <div className="grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-gray-700 pt-6 mt-auto relative z-10">
+                        <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mb-1">
+                                <Activity size={12} /> Avg. / Txn
+                            </p>
+                            <p className="font-bold text-lg text-gray-700 dark:text-gray-200">
+                                {formatAmountDisplay(avgIncome, displayCurrency)}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mb-1">
+                                <ArrowUpRight size={12} /> Highest Txn
+                            </p>
+                            <p className="font-bold text-lg text-gray-700 dark:text-gray-200">
+                                {formatAmountDisplay(maxIncome, displayCurrency)}
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                {/* 📜 CỘT 2: RECENT INCOMES LIST - Chiếm 1/3 chiều rộng */}
-                <div className="lg:col-span-1">
-                    <div className={`${isDark ? "bg-gray-800" : "bg-white"} p-4 rounded-xl shadow-lg h-full`}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-semibold">Recent Incomes</h2>
-                            <button className={`px-3 py-2 rounded-lg border transition ${isDark ? "bg-gray-700 border-gray-600 hover:bg-gray-600" : "bg-gray-100 border-gray-300 hover:bg-gray-200"}`} title="Export Data">
-                                <Download size={20} />
-                            </button>
-                        </div>
-
-                        {/* Thanh lọc/tìm kiếm & Nút View All */}
-                        <div className="mb-4 flex gap-2 items-center">
-                            <div className="relative flex-grow">
-                                <input
-                                    type="date"
-                                    value={filterDate}
-                                    onChange={(e) => setFilterDate(e.target.value)}
-                                    className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"}`}
-                                />
-                            </div>
-                            {/* Nút Clear Filter / View All */}
-                            {filterDate && (
+                {/* 2. RECENT INCOMES LIST (Cột 2 & 3) */}
+                <div className={`lg:col-span-2 p-6 rounded-2xl shadow-xl flex flex-col h-full ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold">Recent Incomes</h2>
+                        
+                        {/* Filter Controls */}
+                        <div className="flex gap-2 items-center">
+                            <input
+                                type="date"
+                                value={filterDate}
+                                onChange={(e) => setFilterDate(e.target.value)}
+                                className={`px-3 py-1 text-sm rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"}`}
+                            />
+                             {filterDate && (
                                 <button
                                     onClick={() => setFilterDate("")}
-                                    className={`px-3 py-2 rounded-lg transition font-medium text-sm ${isDark ? "bg-red-700/50 hover:bg-red-700 text-white" : "bg-red-100 hover:bg-red-200 text-red-600"}`}
-                                    title="Clear Date Filter (View All)"
+                                    className="p-1 rounded-full bg-red-100 text-red-500 hover:bg-red-200"
                                 >
-                                    <X size={18} />
+                                    <X size={16} />
                                 </button>
                             )}
+                            <button className={`p-2 rounded-lg border transition ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"}`}>
+                                <Download size={18} />
+                            </button>
                         </div>
+                    </div>
 
-                        {/* Danh sách giao dịch - Thêm cuộn dọc (overflow-y-auto) */}
+                    <div className="flex-1 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
                         {loading ? (
-                            <div className="flex justify-center items-center py-10 h-[300px]">
-                                <Loader2 size={32} className="animate-spin text-blue-500" />
+                            <div className="flex justify-center items-center h-full">
+                                <Loader2 size={32} className="animate-spin text-green-500" />
                             </div>
                         ) : filteredIncomes.length === 0 ? (
                             <p className="text-center py-10 text-gray-500">No income transactions found.</p>
                         ) : (
-                            <div className="space-y-4 overflow-y-auto pr-2" style={{ maxHeight: '300px' }}> {/* Giới hạn chiều cao cho scroll */}
+                            <div className="space-y-3">
                                 {filteredIncomes.map((income) => (
                                     <div
                                         key={income.id}
-                                        className={`flex justify-between items-center py-3 px-2 rounded-lg hover:shadow-md transition ${isDark ? "hover:bg-gray-700/50" : "hover:bg-gray-50/50"}`}
+                                        className={`flex justify-between items-center p-3 rounded-lg border-b last:border-0 border-gray-100 dark:border-gray-700 transition ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-50"}`}
                                     >
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xl">{income.emoji || income.category?.icon || '❓'}</span>
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-sm ${isDark ? "bg-gray-700" : "bg-gray-100"}`}>
+                                                {income.emoji || income.category?.icon || '💰'}
+                                            </div>
                                             <div>
-                                                <p className="font-medium text-sm">{income.category_name}</p>
-                                                <p className="text-xs text-gray-400">{income.date ? format(new Date(income.date), "dd/MM/yyyy") : 'N/A'}</p>
+                                                <p className="font-bold text-base">{income.category_name}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {income.date ? format(new Date(income.date), "dd/MM/yyyy") : 'N/A'}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className="flex flex-col items-end">
-                                            <p className="font-semibold text-sm text-green-500">
-                                                + {formatAmountDisplay(income.amount, displayCurrency)} {/* 💡 Sử dụng Currency Code */}
+                                        <div className="flex items-center gap-4">
+                                            <p className="font-bold text-green-500 text-lg">
+                                                + {formatAmountDisplay(income.amount, displayCurrency)}
                                             </p>
-                                            <div className="flex gap-2 mt-1">
+                                            <div className="flex gap-1">
                                                 <button
                                                     onClick={() => handleEdit(income)}
-                                                    className="text-blue-500 hover:text-blue-700 transition"
-                                                    aria-label="Edit Income"
-                                                    title="Edit"
+                                                    className="p-2 rounded-full text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 transition-all"
                                                 >
-                                                    <Edit size={16} />
+                                                    <Edit size={18} />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDelete(income.id)}
-                                                    className="text-red-500 hover:text-red-700 transition"
-                                                    aria-label="Delete Income"
-                                                    title="Delete"
+                                                    onClick={() => initiateDelete(income.id)}
+                                                    className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-gray-600 transition-all"
                                                 >
-                                                    <Trash2 size={16} />
+                                                    <Trash2 size={18} />
                                                 </button>
                                             </div>
                                         </div>
@@ -432,39 +469,90 @@ export default function Income() {
                         )}
                     </div>
                 </div>
-
             </div>
             
-            {/* --- KHU VỰC THÔNG TIN BỔ SUNG (Total Income Card) --- */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-                 {/* Card Tổng thu nhập */}
-                <div className="md:col-span-1">
-                    <div className={`p-6 rounded-xl shadow-lg border-t-4 border-green-500 ${isDark ? "bg-gray-800" : "bg-white"}`}>
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-xl font-semibold text-green-500 flex items-center gap-2">
-                                <DollarSign size={24} /> Total Income (All Time)
-                            </h3>
+            {/* --- ROW 2: CHART (NẰM DƯỚI CÙNG, FULL WIDTH) --- */}
+            <div className={`w-full p-6 rounded-2xl shadow-xl mb-8 ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <Calendar size={24} className="text-green-500" /> Income Trend by Date
+                </h2>
+                <div className="h-[500px] w-full"> 
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={dailyTrendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={INCOME_TREND_COLOR} stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor={INCOME_TREND_COLOR} stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
+                            <XAxis 
+                                dataKey="date" 
+                                stroke={isDark ? "#9CA3AF" : "#6B7280"} 
+                                angle={-45} 
+                                textAnchor="end" 
+                                height={70} 
+                                tick={{ fontSize: 14, fontWeight: 600 }} // ✅ Font to
+                            /> 
+                            <YAxis 
+                                stroke={isDark ? "#9CA3AF" : "#6B7280"} 
+                                tickFormatter={(value) => formatAmountDisplay(value, displayCurrency)}
+                                tick={{ fontSize: 14, fontWeight: 600 }} // ✅ Font to
+                                width={100} // ✅ Rộng hơn
+                            /> 
+                            <Tooltip content={<CustomTooltip currencyCode={displayCurrency} />} />
+                            <Area 
+                                type="monotone" 
+                                dataKey="amount" 
+                                stroke={INCOME_TREND_COLOR} 
+                                strokeWidth={3}
+                                fillOpacity={1} 
+                                fill="url(#colorIncome)" 
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+            
+            {/* --- DELETE CONFIRMATION MODAL --- */}
+            {showDeleteModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className={`w-full max-w-sm p-6 rounded-2xl shadow-2xl transform transition-all scale-100 ${isDark ? "bg-gray-800" : "bg-white"}`}>
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+                                <AlertTriangle className="text-red-600 dark:text-red-500" size={24} />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">Delete Income?</h3>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+                                Are you sure you want to delete this record? This action cannot be undone.
+                            </p>
+                            <div className="flex gap-3 w-full">
+                                <button
+                                    onClick={() => setShowDeleteModal(false)}
+                                    className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${
+                                        isDark 
+                                            ? "bg-gray-700 hover:bg-gray-600 text-gray-200" 
+                                            : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                                    }`}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmDelete}
+                                    className="flex-1 py-2.5 rounded-lg font-medium bg-red-600 hover:bg-red-500 text-white shadow-md shadow-red-500/30 transition-colors"
+                                >
+                                    Delete
+                                </button>
+                            </div>
                         </div>
-                        <p className={`text-4xl font-extrabold mt-2 ${isDark ? "text-white" : "text-gray-900"}`}>
-                            {formatAmountDisplay(totalIncome, displayCurrency)} {/* 💡 Sử dụng Currency Code */}
-                        </p>
-                        <p className="text-sm text-gray-400 mt-1">
-                            Calculated from {incomes.length} transactions.
-                        </p>
                     </div>
                 </div>
-                
-                {/* Bổ sung thêm 2 cột trống */}
-                <div className="md:col-span-2">
-                    {/* Có thể thêm các biểu đồ/KPI khác ở đây */}
-                </div>
-                
-            </div>
-            
+            )}
+
             {/* --- MODAL CHUNG (CREATE/UPDATE) --- */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className={`w-full max-w-md p-6 rounded-xl shadow-2xl relative ${isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className={`w-full max-w-md p-6 rounded-2xl shadow-2xl relative ${isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
                         
                         <button 
                             onClick={handleCloseModal}
@@ -479,13 +567,9 @@ export default function Income() {
                         </h3>
                         
                         <div className="space-y-4">
-                            {/* Form fields here (Amount, Date, Category, Emoji) */}
-                            <div className="grid grid-cols-3 gap-4">
-                                {/* 💰 Amount Input (Col 1/3) */}
-                                <div className="col-span-2">
-                                    <label htmlFor="amount" className="block text-sm font-medium mb-1">
-                                        Amount
-                                    </label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label htmlFor="amount" className="block text-sm font-medium mb-1">Amount</label>
                                     <input
                                         type="number"
                                         id="amount"
@@ -493,59 +577,22 @@ export default function Income() {
                                         value={form.amount}
                                         onChange={handleFormChange}
                                         placeholder="e.g. 1000"
-                                        min="0.01"
-                                        step="1" // Đã đổi về step 1 để khớp với logic chỉ nhận số nguyên
-                                        className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${
-                                            isDark
-                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                        }`}
+                                        min="1"
+                                        step="1"
+                                        className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
                                     />
                                 </div>
-
-                                {/* 💵 Currency Select (Col 2/3) */}
                                 <div>
-                                    <label htmlFor="currency_code" className="block text-sm font-medium mb-1">
-                                        Currency
-                                    </label>
-                                    <select
-                                        id="currency_code"
-                                        name="currency_code" // Tên phải khớp với form state
-                                        value={form.currency_code} // Giá trị phải được bind vào state
-                                        onChange={handleFormChange} // Sử dụng hàm chung để cập nhật state
-                                        className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${
-                                            isDark
-                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                : "bg-gray-100 border-gray-300"
-                                        }`}
-                                    >
-                                        {/* CURRENCIES đã được định nghĩa ở đầu file */}
-                                        {CURRENCIES.map(c => (
-                                            <option key={c.code} value={c.code}>
-                                                {c.code}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <label htmlFor="date" className="block text-sm font-medium mb-1">Date</label>
+                                    <input
+                                        type="date"
+                                        id="date"
+                                        name="date" 
+                                        value={form.date}
+                                        onChange={handleFormChange}
+                                        className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                                    />
                                 </div>
-                            </div>
-                            
-                            {/* Date Input (Tách riêng hoặc bạn có thể gộp vào grid 3 cột nếu thích) */}
-                            <div>
-                                <label htmlFor="date" className="block text-sm font-medium mb-1">
-                                    Date
-                                </label>
-                                <input
-                                    type="date"
-                                    id="date"
-                                    name="date" 
-                                    value={form.date}
-                                    onChange={handleFormChange}
-                                    className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${
-                                        isDark
-                                            ? "bg-gray-700 border-gray-600 text-white"
-                                            : "bg-gray-100 border-gray-300"
-                                    }`}
-                                />
                             </div>
                             
                             <div>
@@ -553,7 +600,7 @@ export default function Income() {
                                 <select
                                     value={form.category_id}
                                     onChange={handleCategoryChange}
-                                    className={`w-full px-3 py-2 rounded-lg border outline-none ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                                    className={`w-full px-4 py-3 rounded-lg border outline-none text-base ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
                                 >
                                     <option value="">-- Select Category --</option>
                                     {categories.map((c) => (
@@ -564,19 +611,19 @@ export default function Income() {
                                 </select>
                             </div>
 
-                            <div >
+                            <div>
                                 <label className="block text-sm font-medium mb-1">Emoji</label>
                                 <input
                                     type="text"
                                     value={form.emoji}
                                     readOnly
-                                    className={`w-full px-3 py-2 rounded-lg border outline-none text-center text-2xl ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+                                    className={`w-full px-4 py-3 rounded-lg border outline-none text-center text-2xl ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
                                 />
                             </div>
                             
                             <button
                                 onClick={handleFormSubmit}
-                                className="w-full mt-4 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition font-semibold shadow-lg shadow-blue-500/50"
+                                className="w-full mt-4 py-3 rounded-lg bg-green-600 hover:bg-green-500 text-white flex items-center justify-center gap-2 transition font-semibold shadow-lg"
                             >
                                 <DollarSign size={18} />
                                 {editId ? "Update Income" : "Save Income"}
@@ -588,7 +635,7 @@ export default function Income() {
             
             {/* --- MODAL CHO SUMMARY CHART --- */}
             {showSummaryModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                     <div className={`w-full max-w-3xl p-6 rounded-xl shadow-2xl relative ${isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
                         
                         <button 
@@ -600,7 +647,7 @@ export default function Income() {
                         </button>
 
                         <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                            <BarChart3 size={24} className="text-purple-500" /> Income Summary by Category (Top 10)
+                            <BarChart3 size={24} className="text-purple-500" /> Income Summary (Top 10)
                         </h3>
 
                         <div className="h-96">
@@ -614,23 +661,25 @@ export default function Income() {
                                     <XAxis 
                                         type="number" 
                                         stroke={isDark ? "#9CA3AF" : "#6B7280"} 
-                                        tickFormatter={(value) => formatAmountDisplay(value, displayCurrency)} // 💡 Sử dụng Currency Code
+                                        tickFormatter={(value) => formatAmountDisplay(value, displayCurrency)}
+                                        tick={{ fontSize: 12 }}
                                     />
                                     <YAxis 
                                         dataKey="name" 
                                         type="category" 
                                         stroke={isDark ? "#9CA3AF" : "#6B7280"} 
                                         width={100} 
+                                        tick={{ fontSize: 12, fontWeight: 500 }}
                                     />
                                     <Tooltip 
-                                        formatter={(value) => [`${formatAmountDisplay(value, displayCurrency)}`, "Amount"]} // 💡 Sử dụng Currency Code
+                                        formatter={(value) => [`${formatAmountDisplay(value, displayCurrency)}`, "Amount"]}
                                         contentStyle={{ 
                                             backgroundColor: isDark ? "#1F2937" : "#FFFFFF", 
                                             borderColor: isDark ? "#4B5563" : "#D1D5DB", 
                                             borderRadius: "8px" 
                                         }}
                                     />
-                                    <Bar dataKey="value" fill={INCOME_TREND_COLOR} radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="value" fill={INCOME_TREND_COLOR} radius={[0, 4, 4, 0]} barSize={30} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
