@@ -50,6 +50,12 @@ def update_profile(data: UserUpdate, current_user = Depends(get_current_user_db)
         user.gender = data.gender
     if data.birthday is not None:
         user.birthday = data.birthday
+        # ✅ THÊM LOGIC CẬP NHẬT TIỀN TỆ:
+    if data.currency_code is not None:
+        user.currency_code = data.currency_code
+    if data.currency_symbol is not None:
+        user.currency_symbol = data.currency_symbol
+
     db.add(user)
     db.commit()
     db.refresh(user)

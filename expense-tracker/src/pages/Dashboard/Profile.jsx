@@ -1,53 +1,123 @@
+// Profile.jsx
+// - ✅ FIXED: Sửa lỗi icon 'VenusMars' -> 'VenusAndMars'
+// - RETAINED: Bố cục Dashboard 2 cột.
+// - RETAINED: Chỉnh sửa nội tuyến (In-line Editing).
+// - RETAINED: Hiển thị (Currency, 2FA Status).
+
 import React, { useState, useEffect } from "react";
 import { getAuth } from "firebase/auth";
-import { useOutletContext, useNavigate } from "react-router-dom"; // ✅ thêm useNavigate
-import { User, Mail, Calendar, Edit3, X, Save, Upload, Lock, VenusAndMars, Cake } from "lucide-react"; // ✅ thêm icon Lock
+import { useOutletContext, useNavigate } from "react-router-dom";
+import { 
+  User, Mail, Calendar, Edit3, X, Save, Upload, Lock, 
+  VenusAndMars, // ✅ ĐÃ SỬA LỖI TẠI ĐÂY
+  Cake, 
+  Wallet, ShieldCheck 
+} from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import {
   getUserProfile,
   updateUserProfile,
-} from "../../services/profileService"; // ✅ Gọi API thật
+} from "../../services/profileService";
+
+// Helper Component: Input Field
+const InfoInput = ({ isEditing, label, name, value, onChange, type = "text", children }) => {
+  const { theme } = useOutletContext();
+  const isDark = theme === "dark";
+
+  if (!isEditing) {
+    return children; // Hiển thị text bình thường khi không edit
+  }
+
+  // Hiển thị input khi edit
+  return (
+    <div>
+      <label className="text-xs font-semibold uppercase text-gray-500">{label}</label>
+      <input
+        type={type}
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        className={`w-full p-2 mt-1 rounded-lg border outline-none text-base ${
+          isDark
+            ? "bg-gray-700 border-gray-600 text-white focus:border-blue-500"
+            : "bg-gray-100 border-gray-300 focus:border-blue-500"
+        }`}
+      />
+    </div>
+  );
+};
+
+// Helper Component: Select Field
+const InfoSelect = ({ isEditing, label, name, value, onChange, children, options }) => {
+    const { theme } = useOutletContext();
+    const isDark = theme === "dark";
+  
+    if (!isEditing) {
+      return children; // Hiển thị text
+    }
+  
+    return (
+      <div>
+        <label className="text-xs font-semibold uppercase text-gray-500">{label}</label>
+        <select
+          name={name}
+          value={value || ""}
+          onChange={onChange}
+          className={`w-full p-2 mt-1 rounded-lg border outline-none text-base ${
+            isDark
+              ? "bg-gray-700 border-gray-600 text-white focus:border-blue-500"
+              : "bg-gray-100 border-gray-300 focus:border-blue-500"
+          }`}
+        >
+          {options.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+};
+
 
 export default function Profile() {
   const { theme } = useOutletContext();
-  const navigate = useNavigate(); // ✅ khởi tạo điều hướng
+  const isDark = theme === "dark";
+  const navigate = useNavigate(); 
 
   const [user, setUser] = useState(null);
   const [form, setForm] = useState({});
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Fetch profile thật từ backend
+  // Fetch profile từ backend
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const auth = getAuth();
         const currentUser = auth.currentUser;
         if (!currentUser) {
-          toast.error("Bạn cần đăng nhập lại!");
+          toast.error("You need to log in again!");
+          navigate("/login");
           return;
         }
         const data = await getUserProfile();
         setUser(data);
         setForm(data);
       } catch (err) {
-        console.error("❌ Lỗi lấy profile:", err);
-        toast.error("Không thể tải thông tin người dùng!");
+        console.error("❌ Profile fetch error:", err);
+        toast.error("Could not load user information!");
       } finally {
         setLoading(false);
       }
     };
-
     fetchProfile();
-  }, []);
+  }, [navigate]);
 
-  // ✅ Thay đổi giá trị input
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ✅ Upload ảnh mới
+  // Upload ảnh
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -57,13 +127,19 @@ export default function Profile() {
     reader.readAsDataURL(file);
   };
 
-  // ✅ Lưu cập nhật
+  // Hủy edit
+  const handleCancel = () => {
+    setForm(user); // Reset form về trạng thái user ban đầu
+    setIsEditing(false);
+  };
+
+  // Lưu cập nhật
   const handleSave = async () => {
     try {
       const auth = getAuth();
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        toast.error("Vui lòng đăng nhập lại!");
+        toast.error("Please log in again!");
         return;
       }
 
@@ -77,248 +153,240 @@ export default function Profile() {
 
       const updated = await updateUserProfile(payload);
       localStorage.setItem("user", JSON.stringify(updated));
-      setUser(updated);
+      setUser(updated); // Cập nhật state hiển thị
       setIsEditing(false);
-      toast.success("Cập nhật thông tin thành công 🎉");
+      toast.success("Profile updated successfully 🎉");
     } catch (err) {
-      console.error("❌ Lỗi cập nhật:", err);
-      toast.error("Cập nhật thất bại, vui lòng thử lại!");
+      console.error("❌ Update error:", err);
+      toast.error("Update failed, please try again!");
     }
   };
 
   if (loading)
     return (
-      <div className="flex justify-center items-center h-screen text-gray-500">
-        Đang tải thông tin...
+      <div className={`flex justify-center items-center h-screen ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
+        <p className="text-gray-500">Loading user profile...</p>
       </div>
     );
 
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${
-        theme === "dark"
-          ? "bg-[#111827] text-gray-100"
-          : "bg-gray-50 text-gray-800"
+        isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-800"
       }`}
     >
-      <Toaster position="top-right" />
-      <div className="max-w-3xl mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6">Profile</h1>
-
-        {/* --- Profile Card --- */}
-        <div
-          className={`rounded-2xl shadow-lg p-6 flex flex-col md:flex-row items-center gap-6 transition-all ${
-            theme === "dark" ? "bg-[#1e293b]" : "bg-white"
-          }`}
-        >
-          <img
-            src={user?.profile_image || "https://i.pravatar.cc/100"}
-            alt="avatar"
-            className="w-28 h-28 rounded-full border-4 border-blue-500 shadow-md object-cover"
-          />
-          <div className="flex-1 space-y-4">
-            <div>
-              <h2 className="text-2xl font-semibold flex items-center gap-2">
-                <User size={20} className="text-blue-500" />
-                {user?.name || "Chưa có tên"}
-              </h2>
-            </div>
-
-            {/* 📧 Email */}
-            <div className="flex items-center gap-2 text-gray-400 dark:text-gray-300">
-              <Mail size={18} className="text-green-400" />
-              <span>{user?.email || "No email"}</span>
-            </div>
-
-            {/* 🚻 Gender */}
-            {user?.gender && (
-              <div className="flex items-center gap-2 text-gray-400 dark:text-gray-300">
-                <VenusAndMars size={18} className="text-pink-400" />
-                <span>Gender:</span>
-                <span className="font-medium text-gray-200">{user.gender}</span>
-              </div>
-            )}
-
-            {/* 🎂 Birthday */}
-            {user?.birthday && (
-              <div className="flex items-center gap-2 text-gray-400 dark:text-gray-300">
-                <Cake size={18} className="text-yellow-400" />
-                <span>Birthday:</span>
-                <span className="font-medium text-gray-200">
-                  {new Date(user.birthday).toLocaleDateString()}
-                </span>
-              </div>
-            )}
-
-            {/* 📅 Joined date */}
-            <div className="flex items-center gap-2 text-gray-400 dark:text-gray-300">
-              <Calendar size={18} className="text-purple-400" />
-              <span>
-                Joined on{" "}
-                {user?.created_at
-                  ? new Date(user.created_at).toLocaleDateString()
-                  : "N/A"}
-              </span>
-            </div>
-          </div>
-
-
-            <div className="flex flex-wrap gap-3 mt-4">
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-all duration-300"
-              >
-                <Edit3 size={18} />
-                Edit Profile
-              </button>
-
-              {/* ✅ Nút mới: Change Password */}
-              <button
-                onClick={() => navigate("/change-password")}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all duration-300"
-              >
-                <Lock size={18} />
-                Change Password
-              </button>
-            </div>
-          </div>
-        </div>
-
+      <Toaster position="top-center" />
+      <div className="max-w-6xl mx-auto p-4 sm:p-8">
         
-      
-
-      {/* --- Edit Modal --- */}
-      {isEditing && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-          onClick={() => setIsEditing(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={`rounded-2xl p-6 w-full max-w-md shadow-xl transition-all ${
-              theme === "dark" ? "bg-[#1f2937]" : "bg-white"
-            }`}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Edit Profile</h2>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Form */}
-            <div className="space-y-4">
-              <div className="flex flex-col items-center mb-4">
-                <img
-                  src={form.profile_image || "https://i.pravatar.cc/100"}
-                  alt="preview"
-                  className="w-24 h-24 rounded-full border-2 border-blue-500 object-cover mb-3"
-                />
-                <label
-                  htmlFor="avatar-upload"
-                  className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition"
-                >
-                  <Upload size={16} />
-                  Upload Image
-                </label>
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={form.name || ""}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 rounded-lg border outline-none transition ${
-                    theme === "dark"
-                      ? "bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-blue-500"
-                      : "bg-gray-100 border-gray-300 focus:ring-2 focus:ring-blue-400"
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
-                <input
-                  type="email"
-                  name="email"    
-                  value={form.email || ""}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 rounded-lg border outline-none transition ${
-                    theme === "dark"
-                      ? "bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-blue-500"
-                      : "bg-gray-100 border-gray-300 focus:ring-2 focus:ring-blue-400"
-                  }`}
-                />
-              </div>
-
-              {/* Gender */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Gender</label>
-                <select
-                  name="gender"
-                  value={form.gender || ""}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 rounded-lg border outline-none transition ${
-                    theme === "dark"
-                      ? "bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-blue-500"
-                      : "bg-gray-100 border-gray-300 focus:ring-2 focus:ring-blue-400"
-                  }`}
-                >
-                  <option value="">Select Gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              {/* Birthday */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Birthday</label>
-                <input
-                  type="date"
-                  name="birthday"
-                  value={form.birthday || ""}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 rounded-lg border outline-none transition ${
-                    theme === "dark"
-                      ? "bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-blue-500"
-                      : "bg-gray-100 border-gray-300 focus:ring-2 focus:ring-blue-400"
-                  }`}
-                />
-              </div>
-
-
-              <div className="flex justify-end gap-3 mt-6">
+        {/* HEADER VÀ NÚT ĐIỀU KHIỂN */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-extrabold flex items-center gap-3">
+            <User className="text-blue-500" size={36} />
+            My Profile
+          </h1>
+          <div className="flex gap-3">
+            {isEditing ? (
+              <>
                 <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  onClick={handleCancel}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-gray-500 hover:bg-gray-600 text-white transition-all duration-300"
                 >
+                  <X size={18} />
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 transition"
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-all duration-300"
                 >
-                  <Save size={16} />
+                  <Save size={18} />
                   Save Changes
                 </button>
-              </div>
-            </div>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/30 transition-all duration-300"
+              >
+                <Edit3 size={18} />
+                Edit Profile
+              </button>
+            )}
           </div>
         </div>
-      )}
+
+        {/* --- BỐ CỤC DASHBOARD 2 CỘT --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* CỘT 1: PROFILE CARD */}
+          <div className={`lg:col-span-1 p-6 rounded-2xl shadow-xl flex flex-col items-center text-center ${isDark ? "bg-gray-800" : "bg-white"}`}>
+            
+            {/* Avatar & Upload */}
+            <div className="relative mb-4">
+              <img
+                src={isEditing ? form.profile_image : user?.profile_image || "https://i.pravatar.cc/150"}
+                alt="avatar"
+                className="w-36 h-36 rounded-full border-4 border-blue-500 shadow-lg object-cover"
+              />
+              {isEditing && (
+                <label
+                  htmlFor="avatar-upload"
+                  className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-blue-500 transition shadow-md"
+                >
+                  <Upload size={20} />
+                  <input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Name (Inline Edit) */}
+            <InfoInput
+              isEditing={isEditing}
+              label="Full Name"
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+            >
+              <h2 className="text-2xl font-bold mt-2">
+                {user?.name || "Your Name"}
+              </h2>
+            </InfoInput>
+            
+            {/* Email (Inline Edit) */}
+            <InfoInput
+              isEditing={isEditing}
+              label="Email Address"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+            >
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {user?.email || "your.email@example.com"}
+              </p>
+            </InfoInput>
+
+            {/* Joined Date (Không edit) */}
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mt-6">
+              <Calendar size={16} />
+              <span>
+                Joined on {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
+              </span>
+            </div>
+          </div>
+
+          {/* CỘT 2: INFO & SETTINGS */}
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* 1. Personal Details Card */}
+            <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
+              <h3 className="text-xl font-semibold mb-6">Personal Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Gender (Inline Edit) */}
+                <InfoSelect
+                  isEditing={isEditing}
+                  label="Gender"
+                  name="gender"
+                  value={form.gender}
+                  onChange={handleChange}
+                  options={[
+                    { value: "", label: "Select Gender" },
+                    { value: "Male", label: "Male" },
+                    { value: "Female", label: "Female" },
+                    { value: "Other", label: "Other" },
+                  ]}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* ✅ ĐÃ SỬA LỖI TẠI ĐÂY */}
+                    <VenusAndMars size={20} className="text-pink-500" />
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-gray-500">Gender</p>
+                      <p className="font-medium">{user?.gender || "Not set"}</p>
+                    </div>
+                  </div>
+                </InfoSelect>
+                
+                {/* Birthday (Inline Edit) */}
+                <InfoInput
+                  isEditing={isEditing}
+                  label="Birthday"
+                  name="birthday"
+                  value={form.birthday}
+                  onChange={handleChange}
+                  type="date"
+                >
+                  <div className="flex items-center gap-3">
+                    <Cake size={20} className="text-yellow-500" />
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-gray-500">Birthday</p>
+                      <p className="font-medium">
+                        {user?.birthday ? new Date(user.birthday).toLocaleDateString() : "Not set"}
+                      </p>
+                    </div>
+                  </div>
+                </InfoInput>
+              </div>
+            </div>
+
+            {/* 2. App Preferences Card (THÊM MỚI) */}
+            <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
+              <h3 className="text-xl font-semibold mb-6">App Preferences</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Default Currency (Từ BE, hiện tại chỉ hiển thị) */}
+                <div className="flex items-center gap-3">
+                  <Wallet size={20} className="text-purple-500" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-gray-500">Default Currency</p>
+                    <p className="font-medium">
+                      {user?.currency_code || "USD"} ({user?.currency_symbol || "$"})
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2FA Status (Từ BE, liên kết đến trang Security) */}
+                <div className="flex items-center gap-3">
+                  <ShieldCheck size={20} className={user?.is_2fa_enabled ? "text-green-500" : "text-gray-500"} />
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-gray-500">2FA Security</p>
+                    <p className={`font-medium ${user?.is_2fa_enabled ? "text-green-500" : "text-gray-500"}`}>
+                      {user?.is_2fa_enabled ? "Active" : "Not Active"}
+                    </p>
+                  </div>
+                  <button onClick={() => navigate('/settings/security')} className="ml-auto text-sm text-blue-500 hover:underline">
+                    Manage
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* 3. Danger Zone (Tách riêng) */}
+            <div className={`p-6 rounded-2xl shadow-xl border-2 ${isDark ? "bg-red-900/10 border-red-500/30" : "bg-red-50 border-red-200"}`}>
+                <h3 className="text-xl font-semibold text-red-500 mb-4">Danger Zone</h3>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <p className="font-medium">Change Password</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                           It's a good idea to use a strong, unique password.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => navigate("/change-password")}
+                        className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium transition-all"
+                    >
+                        <Lock size={18} />
+                        Change
+                    </button>
+                </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

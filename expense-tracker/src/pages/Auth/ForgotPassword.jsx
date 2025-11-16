@@ -1,3 +1,8 @@
+// ForgotPassword.jsx
+// - REDESIGN: Sử dụng AuthLayout 2 cột (đồng bộ với Login/SignUp).
+// - ADDED: "Hero Card" với nội dung mới.
+// - UPDATED: Form, Icon, Inputs, và Toast (Tiếng Anh).
+
 import React, { useState } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { Link } from "react-router-dom";
@@ -5,31 +10,78 @@ import { auth } from "../../components/firebase";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+// 💡 Imports cho giao diện mới
+import AuthLayout from "../../components/AuthLayout";
+import { MailCheck, Wallet } from "lucide-react"; 
+
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false); // Thêm loading state
 
   const handleReset = async (e) => {
     e.preventDefault();
+    if (!email) {
+        toast.error("⚠️ Please enter your email address.");
+        return;
+    }
+    setLoading(true);
     try {
       await sendPasswordResetEmail(auth, email);
-      toast.success("✅ Email reset password đã được gửi. Kiểm tra hộp thư!", {
+      // ✅ Đổi sang Tiếng Anh
+      toast.success("✅ Reset link sent! Please check your inbox.", {
         position: "top-center",
       });
       setEmail("");
     } catch (error) {
       console.error("Reset error:", error);
       toast.error("❌ " + error.message, { position: "top-center" });
+    } finally {
+      setLoading(false); // Dừng loading
     }
   };
 
+  // ===========================================
+  // 💡 "BRAND HERO CARD" (Nội dung mới)
+  // ===========================================
+  const ForgotPasswordHeroCard = (
+    <div className="flex flex-col justify-between h-full bg-gradient-to-br from-purple-600 to-blue-700 rounded-3xl p-10 shadow-2xl text-white overflow-hidden">
+      <div>
+        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm border border-white/10">
+          <Wallet size={32} />
+        </div>
+        <h2 className="text-4xl font-bold mb-4 leading-tight">
+          Forgot Your Key?
+        </h2>
+        <p className="text-lg text-white/80">
+          No problem. Just enter your email and we'll send you a link to get back into your account.
+        </p>
+      </div>
+      
+      {/* Biểu đồ trang trí (Abstract chart) */}
+      <div className="mt-auto pt-8 opacity-30">
+        <div className="flex items-end h-32 gap-3">
+          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '60%', animationDelay: '0.1s' }} />
+          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '30%', animationDelay: '0.2s' }} />
+          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '80%', animationDelay: '0.3s' }} />
+          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '50%', animationDelay: '0.4s' }} />
+        </div>
+      </div>
+    </div>
+  );
+
+
   return (
-    <div className="flex h-screen bg-[#0B1221]">
+    // 💡 Sử dụng AuthLayout
+    <AuthLayout
+      rightContent={ForgotPasswordHeroCard}
+    >
       {/* Cột trái - Form */}
-      <div className="w-full flex items-center justify-center px-4">
-        <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl p-10">
+      <div className="w-full flex items-center justify-center">
+        <div className="w-full max-w-lg bg-white shadow-xl rounded-3xl p-10">
+          
           {/* Tiêu đề */}
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-extrabold text-purple-700">
+            <h1 className="text-4xl font-extrabold text-gray-800">
               Forgot Password
             </h1>
             <p className="text-sm text-gray-500">
@@ -37,10 +89,10 @@ export default function ForgotPassword() {
             </p>
           </div>
 
-          {/* Icon */}
+          {/* Icon (Thay thế Emoji) */}
           <div className="flex justify-center my-6">
             <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 text-2xl shadow-inner">
-              📧
+              <MailCheck size={28} />
             </div>
           </div>
 
@@ -55,15 +107,19 @@ export default function ForgotPassword() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email Address"
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+              // 💡 Input style mới
+              className="w-full bg-gray-50 border-2 border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
               required
             />
 
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-purple-600 via-blue-600 to-green-500 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition"
+              disabled={loading}
+              // 💡 Button style mới
+              className={`w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition shadow-lg shadow-purple-500/30
+                ${loading ? "opacity-70 cursor-not-allowed" : "hover:scale-105"}`}
             >
-              SEND RESET LINK
+              {loading ? "Sending Link..." : "SEND RESET LINK"}
             </button>
           </form>
 
@@ -72,7 +128,8 @@ export default function ForgotPassword() {
             Remember your password?{" "}
             <Link
               to="/login"
-              className="text-purple-600 font-medium hover:underline"
+              // 💡 Style link mới
+              className="text-purple-600 font-bold hover:underline"
             >
               Back to Login
             </Link>
@@ -81,6 +138,6 @@ export default function ForgotPassword() {
       </div>
 
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
-    </div>
+    </AuthLayout>
   );
 }

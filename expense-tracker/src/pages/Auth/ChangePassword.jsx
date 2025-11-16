@@ -1,178 +1,244 @@
-import React, { useState } from "react";
+// ChangePassword.jsx
+// - REDESIGN: Giao diện "Secure Card" tập trung.
+// - ADDED: Nút Ẩn/Hiện mật khẩu (Eye/EyeOff).
+// - ADDED: Thanh đánh giá độ mạnh mật khẩu (Password Strength Meter).
+// - UPDATED: Sử dụng Toast thay vì text message tĩnh.
+
+import React, { useState, useEffect } from "react";
 import { getAuth, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 import { useOutletContext, useNavigate } from "react-router-dom";
-import { Lock, Save, X, ArrowLeft } from "lucide-react";
+import { 
+  Lock, Save, ArrowLeft, KeyRound, Eye, EyeOff, ShieldCheck 
+} from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
+
+// Helper: Tính độ mạnh mật khẩu
+const calculateStrength = (password) => {
+  let strength = 0;
+  if (password.length > 5) strength += 20;
+  if (password.length > 9) strength += 20;
+  if (/[A-Z]/.test(password)) strength += 20;
+  if (/[0-9]/.test(password)) strength += 20;
+  if (/[^A-Za-z0-9]/.test(password)) strength += 20;
+  return strength;
+};
+
+const getStrengthColor = (score) => {
+  if (score <= 20) return "bg-red-500";
+  if (score <= 40) return "bg-orange-500";
+  if (score <= 60) return "bg-yellow-500";
+  if (score <= 80) return "bg-blue-500";
+  return "bg-green-500";
+};
 
 export default function ChangePassword() {
   const { theme } = useOutletContext();
+  const isDark = theme === "dark";
   const navigate = useNavigate();
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [form, setForm] = useState({ current: "", new: "", confirm: "" });
+  const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [strength, setStrength] = useState(0);
 
   const auth = getAuth();
   const user = auth.currentUser;
 
-  const handleChangePassword = async () => {
-    setMessage(null);
+  // Cập nhật độ mạnh khi nhập mật khẩu mới
+  useEffect(() => {
+    setStrength(calculateStrength(form.new));
+  }, [form.new]);
 
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const toggleShow = (field) => {
+    setShowPass((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const handleSubmit = async () => {
     if (!user) {
-      setMessage({ type: "error", text: "Bạn chưa đăng nhập!" });
+      toast.error("You need to log in first!");
       return;
     }
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setMessage({ type: "error", text: "Vui lòng nhập đầy đủ thông tin." });
+    if (!form.current || !form.new || !form.confirm) {
+      toast.error("Please fill in all fields.");
       return;
     }
-    if (newPassword !== confirmPassword) {
-      setMessage({ type: "error", text: "Mật khẩu mới không khớp." });
+    if (form.new !== form.confirm) {
+      toast.error("New passwords do not match.");
       return;
+    }
+    if (strength < 40) {
+        toast.error("Password is too weak. Try adding numbers or symbols.");
+        return;
     }
 
     setLoading(true);
     try {
-      // ✅ Xác thực lại người dùng
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      // 1. Re-authenticate
+      const credential = EmailAuthProvider.credential(user.email, form.current);
       await reauthenticateWithCredential(user, credential);
 
-      // ✅ Cập nhật mật khẩu mới
-      await updatePassword(user, newPassword);
+      // 2. Update Password
+      await updatePassword(user, form.new);
 
-      setMessage({ type: "success", text: "✅ Đổi mật khẩu thành công!" });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
+      toast.success("🎉 Password updated successfully!");
+      setForm({ current: "", new: "", confirm: "" });
+      
+      // Optional: Navigate back after delay
+      setTimeout(() => navigate("/profile"), 1500);
+      
     } catch (error) {
-      console.error("❌ Lỗi đổi mật khẩu:", error);
-      let errorMsg = "Đổi mật khẩu thất bại.";
-      if (error.code === "auth/wrong-password") errorMsg = "Mật khẩu hiện tại không đúng.";
-      if (error.code === "auth/weak-password") errorMsg = "Mật khẩu mới quá yếu (ít nhất 6 ký tự).";
-      if (error.code === "auth/requires-recent-login") errorMsg = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
-      setMessage({ type: "error", text: errorMsg });
+      console.error("Error:", error);
+      let msg = "Failed to update password.";
+      if (error.code === "auth/wrong-password") msg = "Current password is incorrect.";
+      if (error.code === "auth/weak-password") msg = "Password should be at least 6 characters.";
+      if (error.code === "auth/requires-recent-login") msg = "Session expired. Please login again.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClear = () => {
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setMessage(null);
-  };
+  // Reusable Input Component for Cleaner JSX
+  const PasswordInput = ({ label, name, value, placeholder, show, onToggle }) => (
+    <div className="relative group">
+      <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
+        {label}
+      </label>
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <KeyRound size={18} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+        </div>
+        <input
+          type={show ? "text" : "password"}
+          name={name}
+          value={value}
+          onChange={handleChange}
+          placeholder={placeholder}
+          className={`w-full pl-10 pr-10 py-3 rounded-xl border outline-none transition-all duration-300 ${
+            isDark
+              ? "bg-gray-800 border-gray-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              : "bg-gray-50 border-gray-200 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+          }`}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+        >
+          {show ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div
-      className={`min-h-screen transition-colors duration-300 ${
-        theme === "dark" ? "bg-[#111827] text-gray-100" : "bg-gray-50 text-gray-800"
+      className={`min-h-screen transition-colors duration-300 flex flex-col items-center justify-center p-4 ${
+        isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-800"
       }`}
     >
-      <div className="max-w-md mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6 text-center">Change Password</h1>
+      <Toaster position="top-center" />
 
-        <div
-          className={`rounded-2xl shadow-lg p-6 transition-all ${
-            theme === "dark" ? "bg-[#1e293b]" : "bg-white"
-          }`}
-        >
-          <div className="space-y-4">
+      {/* --- MAIN CARD --- */}
+      <div className={`w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 ${
+          isDark ? "bg-gray-800/50 border border-gray-700 backdrop-blur-sm" : "bg-white border border-white/50"
+      }`}>
+        
+        {/* Header Area with Gradient */}
+        <div className="relative h-32 bg-gradient-to-r from-blue-600 to-purple-600 flex flex-col items-center justify-center">
+            <div className="absolute -bottom-8 w-16 h-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center shadow-lg p-1">
+                <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <ShieldCheck size={32} />
+                </div>
+            </div>
+            <h1 className="text-2xl font-bold text-white -mt-4">Secure Your Account</h1>
+            <p className="text-blue-100 text-sm">Update your password regularly</p>
+        </div>
+
+        {/* Form Body */}
+        <div className="px-8 pt-12 pb-8 space-y-6">
+            
+            {/* Current Password */}
+            <PasswordInput 
+                label="Current Password" 
+                name="current" 
+                value={form.current} 
+                placeholder="Enter current password"
+                show={showPass.current}
+                onToggle={() => toggleShow("current")}
+            />
+
+            <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+
+            {/* New Password */}
             <div>
-              <label className="block text-sm font-medium mb-1">Current Password</label>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                  theme === "dark"
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              />
+                <PasswordInput 
+                    label="New Password" 
+                    name="new" 
+                    value={form.new} 
+                    placeholder="Enter new password"
+                    show={showPass.new}
+                    onToggle={() => toggleShow("new")}
+                />
+                {/* Strength Meter */}
+                <div className="mt-2 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                            className={`h-full transition-all duration-500 ease-out ${getStrengthColor(strength)}`} 
+                            style={{ width: `${strength}%` }}
+                        />
+                    </div>
+                    <span className="text-xs font-medium text-gray-500 w-16 text-right">
+                        {strength === 0 ? "Empty" : strength < 40 ? "Weak" : strength < 80 ? "Medium" : "Strong"}
+                    </span>
+                </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">New Password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                  theme === "dark"
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              />
-            </div>
+            {/* Confirm Password */}
+            <PasswordInput 
+                label="Confirm New Password" 
+                name="confirm" 
+                value={form.confirm} 
+                placeholder="Re-enter new password"
+                show={showPass.confirm}
+                onToggle={() => toggleShow("confirm")}
+            />
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Confirm New Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border outline-none ${
-                  theme === "dark"
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              />
-            </div>
-
-            {message && (
-              <div
-                className={`p-3 rounded-lg text-sm ${
-                  message.type === "success"
-                    ? "bg-green-100 text-green-700 border border-green-300"
-                    : "bg-red-100 text-red-700 border border-red-300"
-                }`}
-              >
-                {message.text}
-              </div>
-            )}
-
-            {/* --- Buttons --- */}
-            <div className="flex justify-between mt-6">
-              {/* Nút quay lại */}
-              <button
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 
-                  dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
-              >
-                <ArrowLeft size={16} />
-                Back
-              </button>
-
-              <div className="flex gap-3">
-                {/* Nút Clear */}
+            {/* Action Buttons */}
+            <div className="flex items-center gap-4 mt-8 pt-2">
                 <button
-                  onClick={handleClear}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 
-                    dark:border-gray-600 hover:bg-red-100 dark:hover:bg-red-900/30 
-                    text-red-600 dark:text-red-400 transition-all duration-200"
-                >
-                  <X size={16} />
-                  Clear
-                </button>
-
-                {/* Nút Change Password */}
-                <button
-                  onClick={handleChangePassword}
-                  disabled={loading}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 
-                    text-white transition-all duration-200 shadow-md hover:shadow-blue-400/40 ${
-                      loading ? "opacity-70 cursor-not-allowed" : ""
+                    onClick={() => navigate(-1)}
+                    className={`flex-1 py-3 rounded-xl border font-semibold flex items-center justify-center gap-2 transition-all ${
+                        isDark 
+                        ? "border-gray-600 hover:bg-gray-700 text-gray-300" 
+                        : "border-gray-300 hover:bg-gray-100 text-gray-600"
                     }`}
                 >
-                  <Lock size={16} />
-                  {loading ? "Updating..." : "Change"}
+                    <ArrowLeft size={18} /> Back
                 </button>
-              </div>
+
+                <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className={`flex-[2] py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
+                        loading ? "opacity-70 cursor-not-allowed" : ""
+                    }`}
+                >
+                    <Lock size={18} />
+                    {loading ? "Updating..." : "Update Password"}
+                </button>
             </div>
-          </div>
         </div>
       </div>
+
+      {/* Footer Tip */}
+      <p className="mt-6 text-sm text-gray-500 dark:text-gray-400 max-w-md text-center">
+        Tip: Use a combination of uppercase letters, numbers, and symbols for a stronger password.
+      </p>
     </div>
   );
 }

@@ -12,7 +12,9 @@ class UserUpdate(BaseModel):
     gender: Optional[str] = None
     birthday: Optional[date] = None
 
-
+# ✅ THÊM 2 DÒNG NÀY:
+    currency_code: Optional[str] = None
+    currency_symbol: Optional[str] = None
 class UserOut(BaseModel):
     """Schema phản hồi thông tin người dùng"""
     id: UUID

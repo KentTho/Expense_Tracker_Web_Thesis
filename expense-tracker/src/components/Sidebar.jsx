@@ -1,3 +1,8 @@
+// Sidebar.jsx
+// - ✅ UPDATED: Tên đổi thành "Expense Tracker".
+// - ✅ CREATIVE: Tên "Expense Tracker" được áp dụng hiệu ứng Gradient Text.
+// - ✅ UPDATED: Tinh chỉnh kích thước logo cho mượt mà (w-10 ở cả 2 trạng thái).
+
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -5,14 +10,12 @@ import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import {
   Home,
-  Search,
   TrendingUp,
   Wallet,
   Settings,
   LogOut,
   Sun,
   Moon, 
-  User,
   BarChart2, 
   Download ,
   Lock,
@@ -30,10 +33,10 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
     { name: "Analytics", path: "/analytics", icon: <BarChart2 size={18} /> },
     { name: "Income", path: "/income", icon: <TrendingUp size={18} /> },
     { name: "Expense", path: "/expense", icon: <Wallet size={18} /> },
-    { name: "Category", path: "/categories", icon: <Tag size={18} /> }, // ✅ Thêm dòng này
+    { name: "Category", path: "/categories", icon: <Tag size={18} /> },
     { name: "Data Export", path: "/dataexport", icon: <Download size={18} /> },
-    { name: "Security", path: "/security", icon: <Lock size={18} /> },
-    { name: "Settings", path: "/settings", icon: <Settings size={18} /> },
+    { name: "Security", path: "/security", icon: <Lock size={18} /> }, 
+    { name: "Profile", path: "/profile", icon: <Settings size={18} /> }, 
   ];
 
 
@@ -52,157 +55,124 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
 
   return (
     <aside
-      onMouseEnter={() => setCollapsed(false)}   // 🟢 Hover mở rộng
-      onMouseLeave={() => setCollapsed(true)}    // 🔵 Rời chuột thu lại
+      onMouseEnter={() => setCollapsed(false)}
+      onMouseLeave={() => setCollapsed(true)}
       className={`fixed top-0 left-0 h-screen flex flex-col justify-between
-        transition-[width] duration-300 ease-in-out shadow-lg
+        transition-[width] duration-300 ease-in-out shadow-2xl z-50
         ${
           theme === "dark"
-            ? "bg-gradient-to-b from-[#07142e] to-[#0d1f4a] text-gray-100"
+            ? "bg-gray-900 border-r border-gray-700/50"
             : "bg-white text-gray-800 border-r border-gray-200"
         }
-        ${collapsed ? "w-16" : "w-64"}`}
+        ${collapsed ? "w-20" : "w-64"}`}
     >
 
-      {/* --- Header --- */}
+      {/* --- Header (ĐÃ CẬP NHẬT) --- */}
       <div className="flex flex-col relative select-none">
-        <div className="flex items-center justify-between px-3 py-5">
-          {/* --- Logo + Title --- */}
+        <div className="flex items-center justify-center px-3 py-5 h-[80px]"> 
           <div className="flex items-center gap-3">
             <img
               src={logo}
               alt="Expense Tracker Logo"
-              className="w-9 h-9 object-contain drop-shadow-[0_0_10px_rgba(34,211,238,0.6)] transition-all duration-300 hover:scale-110"
+              className={`transition-all duration-300 transform-gpu
+                ${collapsed ? "w-10 h-10" : "w-10 h-10"} 
+                drop-shadow-[0_0_10px_rgba(34,211,238,0.6)] hover:drop-shadow-[0_0_15px_rgba(34,211,238,0.8)] hover:scale-110`}
             />
             {!collapsed && (
               <h2
-                className={`text-lg font-semibold tracking-wide ${
-                  theme === "dark"
-                    ? "text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)]"
-                    : "text-blue-600"
-                }`}
+                // ✅ SÁNG TẠO: Sử dụng Gradient Text
+                className={`text-xl font-bold tracking-wide transition-all duration-300
+                  bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600`}
               >
+                {/* ✅ TÊN MỚI */}
                 Expense Tracker
               </h2>
             )}
           </div>
         </div>
 
-        {/* --- Menu --- */}
-        <nav className="flex flex-col items-center md:items-start gap-1 px-2 mt-2">
+        {/* --- Menu (Giữ nguyên) --- */}
+        <nav className="flex flex-col gap-2 px-3 mt-4">
           {menu.map((item) => {
             const active = location.pathname === item.path;
             return (
               <div key={item.path} className="relative group w-full">
                 <Link
                   to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg w-full transition-all duration-200
+                  className={`flex items-center gap-4 px-4 py-3 rounded-xl w-full transition-all duration-200
                   ${
                     active
-                      ? "bg-blue-600 text-white shadow-lg"
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-500/50" // "Glow" effect
                       : theme === "dark"
-                      ? "text-gray-300 hover:bg-white/10 hover:text-white"
-                      : "text-gray-700 hover:bg-gray-100 hover:text-blue-600"
-                  }`}
+                      ? "text-gray-400 hover:bg-gray-700/50 hover:text-white"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-blue-600"
+                  }
+                  ${collapsed ? "justify-center" : ""}`}
                 >
-                  <div
-                    className={`flex items-center justify-center w-9 h-9 rounded-lg ${
-                      active
-                        ? "bg-blue-500/30"
-                        : theme === "dark"
-                        ? "bg-transparent"
-                        : "bg-gray-100"
-                    }`}
-                  >
-                    {item.icon}
-                  </div>
+                  {item.icon}
                   {!collapsed && (
-                    <span className="text-sm font-medium truncate">{item.name}</span>
+                    <span className="text-sm font-semibold truncate">{item.name}</span>
                   )}
                 </Link>
 
-                {/* 🟢 Tooltip hiển thị khi sidebar collapsed */}
+                {/* Tooltip (Giữ nguyên) */}
                 {collapsed && (
                   <span
-                    className={`absolute left-full top-1/2 -translate-y-1/2 ml-3
-                    opacity-0 group-hover:opacity-100
-                    px-3 py-1 text-xs font-medium rounded-lg shadow-lg
+                    className={`absolute left-full top-1/2 -translate-y-1/2 ml-4
+                    opacity-0 invisible group-hover:opacity-100 group-hover:visible
+                    px-3 py-1.5 text-xs font-medium rounded-lg shadow-lg
                     transition-all duration-200 whitespace-nowrap z-50
                     ${
                       theme === "dark"
                         ? "bg-gray-800 text-white"
-                        : "bg-gray-200 text-gray-800"
+                        : "bg-white text-gray-800"
                     }`}
                   >
                     {item.name}
-                    {/* Tam giác nhỏ phía dưới tooltip */}
-                    <span
-                      className={`absolute left-[-4px] top-1/2 -translate-y-1/2 w-2 h-2 rotate-45
-                      ${
-                        theme === "dark" ? "bg-gray-800" : "bg-gray-200"
-                      }`}
-                    ></span>
+                    <span className={`absolute left-[-4px] top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 ${theme === "dark" ? "bg-gray-800" : "bg-white"}`}></span>
                   </span>
                 )}
               </div>
             );
           })}
-
-
         </nav>
       </div>
 
-      {/* --- Footer --- */}
+      {/* --- Footer (Giữ nguyên) --- */}
       <div
-        className={`border-t pt-4 mt-4 w-full px-3 pb-4 ${
+        className={`border-t pt-4 mt-4 w-full px-4 pb-4 ${
           theme === "dark" ? "border-white/10" : "border-gray-200"
         }`}
       >
         {/* Avatar */}
         <div
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate("/profile");
-          }}
-          className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition"
+          onClick={(e) => { e.stopPropagation(); navigate("/profile"); }}
+          className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-colors ${collapsed ? "justify-center" : ""} ${theme === 'dark' ? 'hover:bg-gray-700/50' : 'hover:bg-gray-100'}`}
         >
           <img
             src={user?.profile_image || "https://i.pravatar.cc/40"}
             alt="avatar"
-            className="w-9 h-9 rounded-full border border-white/10"
+            className="w-10 h-10 rounded-full border-2 border-blue-400 object-cover"
           />
           {!collapsed && (
             <div className="leading-tight">
-              <p className="font-semibold text-sm">{user?.name || "User"}</p>
-              <p className="text-xs opacity-70 text-blue-400">View profile</p>
+              <p className="font-semibold text-sm truncate">{user?.name || "User"}</p>
+              <p className="text-xs text-blue-400 hover:underline">View profile</p>
             </div>
           )}
         </div>
 
-
-        {/* --- Theme Toggle --- */}
+        {/* Theme Toggle */}
         <button
-          onClick={(e) => {
-            e.stopPropagation(); // ✅ tránh toggle khi click nút theme
-            setTheme(theme === "dark" ? "light" : "dark");
-          }}
-          className={`group flex items-center gap-3 w-full mt-4 px-3 py-2 rounded-lg transition-all duration-300 ${
-            theme === "dark"
-              ? "bg-white/10 hover:bg-white/20"
-              : "bg-gray-200 hover:bg-gray-300"
-          }`}
+          onClick={(e) => { e.stopPropagation(); setTheme(theme === "dark" ? "light" : "dark"); }}
+          className={`group flex items-center gap-3 w-full mt-3 px-2 py-2 rounded-lg transition-all duration-300 ${collapsed ? "justify-center" : ""}
+            ${theme === "dark" ? "bg-gray-700/50 hover:bg-gray-700" : "bg-gray-100 hover:bg-gray-200"}`}
         >
-          <div
-            className={`flex items-center justify-center w-8 h-8 rounded-md transition-all duration-300 ${
-              theme === "dark" ? "bg-white/10" : "bg-gray-300"
-            }`}
-          >
-            {theme === "dark" ? (
+          {theme === "dark" ? (
               <Sun size={18} className="text-yellow-400" />
             ) : (
               <Moon size={18} className="text-gray-700" />
             )}
-          </div>
           {!collapsed && (
             <span className="text-sm font-medium">
               {theme === "dark" ? "Light Mode" : "Dark Mode"}
@@ -210,27 +180,16 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
           )}
         </button>
 
-        {/* --- Logout --- */}
+        {/* Logout */}
         <button
-          onClick={(e) => {
-            e.stopPropagation(); // ✅ tránh toggle khi click Logout
-            handleLogout();
-          }}
-          className="group relative flex items-center gap-3 mt-4 w-full overflow-hidden rounded-lg 
-                    bg-gradient-to-r from-blue-600 to-cyan-500 
-                    hover:from-cyan-500 hover:to-blue-600 
-                    text-white px-3 py-2 transition-all duration-300 
-                    shadow-md hover:shadow-[0_0_15px_rgba(34,211,238,0.6)]"
+          onClick={(e) => { e.stopPropagation(); handleLogout(); }}
+          className={`group flex items-center gap-3 mt-2 w-full overflow-hidden rounded-lg 
+                    bg-red-500/10 hover:bg-red-500/20 
+                    text-red-500 px-2 py-2 transition-all duration-300 ${collapsed ? "justify-center" : ""}`}
         >
-          <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-lg"></span>
-          <div className="flex items-center justify-center w-8 h-8 rounded-md bg-white/10 group-hover:bg-white/20 transition-all duration-300">
-            <LogOut
-              size={18}
-              className="text-white group-hover:rotate-12 transition-transform duration-300"
-            />
-          </div>
+          <LogOut size={18} />
           {!collapsed && (
-            <span className="relative text-sm font-medium tracking-wide">
+            <span className="text-sm font-medium">
               Logout
             </span>
           )}

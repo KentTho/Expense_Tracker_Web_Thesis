@@ -1,3 +1,9 @@
+// SecuritySettings.jsx
+// - REDESIGN: Giao diện "Control Center" hiện đại.
+// - ADDED: Custom Toggle Switches (Nút gạt) thay vì Checkbox.
+// - ADDED: Pulse Animation cho trạng thái Session.
+// - RETAINED: Logic API cũ, ID và Token được ẩn (Masked).
+
 import React, { useState, useEffect, useCallback } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import {
@@ -5,24 +11,43 @@ import {
   Lock,
   RefreshCw,
   LogOut,
-  KeyRound,
+  Smartphone,
+  ShieldCheck,
+  QrCode,
   AlertTriangle,
   Loader2,
-  QrCode,
+  CheckCircle,
+  Key
 } from "lucide-react";
 import { toast } from "react-toastify";
-import { auth } from "../../components/firebase";// Import auth từ Firebase
+import { auth } from "../../components/firebase";
 import { onAuthStateChanged, getIdToken, signOut } from "firebase/auth";
-
-// Import các service API mới (Giả sử bạn đã tạo file này)
 import { getSecuritySettings, updateSecuritySettings, start2FA, verify2FA } from "../../services/securityService"; 
+
+// ===========================
+// 💡 COMPONENT: CUSTOM TOGGLE SWITCH
+// ===========================
+const ToggleSwitch = ({ checked, onChange, name, disabled }) => (
+  <div 
+    onClick={() => !disabled && onChange({ target: { name, checked: !checked } })}
+    className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${
+      checked ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
+    } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+  >
+    <div
+      className={`bg-white w-5 h-5 rounded-full shadow-md transform duration-300 ease-in-out ${
+        checked ? "translate-x-7" : "translate-x-0"
+      }`}
+    />
+  </div>
+);
 
 export default function SecuritySettings() {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
   const navigate = useNavigate();
 
-  // State cho thông tin session (Từ Firebase)
+  // --- STATES (Giữ nguyên logic) ---
   const [sessionInfo, setSessionInfo] = useState({
     token: "Loading...",
     userId: "Loading...",
@@ -30,21 +55,19 @@ export default function SecuritySettings() {
   });
   const [sessionActive, setSessionActive] = useState(true);
 
-  // State cho cài đặt bảo mật (Từ BE)
   const [settings, setSettings] = useState({
     is_2fa_enabled: false,
     restrict_multi_device: false,
   });
   const [loadingSettings, setLoadingSettings] = useState(true);
 
-  // State cho quá trình bật 2FA
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 
 
-  // 1. Lấy thông tin Session từ Firebase
+  // --- LOGIC (Giữ nguyên logic cũ) ---
   const fetchSessionInfo = useCallback(async () => {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -52,7 +75,7 @@ export default function SecuritySettings() {
           const tokenResult = await user.getIdTokenResult();
           setSessionInfo({
             token: tokenResult.token,
-            userId: user.uid, // Firebase UID
+            userId: user.uid,
             expiresAt: tokenResult.expirationTime,
           });
           setSessionActive(true);
@@ -61,14 +84,11 @@ export default function SecuritySettings() {
           handleLogout();
         }
       } else {
-        // Đã đăng xuất hoặc chưa đăng nhập
         setSessionActive(false);
-        // Không tự động điều hướng từ đây, để user có thể ở trang login
       }
     });
-  }, []); // Bỏ navigate ra khỏi dependency
+  }, []);
 
-  // 2. Lấy Cài đặt Bảo mật từ BE
   const fetchSecuritySettings = useCallback(async () => {
     setLoadingSettings(true);
     try {
@@ -81,38 +101,27 @@ export default function SecuritySettings() {
     }
   }, []);
 
-  // Effect chính: Tải cả hai khi component mount
   useEffect(() => {
     fetchSessionInfo();
     fetchSecuritySettings();
   }, [fetchSessionInfo, fetchSecuritySettings]);
 
-
-  // 3. Xử lý Cập nhật Cài đặt
   const handleSettingsChange = async (e) => {
     const { name, checked } = e.target;
-    
-    // Nếu bật 2FA, mở modal thay vì cập nhật ngay
     if (name === "is_2fa_enabled" && checked) {
       handleStart2FA();
       return;
     }
-
-    // Cập nhật state ngay lập tức
     setSettings(prev => ({ ...prev, [name]: checked }));
-
-    // Gửi cập nhật lên BE
     try {
       await updateSecuritySettings({ [name]: checked });
-      toast.success(`Setting ${name} updated!`);
+      toast.success("Security setting updated!");
     } catch (error) {
-      toast.error(`Failed to update ${name}. Reverting...`);
-      // Rollback nếu lỗi
+      toast.error("Update failed.");
       setSettings(prev => ({ ...prev, [name]: !checked }));
     }
   };
 
-  // 4. Xử lý Bật 2FA (Bước 1: Lấy QR)
   const handleStart2FA = async () => {
     try {
       const data = await start2FA();
@@ -123,33 +132,30 @@ export default function SecuritySettings() {
     }
   };
 
-  // 5. Xử lý Bật 2FA (Bước 2: Xác thực Code)
   const handleVerify2FA = async (e) => {
     e.preventDefault();
     setIsVerifying(true);
     try {
       await verify2FA(verificationCode);
-      toast.success("✅ 2FA Enabled Successfully!");
+      toast.success("2FA Enabled Successfully!");
       setSettings(prev => ({ ...prev, is_2fa_enabled: true }));
       setShow2FAModal(false);
       setVerificationCode("");
     } catch (error) {
-      toast.error(error.message || "Invalid code. Try again.");
+      toast.error(error.message || "Invalid code.");
     } finally {
       setIsVerifying(false);
     }
   };
 
-
-  // 6. Xử lý Session (Firebase)
   const handleRefreshToken = async () => {
-    toast.info("🔄 Requesting new token from Firebase...");
+    toast.info("Refreshing token...");
     try {
       const user = auth.currentUser;
       if (user) {
-        await getIdToken(user, true); // true = force refresh
-        await fetchSessionInfo(); // Lấy lại thông tin mới
-        toast.success("✅ Token refreshed successfully!");
+        await getIdToken(user, true);
+        await fetchSessionInfo();
+        toast.success("Token refreshed!");
       }
     } catch (error) {
       toast.error("Failed to refresh token.");
@@ -159,193 +165,240 @@ export default function SecuritySettings() {
   const handleLogout = () => {
     signOut(auth);
     setSessionActive(false);
-    toast.success("👋 Logged out successfully!");
+    toast.success("Logged out.");
     setTimeout(() => navigate("/login"), 800);
   };
 
-  // (Mock component QR Code - bạn nên dùng thư viện thật)
   const QRCodeComponent = ({ url }) => (
-    <div className="p-4 bg-white rounded-lg">
-      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(url)}`} alt="QR Code" />
-      <p className="text-xs text-black text-center mt-2">Scan with your Authenticator App</p>
+    <div className="p-4 bg-white rounded-xl shadow-inner">
+      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(url)}`} alt="QR Code" className="mix-blend-multiply" />
     </div>
   );
 
-
+  // ===========================
+  // 🎨 UI RENDER (NEW DESIGN)
+  // ===========================
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${
-        isDark ? "bg-[#0f172a] text-gray-100" : "bg-gray-50 text-gray-900"
+        isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"
       }`}
     >
-      <main className="p-8 space-y-10 max-w-4xl mx-auto">
-        {/* --- Header --- */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Shield className="text-blue-500" /> Security & Session
-          </h1>
-          <div
-            className={`px-4 py-2 rounded-full text-sm font-medium ${
-              sessionActive
-                ? "bg-green-500/10 text-green-400"
-                : "bg-red-500/10 text-red-400"
-            }`}
-          >
-            {sessionActive ? "Session Active" : "Session Expired"}
+      <main className="p-4 sm:p-8 space-y-8 max-w-6xl mx-auto">
+        
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold flex items-center gap-3">
+              <Shield className="text-blue-500" size={36} />
+              Security Center
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+              Manage your session, authentication methods, and device security.
+            </p>
+          </div>
+          
+          {/* Status Badge */}
+          <div className={`px-5 py-2 rounded-full flex items-center gap-2 text-sm font-bold shadow-lg ${
+             sessionActive ? "bg-green-500/10 text-green-500 ring-1 ring-green-500/50" : "bg-red-500/10 text-red-500 ring-1 ring-red-500/50"
+          }`}>
+             <div className={`w-2.5 h-2.5 rounded-full ${sessionActive ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+             {sessionActive ? "System Secure & Active" : "Session Inactive"}
           </div>
         </div>
 
-        {/* --- Session Information (Firebase) --- */}
-        <div
-          className={`p-6 rounded-2xl shadow-lg ${
-            isDark ? "bg-[#1e293b]" : "bg-white"
-          }`}
-        >
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Lock /> Session Information
-          </h3>
+        {/* MAIN GRID LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* 🔒 COLUMN 1: SESSION CARD (Digital ID Style) */}
+          <div className={`lg:col-span-1 p-6 rounded-2xl shadow-2xl flex flex-col justify-between border-t-4 border-blue-500 ${isDark ? "bg-gray-800" : "bg-white"}`}>
+            <div>
+                <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-blue-500">
+                    <Key size={20} /> Session Credentials
+                </h3>
+                
+                <div className="space-y-6">
+                    {/* User ID (Hidden) */}
+                    <div>
+                        <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Firebase User ID</p>
+                        <div className={`p-3 rounded-lg flex items-center gap-3 ${isDark ? "bg-gray-900" : "bg-gray-100"}`}>
+                            <Lock size={16} className="text-gray-400" />
+                            <span className="font-mono text-lg tracking-widest text-gray-500">••••••••••••••••</span>
+                        </div>
+                    </div>
 
-          <div className="space-y-3 text-sm">
-            {/* ✅ TASK 2: ĐÃ ẨN TOKEN */}
-            <p>
-              <strong>Token:</strong>{" "}
-              <span className="text-xs break-all text-gray-400">
-                ********************
-              </span>
-            </p>
+                    {/* Token (Hidden) */}
+                    <div>
+                        <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Access Token</p>
+                        <div className={`p-3 rounded-lg flex items-center gap-3 ${isDark ? "bg-gray-900" : "bg-gray-100"}`}>
+                            <Shield size={16} className="text-gray-400" />
+                            <span className="font-mono text-lg tracking-widest text-gray-500">••••••••••••••••</span>
+                        </div>
+                    </div>
+
+                    {/* Expiry */}
+                    <div>
+                         <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Session Expires At</p>
+                         <p className="text-sm font-medium text-gray-400">
+                            {sessionInfo.expiresAt !== "Loading..." 
+                                ? new Date(sessionInfo.expiresAt).toLocaleString() 
+                                : "Loading..."}
+                         </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div className="mt-8 pt-6 border-t border-gray-700 flex flex-col gap-3">
+                 <button
+                    onClick={handleRefreshToken}
+                    className={`w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${isDark ? "bg-gray-700 hover:bg-gray-600 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-800"}`}
+                 >
+                    <RefreshCw size={18} className={loadingSettings ? "animate-spin" : ""} /> Refresh Session
+                 </button>
+                 <button
+                    onClick={handleLogout}
+                    className="w-full py-2.5 rounded-lg font-medium bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition-all"
+                 >
+                    <LogOut size={18} /> Terminate Session
+                 </button>
+            </div>
+          </div>
+
+
+          {/* 🎛️ COLUMN 2: SECURITY CONTROLS (Switches) */}
+          <div className="lg:col-span-2 space-y-6">
             
-            {/* ✅ TASK 1: ĐÃ ẨN USER ID */}
-            <p>
-              <strong>User ID (Firebase):</strong>{" "}
-              <span className="text-gray-400">********************</span>
-            </p>
-
-            <p>
-              <strong>Expires At:</strong>{" "}
-              {new Date(sessionInfo.expiresAt).toLocaleString()}
-            </p> 
-          </div>
-
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={handleRefreshToken}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition"
-            >
-              <RefreshCw size={16} /> Refresh Token
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition"
-            >
-              <LogOut size={16} /> Force Logout
-            </button>
-          </div>
-        </div>
-
-        {/* --- Advanced Security Settings (BE) --- */}
-        <div
-          className={`p-6 rounded-2xl shadow-lg relative ${
-            isDark ? "bg-[#1e293b]" : "bg-white"
-          }`}
-        >
-          {loadingSettings && (
-             <div className="absolute inset-0 bg-black/30 flex justify-center items-center rounded-2xl">
-                <Loader2 className="animate-spin" />
-             </div>
-          )}
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <KeyRound /> Advanced Security Settings
-          </h3>
-
-          <div className="space-y-4 text-sm">
-            <div className="flex items-center justify-between p-2 rounded hover:bg-gray-500/10">
-              <span>Enable Two-Factor Authentication (2FA)</span>
-              <input 
-                type="checkbox" 
-                name="is_2fa_enabled"
-                checked={settings.is_2fa_enabled}
-                onChange={handleSettingsChange}
-                className="w-5 h-5 accent-blue-500" 
-              />
+            {/* 1. 2FA CARD */}
+            <div className={`p-6 rounded-2xl shadow-xl flex items-center justify-between transition-all ${
+                isDark ? "bg-gray-800 hover:bg-gray-800/80" : "bg-white hover:bg-gray-50"
+            }`}>
+                <div className="flex items-start gap-4">
+                    <div className={`p-3 rounded-xl ${settings.is_2fa_enabled ? "bg-green-500/20 text-green-500" : "bg-gray-500/20 text-gray-500"}`}>
+                        <ShieldCheck size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold">Two-Factor Authentication</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-md">
+                           Add an extra layer of security to your account by requiring a verification code during sign in.
+                        </p>
+                        {settings.is_2fa_enabled && (
+                            <span className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded">
+                                <CheckCircle size={12} /> Protected
+                            </span>
+                        )}
+                    </div>
+                </div>
+                
+                {/* Custom Toggle */}
+                <ToggleSwitch 
+                    name="is_2fa_enabled"
+                    checked={settings.is_2fa_enabled}
+                    onChange={handleSettingsChange}
+                />
             </div>
 
-            <div className="flex items-center justify-between p-2 rounded hover:bg-gray-500/10">
-              <span>Restrict Multiple Device Sessions</span>
-              <input 
-                type="checkbox" 
-                name="restrict_multi_device"
-                checked={settings.restrict_multi_device}
-                onChange={handleSettingsChange}
-                className="w-5 h-5 accent-blue-500" 
-              />
+            {/* 2. DEVICE LOCK CARD */}
+            <div className={`p-6 rounded-2xl shadow-xl flex items-center justify-between transition-all ${
+                isDark ? "bg-gray-800 hover:bg-gray-800/80" : "bg-white hover:bg-gray-50"
+            }`}>
+                <div className="flex items-start gap-4">
+                    <div className={`p-3 rounded-xl ${settings.restrict_multi_device ? "bg-blue-500/20 text-blue-500" : "bg-gray-500/20 text-gray-500"}`}>
+                        <Smartphone size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold">Single Device Mode</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-md">
+                           Automatically log out other sessions when you log in on a new device.
+                        </p>
+                    </div>
+                </div>
+                
+                {/* Custom Toggle */}
+                <ToggleSwitch 
+                    name="restrict_multi_device"
+                    checked={settings.restrict_multi_device}
+                    onChange={handleSettingsChange}
+                />
             </div>
+
+             {/* 3. ALERT CARD */}
+            <div className={`mt-6 p-4 rounded-xl border-l-4 flex items-start gap-3 ${
+                isDark 
+                    ? "bg-yellow-500/10 border-yellow-500 text-yellow-200" 
+                    : "bg-yellow-50 border-yellow-500 text-yellow-800"
+            }`}>
+                <AlertTriangle className="flex-shrink-0" size={20} />
+                <div>
+                    <h4 className="font-bold text-sm">Security Notice</h4>
+                    <p className="text-xs mt-1 opacity-90">
+                        Changing these settings may require you to re-authenticate on your other devices. Always ensure your recovery email is up to date.
+                    </p>
+                </div>
+            </div>
+
           </div>
         </div>
 
-        {/* --- Alert Card --- */}
-        <div
-          className={`p-4 rounded-lg flex items-center gap-3 ${
-            isDark ? "bg-red-900/20 text-red-400" : "bg-red-100 text-red-700"
-          }`}
-        >
-          <AlertTriangle size={18} />
-          <p className="text-sm">
-            Warning: Logging out will terminate your current session on this device.
-          </p>
-        </div>
       </main>
 
-      {/* --- 2FA Modal --- */}
+      {/* --- 2FA MODAL (Styled Dark/Light) --- */}
       {show2FAModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className={`p-6 rounded-lg ${isDark ? "bg-[#1e293b]" : "bg-white"} max-w-sm w-full`}>
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <QrCode /> Enable Two-Factor Authentication
-            </h2>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+          <div className={`p-8 rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden ${isDark ? "bg-gray-800" : "bg-white"}`}>
             
-            <p className="text-sm mb-4">
-              Scan the QR code below with your authenticator app (like Google Authenticator or Authy), then enter the 6-digit code.
-            </p>
+            {/* Decor Background */}
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500" />
 
-            {qrCodeUrl ? (
-              <div className="flex justify-center mb-4">
-                <QRCodeComponent url={qrCodeUrl} />
-              </div>
-            ) : (
-              <div className="flex justify-center mb-4">
-                <Loader2 className="animate-spin" />
-              </div>
-            )}
+            <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-blue-500/10 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <QrCode size={32} />
+                </div>
+                <h2 className="text-2xl font-bold">Setup 2FA</h2>
+                <p className="text-sm text-gray-500 mt-2">
+                   Scan this QR code with Google Authenticator or Authy App.
+                </p>
+            </div>
+
+            <div className="flex justify-center mb-6">
+                {qrCodeUrl ? (
+                    <QRCodeComponent url={qrCodeUrl} />
+                ) : (
+                    <Loader2 className="animate-spin text-blue-500" size={40} />
+                )}
+            </div>
             
-            <form onSubmit={handleVerify2FA}>
-              <label className="text-sm mb-1 block">Verification Code</label>
-              <input 
-                type="text"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                placeholder="123456"
-                maxLength={6}
-                className={`w-full px-3 py-2 rounded-lg border ${
-                    isDark
-                        ? "bg-gray-700 border-gray-600 text-white"
-                        : "bg-gray-100 border-gray-300"
-                }`}
-              />
-              <div className="flex gap-3 mt-4">
+            <form onSubmit={handleVerify2FA} className="space-y-4">
+              <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Verification Code</label>
+                  <input 
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    placeholder="000 000"
+                    maxLength={6}
+                    className={`w-full px-4 py-3 rounded-xl text-center text-2xl font-mono tracking-[0.5em] border outline-none transition-all ${
+                        isDark
+                            ? "bg-gray-900 border-gray-700 focus:border-blue-500 text-white"
+                            : "bg-gray-50 border-gray-300 focus:border-blue-500 text-gray-900"
+                    }`}
+                  />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-6">
                 <button
                   type="button"
                   onClick={() => setShow2FAModal(false)}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gray-500 hover:bg-gray-400 text-white transition"
+                  className={`px-4 py-3 rounded-xl font-medium transition ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isVerifying}
-                  className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition flex justify-center"
+                  className="px-4 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/30 transition flex justify-center items-center"
                 >
-                  {isVerifying ? <Loader2 className="animate-spin" /> : "Verify & Enable"}
+                  {isVerifying ? <Loader2 className="animate-spin" /> : "Activate 2FA"}
                 </button>
               </div>
             </form>
