@@ -5,7 +5,8 @@ from sqlalchemy import (
     Text,
     Date,
     DateTime,
-    func
+    func,
+    Boolean
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -43,6 +44,8 @@ class User(Base):
 
     # (Tùy chọn nâng cao) Lưu phiên đăng nhập cuối cùng
     last_session_key: sa.Column[str] = sa.Column(sa.String, nullable=True)
+    # ✅ THÊM DÒNG NÀY
+    is_admin: sa.Column[bool] = sa.Column(sa.Boolean, default=False, nullable=False)
 
     # Quan hệ (Relationship)
     incomes = relationship("Income", back_populates="user", cascade="all, delete-orphan")

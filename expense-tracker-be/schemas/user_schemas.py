@@ -27,6 +27,8 @@ class UserOut(BaseModel):
     firebase_uid: Optional[str] = None
     is_2fa_enabled: bool = False
     restrict_multi_device: bool = False
+    # ✅ THÊM DÒNG NÀY
+    is_admin: bool = False
 
     class Config:
         from_attributes = True

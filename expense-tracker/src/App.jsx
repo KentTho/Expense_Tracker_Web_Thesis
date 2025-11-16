@@ -13,7 +13,8 @@ import SecuritySettings from "./pages/Dashboard/SecuritySettings";
 import Category from "./pages/Dashboard/Category";
 import Analytics from "./pages/Dashboard/Analytics";
 import DashboardLayout from "./layouts/DashboardLayout"; // ✅ layout chứa Sidebar
-
+import AdminUserManagement from "./pages/AdminUserManagement";
+import AdminDefaultCategories from "./pages/AdminDefaultCategories";
 // ✅ Hàm kiểm tra đăng nhập
 const Root = () => {
   const isAuthenticated = !!localStorage.getItem("idToken");
@@ -43,6 +44,9 @@ function App() {
           <Route path="/security" element={<SecuritySettings />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/categories" element={<Category />} />
+          {/* ✅ THÊM ROUTE CHO ADMIN */}
+          <Route path="/admin/users" element={<AdminUserManagement />} />
+          <Route path="/admin/categories" element={<AdminDefaultCategories />} />
         </Route>
 
         {/* 🔹 fallback nếu route không tồn tại */}
