@@ -1,20 +1,22 @@
-// pages/AdminDefaultCategories.jsx (TẠO FILE MỚI)
+// pages/AdminDefaultCategories.jsx (ĐÃ SỬA: KẾT NỐI API THẬT)
 import React, { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
-import { PlusCircle, Trash2, Edit, Palette, Smile, AlertTriangle, X, Shield } from "lucide-react";
+import { 
+    PlusCircle, Trash2, Edit, Palette, Smile, AlertTriangle, X, Shield, Loader2, Save 
+} from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 import {
   adminGetDefaultCategories,
-  // Chúng ta sẽ thêm các hàm này vào service và BE ở bước 3
-  // adminCreateDefaultCategory, 
-  // adminUpdateDefaultCategory,
-  // adminDeleteDefaultCategory
+  // ✅ IMPORT CÁC HÀM API THẬT
+  adminCreateDefaultCategory,
+  adminUpdateDefaultCategory,
+  adminDeleteDefaultCategory
 } from "../services/adminService";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
 import { SketchPicker } from "react-color";
 
-// Component Card (Tái sử dụng từ Category.jsx)
+// Component Card (Giữ nguyên)
 const CategoryCard = ({ category, onEdit, onDelete }) => {
   const isDark = useOutletContext().theme === "dark";
   return (
@@ -31,7 +33,6 @@ const CategoryCard = ({ category, onEdit, onDelete }) => {
           <span className="text-3xl">{category.icon || "📁"}</span>
         </div>
         <div className="flex gap-2 z-10">
-            {/* Trên trang Admin, mọi thứ đều có thể Sửa/Xóa */}
             <button onClick={() => onEdit(category)} className="p-1.5 rounded-full transition-colors" style={{ color: category.color, backgroundColor: `${category.color}20` }} title="Edit Category">
                 <Edit size={18} />
             </button>
@@ -57,6 +58,7 @@ export default function AdminDefaultCategories() {
   const [categories, setCategories] = useState([]);
   const [typeFilter, setTypeFilter] = useState("income");
   const [loading, setLoading] = useState(true); 
+  const [isSubmitting, setIsSubmitting] = useState(false); // ✅ State cho nút Save/Delete
 
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -67,21 +69,25 @@ export default function AdminDefaultCategories() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
+  // Hàm fetchData (Giữ nguyên)
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const data = await adminGetDefaultCategories();
+      setCategories(data);
+    } catch (err) {
+      toast.error("Could not load default categories!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await adminGetDefaultCategories(); // Chỉ lấy default
-        setCategories(data);
-      } catch (err) {
-        toast.error("Could not load default categories!");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchData();
   }, []);
 
   const openAddModal = () => {
+    // ... (Giữ nguyên)
     const isIncome = typeFilter === 'income';
     setEditId(null);
     setForm({
@@ -93,34 +99,82 @@ export default function AdminDefaultCategories() {
   };
 
   const openEditModal = (category) => {
+    // ... (Giữ nguyên)
     setEditId(category.id);
     setForm(category);
     setShowModal(true);
   };
   
   const closeAllModals = () => {
+    // ... (Giữ nguyên)
     setShowModal(false);
     setShowEmojiPicker(false);
     setShowColorPicker(false);
   }
 
+  // =============================================
+  // ✅ HÀM SAVE (ĐÃ SỬA)
+  // =============================================
   const handleSave = async () => {
-    // TODO: Gọi API adminCreateDefaultCategory hoặc adminUpdateDefaultCategory
-    toast.success("Save functionality coming soon!");
-    closeAllModals();
+    if (!form.name) return toast.error("Category name is required!");
+    
+    setIsSubmitting(true);
+    const payload = { 
+        name: form.name, 
+        type: form.type, 
+        icon: form.icon, 
+        color: form.color 
+    };
+
+    try {
+      if (editId) {
+        // --- LOGIC UPDATE ---
+        const updatedCategory = await adminUpdateDefaultCategory(editId, payload);
+        // Cập nhật state (giao diện)
+        setCategories(categories.map(c => (c.id === editId ? updatedCategory : c)));
+        toast.success("Default category updated!");
+      } else {
+        // --- LOGIC CREATE ---
+        const newCategory = await adminCreateDefaultCategory(payload);
+        // Cập nhật state (giao diện)
+        setCategories([...categories, newCategory]);
+        toast.success("Default category created!");
+      }
+      closeAllModals();
+      setEditId(null);
+    } catch (error) {
+        toast.error(error.message);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
+  // =============================================
+  // ✅ HÀM DELETE (ĐÃ SỬA)
+  // =============================================
   const initiateDelete = (id) => {
     setDeleteId(id);
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
-    // TODO: Gọi API adminDeleteDefaultCategory(deleteId)
-    toast.success("Delete functionality coming soon!");
-    setShowDeleteModal(false);
+    if (!deleteId) return;
+    setIsSubmitting(true);
+    try {
+      await adminDeleteDefaultCategory(deleteId);
+      // Cập nhật state (giao diện)
+      setCategories(categories.filter(c => c.id !== deleteId));
+      toast.success("Default category deleted.");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setIsSubmitting(false);
+      setShowDeleteModal(false);
+      setDeleteId(null);
+    }
   };
 
+  // --- (Phần còn lại giữ nguyên) ---
   const filteredCategories = useMemo(() => {
     return categories.filter(c => c.type === typeFilter);
   }, [categories, typeFilter]);
@@ -194,7 +248,7 @@ export default function AdminDefaultCategories() {
           </div>
       </main>
 
-      {/* MODAL XÁC NHẬN XÓA */}
+      {/* MODAL XÁC NHẬN XÓA (Cập nhật nút) */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
             <div className={`w-full max-w-sm p-6 rounded-2xl shadow-2xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
@@ -207,11 +261,11 @@ export default function AdminDefaultCategories() {
                       Are you sure? This will affect all users who use this category.
                     </p>
                     <div className="flex gap-3 w-full">
-                        <button onClick={() => setShowDeleteModal(false)} className={`flex-1 py-2.5 rounded-lg font-medium ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}>
+                        <button onClick={() => setShowDeleteModal(false)} disabled={isSubmitting} className={`flex-1 py-2.5 rounded-lg font-medium ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"} disabled:opacity-50`}>
                             Cancel
                         </button>
-                        <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-lg font-medium bg-red-600 hover:bg-red-500 text-white">
-                            Delete
+                        <button onClick={confirmDelete} disabled={isSubmitting} className="flex-1 py-2.5 rounded-lg font-medium bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 flex justify-center">
+                            {isSubmitting ? <Loader2 className="animate-spin" /> : "Delete"}
                         </button>
                     </div>
                 </div>
@@ -219,7 +273,7 @@ export default function AdminDefaultCategories() {
         </div>
       )}
 
-      {/* MODAL THÊM/SỬA (UI 2 CỘT) */}
+      {/* MODAL THÊM/SỬA (Cập nhật nút) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={closeAllModals}>
           <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-2xl p-6 rounded-2xl shadow-2xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
@@ -263,7 +317,12 @@ export default function AdminDefaultCategories() {
                     </button>
                   </div>
                 </div>
-                <button onClick={handleSave} className={`w-full mt-4 py-3 rounded-lg text-white font-semibold transition-all ${form.type === 'income' ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'}`}>
+                <button 
+                  onClick={handleSave} 
+                  disabled={isSubmitting}
+                  className={`w-full mt-4 py-3 rounded-lg text-white font-semibold transition-all flex justify-center items-center ${form.type === 'income' ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'} disabled:opacity-50`}
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin" /> : (editId ? <Save size={18} className="mr-2"/> : <PlusCircle size={18} className="mr-2"/>)}
                   {editId ? "Update Category" : "Save Category"}
                 </button>
               </div>
@@ -272,7 +331,7 @@ export default function AdminDefaultCategories() {
         </div>
       )}
 
-      {/* OVERLAY CHO EMOJI PICKER */}
+      {/* OVERLAY CHO EMOJI PICKER (Giữ nguyên) */}
       {showEmojiPicker && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={() => setShowEmojiPicker(false)}>
           <div onClick={(e) => e.stopPropagation()}>
@@ -281,7 +340,7 @@ export default function AdminDefaultCategories() {
         </div>
       )}
 
-      {/* OVERLAY CHO COLOR PICKER */}
+      {/* OVERLAY CHO COLOR PICKER (Giữ nguyên) */}
       {showColorPicker && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={() => setShowColorPicker(false)}>
           <div onClick={(e) => e.stopPropagation()}>
