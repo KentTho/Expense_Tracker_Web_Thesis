@@ -1,26 +1,26 @@
-# routes/admin_route.py (TẠO FILE MỚI)
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+# routes/admin_route.py (Đã sắp xếp và cập nhật)
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
 
-from starlette import status
-
 from db.database import get_db
-from services.auth_token_db import get_current_admin_user  # 👈 DÙNG "GÁC CỔNG" ADMIN
-from models import user_model  # Import model
+from services.auth_token_db import get_current_admin_user # Dùng "gác cổng" Admin
+from models import user_model # Import model
 from cruds import crud_admin
 from schemas import admin_schemas, category_schemas, user_schemas
 
-# ✅ Tất cả API trong file này đều yêu cầu quyền Admin
+# Tất cả API trong file này đều yêu cầu quyền Admin
 router = APIRouter(
     prefix="/admin",
     tags=["Admin"],
     dependencies=[Depends(get_current_admin_user)]
 )
 
-
-# --- Admin Stats ---
+# =========================================================
+# 1. ADMIN STATS ROUTES
+# =========================================================
 
 @router.get("/stats/kpis", response_model=admin_schemas.AdminGlobalKPIs)
 def get_admin_kpis(db: Session = Depends(get_db)):
@@ -34,7 +34,9 @@ def get_admin_user_growth(days: int = 30, db: Session = Depends(get_db)):
     return crud_admin.admin_get_user_growth(db, days=days)
 
 
-# --- User Management ---
+# =========================================================
+# 2. USER MANAGEMENT ROUTES
+# =========================================================
 
 @router.get("/users", response_model=List[admin_schemas.AdminUserListOut])
 def get_all_users(
@@ -64,16 +66,27 @@ def update_user_by_admin(
 
 @router.delete("/users/{user_id}")
 def delete_user_by_admin(user_id: UUID, db: Session = Depends(get_db)):
-    """[Admin] Xóa một User (Sẽ xóa tất cả data liên quan)"""
+    """[Admin] Xóa một User (Xóa CSDL và Firebase Auth)"""
     user = crud_admin.admin_get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    crud_admin.admin_delete_user(db, user)
-    return {"message": f"User {user.email} and all related data deleted successfully."}
+    try:
+        # Gọi hàm CRUD (đã bao gồm commit)
+        crud_admin.admin_delete_user(db, user)
+        return {"message": f"User {user.email} and all related data deleted successfully."}
+    except Exception as e:
+        # Nếu Firebase lỗi, CRUD sẽ ném lỗi.
+        # Chúng ta bắt lỗi đó và trả về 500
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete user: {str(e)}"
+        )
 
 
-# --- Default Category Management (ROUTE MỚI) ---
+# =========================================================
+# 3. DEFAULT CATEGORY MANAGEMENT ROUTES
+# =========================================================
 
 @router.get("/categories", response_model=List[category_schemas.CategoryOut])
 def get_default_categories(
@@ -114,9 +127,9 @@ def delete_default_category(
     """[Admin] Xóa một danh mục mặc định"""
     category = crud_admin.admin_get_default_category_by_id(db, category_id)
     if not category:
-        raise HTTPException(status_code=44, detail="Default category not found")
+        # Sửa lỗi 44 -> 404
+        raise HTTPException(status_code=404, detail="Default category not found")
 
     # TODO: Cần kiểm tra xem category này có đang được sử dụng không trước khi xóa
-    # (Tạm thời cho phép xóa)
     crud_admin.admin_delete_default_category(db, category)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

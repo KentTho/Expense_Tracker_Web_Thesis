@@ -1,8 +1,5 @@
 // ChangePassword.jsx
-// - REDESIGN: Giao diện "Secure Card" tập trung.
-// - ADDED: Nút Ẩn/Hiện mật khẩu (Eye/EyeOff).
-// - ADDED: Thanh đánh giá độ mạnh mật khẩu (Password Strength Meter).
-// - UPDATED: Sử dụng Toast thay vì text message tĩnh.
+// - ✅ FIXED: Sửa lỗi 'handleChange is not defined' bằng cách truyền prop 'onChange' vào Input.
 
 import React, { useState, useEffect } from "react";
 import { getAuth, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
@@ -31,6 +28,50 @@ const getStrengthColor = (score) => {
   return "bg-green-500";
 };
 
+// =======================================================
+// 💡 COMPONENT INPUT (ĐÃ SỬA LỖI)
+// =======================================================
+const PasswordInput = ({ label, name, value, placeholder, show, onToggle, onChange }) => { // 1. Thêm 'onChange'
+    const { theme } = useOutletContext(); 
+    const isDark = theme === "dark";
+
+    return (
+        <div className="relative group">
+        <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
+            {label}
+        </label>
+        <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <KeyRound size={18} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+            </div>
+            <input
+              type={show ? "text" : "password"}
+              name={name}
+              value={value}
+              onChange={onChange} // 2. Sử dụng 'onChange' (prop)
+              placeholder={placeholder}
+              className={`w-full pl-10 pr-10 py-3 rounded-xl border outline-none transition-all duration-300 ${
+                isDark
+                  ? "bg-gray-800 border-gray-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  : "bg-gray-50 border-gray-200 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              }`}
+            />
+            <button
+              type="button"
+              onClick={onToggle}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            >
+              {show ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+        </div>
+        </div>
+    );
+};
+
+
+// =======================================================
+// 💡 COMPONENT CHÍNH
+// =======================================================
 export default function ChangePassword() {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
@@ -44,11 +85,11 @@ export default function ChangePassword() {
   const auth = getAuth();
   const user = auth.currentUser;
 
-  // Cập nhật độ mạnh khi nhập mật khẩu mới
   useEffect(() => {
     setStrength(calculateStrength(form.new));
   }, [form.new]);
 
+  // Hàm handleChange được định nghĩa ở đây
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -58,6 +99,7 @@ export default function ChangePassword() {
   };
 
   const handleSubmit = async () => {
+    // ... (Logic handleSubmit giữ nguyên) ...
     if (!user) {
       toast.error("You need to log in first!");
       return;
@@ -74,22 +116,14 @@ export default function ChangePassword() {
         toast.error("Password is too weak. Try adding numbers or symbols.");
         return;
     }
-
     setLoading(true);
     try {
-      // 1. Re-authenticate
       const credential = EmailAuthProvider.credential(user.email, form.current);
       await reauthenticateWithCredential(user, credential);
-
-      // 2. Update Password
       await updatePassword(user, form.new);
-
       toast.success("🎉 Password updated successfully!");
       setForm({ current: "", new: "", confirm: "" });
-      
-      // Optional: Navigate back after delay
       setTimeout(() => navigate("/profile"), 1500);
-      
     } catch (error) {
       console.error("Error:", error);
       let msg = "Failed to update password.";
@@ -102,39 +136,7 @@ export default function ChangePassword() {
     }
   };
 
-  // Reusable Input Component for Cleaner JSX
-  const PasswordInput = ({ label, name, value, placeholder, show, onToggle }) => (
-    <div className="relative group">
-      <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
-        {label}
-      </label>
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <KeyRound size={18} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
-        </div>
-        <input
-          type={show ? "text" : "password"}
-          name={name}
-          value={value}
-          onChange={handleChange}
-          placeholder={placeholder}
-          className={`w-full pl-10 pr-10 py-3 rounded-xl border outline-none transition-all duration-300 ${
-            isDark
-              ? "bg-gray-800 border-gray-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              : "bg-gray-50 border-gray-200 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-          }`}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-        >
-          {show ? <EyeOff size={18} /> : <Eye size={18} />}
-        </button>
-      </div>
-    </div>
-  );
-
+  
   return (
     <div
       className={`min-h-screen transition-colors duration-300 flex flex-col items-center justify-center p-4 ${
@@ -170,6 +172,7 @@ export default function ChangePassword() {
                 placeholder="Enter current password"
                 show={showPass.current}
                 onToggle={() => toggleShow("current")}
+                onChange={handleChange} // 3. Truyền hàm vào prop 'onChange'
             />
 
             <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
@@ -183,6 +186,7 @@ export default function ChangePassword() {
                     placeholder="Enter new password"
                     show={showPass.new}
                     onToggle={() => toggleShow("new")}
+                    onChange={handleChange} // 3. Truyền hàm vào prop 'onChange'
                 />
                 {/* Strength Meter */}
                 <div className="mt-2 flex items-center gap-2">
@@ -206,6 +210,7 @@ export default function ChangePassword() {
                 placeholder="Re-enter new password"
                 show={showPass.confirm}
                 onToggle={() => toggleShow("confirm")}
+                onChange={handleChange} // 3. Truyền hàm vào prop 'onChange'
             />
 
             {/* Action Buttons */}

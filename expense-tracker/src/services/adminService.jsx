@@ -44,6 +44,13 @@ export async function adminGetGlobalKPIs() {
     return adminRequest("/stats/kpis", { method: "GET" });
 }
 
+
+// ✅ HÀM MỚI ĐỂ LẤY DỮ LIỆU BIỂU ĐỒ
+export async function adminGetGlobalUserGrowth(days = 30) {
+    return adminRequest(`/stats/user-growth?days=${days}`, { method: "GET" });
+}
+
+
 // --- Default Categories (CÁC HÀM MỚI) ---
 export async function adminGetDefaultCategories(type = null) {
     const endpoint = type ? `/categories?type=${type}` : "/categories";
@@ -72,3 +79,4 @@ export async function adminDeleteDefaultCategory(id) {
         method: "DELETE"
     });
 }
+

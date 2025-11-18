@@ -1,5 +1,5 @@
 // Profile.jsx
-// - ✅ FIXED: Sửa lỗi icon 'VenusMars' -> 'VenusAndMars'
+// - ✅ FIXED: Sửa lỗi 'QuotaExceededError' khi lưu profile.
 // - RETAINED: Bố cục Dashboard 2 cột.
 // - RETAINED: Chỉnh sửa nội tuyến (In-line Editing).
 // - RETAINED: Hiển thị (Currency, 2FA Status).
@@ -9,7 +9,7 @@ import { getAuth } from "firebase/auth";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { 
   User, Mail, Calendar, Edit3, X, Save, Upload, Lock, 
-  VenusAndMars, // ✅ ĐÃ SỬA LỖI TẠI ĐÂY
+  VenusAndMars, 
   Cake, 
   Wallet, ShieldCheck 
 } from "lucide-react";
@@ -19,16 +19,14 @@ import {
   updateUserProfile,
 } from "../../services/profileService";
 
-// Helper Component: Input Field
+// Helper Component: InfoInput (Giữ nguyên)
 const InfoInput = ({ isEditing, label, name, value, onChange, type = "text", children }) => {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
 
   if (!isEditing) {
-    return children; // Hiển thị text bình thường khi không edit
+    return children;
   }
-
-  // Hiển thị input khi edit
   return (
     <div>
       <label className="text-xs font-semibold uppercase text-gray-500">{label}</label>
@@ -47,13 +45,13 @@ const InfoInput = ({ isEditing, label, name, value, onChange, type = "text", chi
   );
 };
 
-// Helper Component: Select Field
+// Helper Component: InfoSelect (Giữ nguyên)
 const InfoSelect = ({ isEditing, label, name, value, onChange, children, options }) => {
     const { theme } = useOutletContext();
     const isDark = theme === "dark";
   
     if (!isEditing) {
-      return children; // Hiển thị text
+      return children;
     }
   
     return (
@@ -102,6 +100,12 @@ export default function Profile() {
         const data = await getUserProfile();
         setUser(data);
         setForm(data);
+
+        // ✅ FIX (PHÒNG NGỪA): Cập nhật localStorage ngay khi tải
+        const userForStorage = { ...data };
+        delete userForStorage.profile_image;
+        localStorage.setItem("user", JSON.stringify(userForStorage));
+
       } catch (err) {
         console.error("❌ Profile fetch error:", err);
         toast.error("Could not load user information!");
@@ -112,12 +116,13 @@ export default function Profile() {
     fetchProfile();
   }, [navigate]);
 
+  // handleChange (Giữ nguyên)
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Upload ảnh
+  // Upload ảnh (Giữ nguyên)
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -127,12 +132,15 @@ export default function Profile() {
     reader.readAsDataURL(file);
   };
 
-  // Hủy edit
+  // Hủy edit (Giữ nguyên)
   const handleCancel = () => {
     setForm(user); // Reset form về trạng thái user ban đầu
     setIsEditing(false);
   };
 
+  // ==========================================================
+  // 🧩 Lưu cập nhật (ĐÃ SỬA LỖI QUOTAEXCEEDED)
+  // ==========================================================
   // Lưu cập nhật
   const handleSave = async () => {
     try {
@@ -146,21 +154,29 @@ export default function Profile() {
       const payload = {
         name: form.name,
         email: form.email,
-        profile_image: form.profile_image,
+        profile_image: form.profile_image, // Vẫn gửi ảnh Base64 lên BE
         gender: form.gender,
         birthday: form.birthday,
       };
 
-      const updated = await updateUserProfile(payload);
-      localStorage.setItem("user", JSON.stringify(updated));
-      setUser(updated); // Cập nhật state hiển thị
+      const updated = await updateUserProfile(payload); // BE trả về user (có ảnh Base64)
+
+      // ✅ FIX: TẠO BẢN SAO SẠCH TRƯỚC KHI LƯU LOCALSTORAGE
+      const userForStorage = { ...updated };
+      delete userForStorage.profile_image; // Xóa trường ảnh nặng
+
+      localStorage.setItem("user", JSON.stringify(userForStorage)); // Lưu bản sạch
+      
+      setUser(updated); // Cập nhật React state (vẫn giữ ảnh để hiển thị)
       setIsEditing(false);
       toast.success("Profile updated successfully 🎉");
     } catch (err) {
       console.error("❌ Update error:", err);
-      toast.error("Update failed, please try again!");
+      // Lỗi của bạn (QuotaExceededError) sẽ bị bắt ở đây
+      toast.error(err.message || "Update failed, please try again!");
     }
   };
+  // ==========================================================
 
   if (loading)
     return (
@@ -178,7 +194,7 @@ export default function Profile() {
       <Toaster position="top-center" />
       <div className="max-w-6xl mx-auto p-4 sm:p-8">
         
-        {/* HEADER VÀ NÚT ĐIỀU KHIỂN */}
+        {/* HEADER VÀ NÚT ĐIỀU KHIỂN (Giữ nguyên) */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-extrabold flex items-center gap-3">
             <User className="text-blue-500" size={36} />
@@ -217,7 +233,7 @@ export default function Profile() {
         {/* --- BỐ CỤC DASHBOARD 2 CỘT --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* CỘT 1: PROFILE CARD */}
+          {/* CỘT 1: PROFILE CARD (Giữ nguyên) */}
           <div className={`lg:col-span-1 p-6 rounded-2xl shadow-xl flex flex-col items-center text-center ${isDark ? "bg-gray-800" : "bg-white"}`}>
             
             {/* Avatar & Upload */}
@@ -279,7 +295,7 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* CỘT 2: INFO & SETTINGS */}
+          {/* CỘT 2: INFO & SETTINGS (Giữ nguyên) */}
           <div className="lg:col-span-2 space-y-8">
             
             {/* 1. Personal Details Card */}
@@ -302,7 +318,6 @@ export default function Profile() {
                   ]}
                 >
                   <div className="flex items-center gap-3">
-                    {/* ✅ ĐÃ SỬA LỖI TẠI ĐÂY */}
                     <VenusAndMars size={20} className="text-pink-500" />
                     <div>
                       <p className="text-xs font-semibold uppercase text-gray-500">Gender</p>
@@ -333,11 +348,11 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* 2. App Preferences Card (THÊM MỚI) */}
+            {/* 2. App Preferences Card (Giữ nguyên) */}
             <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
               <h3 className="text-xl font-semibold mb-6">App Preferences</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Default Currency (Từ BE, hiện tại chỉ hiển thị) */}
+                {/* Default Currency */}
                 <div className="flex items-center gap-3">
                   <Wallet size={20} className="text-purple-500" />
                   <div>
@@ -348,7 +363,7 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* 2FA Status (Từ BE, liên kết đến trang Security) */}
+                {/* 2FA Status */}
                 <div className="flex items-center gap-3">
                   <ShieldCheck size={20} className={user?.is_2fa_enabled ? "text-green-500" : "text-gray-500"} />
                   <div>
@@ -364,7 +379,7 @@ export default function Profile() {
               </div>
             </div>
             
-            {/* 3. Danger Zone (Tách riêng) */}
+            {/* 3. Danger Zone (Giữ nguyên) */}
             <div className={`p-6 rounded-2xl shadow-xl border-2 ${isDark ? "bg-red-900/10 border-red-500/30" : "bg-red-50 border-red-200"}`}>
                 <h3 className="text-xl font-semibold text-red-500 mb-4">Danger Zone</h3>
                 <div className="flex justify-between items-center">

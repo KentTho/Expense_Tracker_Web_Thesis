@@ -9,6 +9,8 @@ import { auth } from "../components/firebase"; // ⚠️ đảm bảo đúng đ�
 import { BACKEND_BASE } from "./api"; // ví dụ: export const BACKEND_BASE = "http://127.0.0.1:8000";
 
 
+// src/services/authService.jsx
+
 // ✅ Đăng ký tài khoản và đồng bộ với backend
 export async function signupAndSync(email, password, displayName = null) {
   try {
@@ -36,13 +38,19 @@ export async function signupAndSync(email, password, displayName = null) {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
+    // ✅ FIX: TẠO BẢN SAO SẠCH ĐỂ LƯU TRỮ
+    const userForStorage = { ...data };
+    delete userForStorage.profile_image; // Xóa trường ảnh nặng
+    
+    localStorage.setItem("idToken", idToken);
+    localStorage.setItem("user", JSON.stringify(userForStorage)); // Lưu bản sạch
+
     return { user: data, idToken };
   } catch (err) {
     console.error("Signup error:", err);
     throw err;
   }
 }
-
 
 // ✅ Đăng nhập và đồng bộ
 export async function loginAndSync(email, password) {
@@ -66,15 +74,22 @@ export async function loginAndSync(email, password) {
     });
 
     if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
+    const data = await res.json(); // data là user object đầy đủ (có thể có ảnh Base64)
 
-    return { user: data, idToken };
+    // ✅ FIX: TẠO BẢN SAO SẠCH ĐỂ LƯU TRỮ
+    const userForStorage = { ...data };
+    delete userForStorage.profile_image; // Xóa trường ảnh nặng
+    
+    localStorage.setItem("idToken", idToken);
+    localStorage.setItem("user", JSON.stringify(userForStorage)); // Lưu bản sạch
+
+    // Trả về data đầy đủ (có ảnh) cho React state
+    return { user: data, idToken }; 
   } catch (err) {
     console.error("Login error:", err);
     throw err;
   }
 }
-
 
 // ✅ Gửi email reset mật khẩu
 export async function resetPassword(email) {

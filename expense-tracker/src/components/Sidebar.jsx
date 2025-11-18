@@ -1,33 +1,34 @@
-// Sidebar.jsx (Đã có import useLocation)
+// Sidebar.jsx
+// - ✅ ADDED: Thêm link "Admin Dashboard" vào adminMenu.
 
 import React from "react";
-// ✅ LỖI PHÁT SINH TỪ ĐÂY: Phải import useLocation
 import { Link, useLocation, useNavigate } from "react-router-dom"; 
 import { toast } from "react-toastify";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import {
-  Home,
-  TrendingUp,
-  Wallet,
-  Settings,
-  LogOut,
-  Sun,
-  Moon, 
-  BarChart2, 
-  Download ,
-  Lock,
-  Tag,
-  Users,     // Icon Admin
-  Shield     // Icon Admin
+  Home, TrendingUp, Wallet, Settings, LogOut, Sun, Moon, 
+  BarChart2, Download, Lock, Tag, Users, Shield,
+  LayoutDashboard // 👈 THÊM ICON MỚI
 } from "lucide-react";
 import logo from "../assets/logo.png";
 
-export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
-  const location = useLocation(); // ✅ Đã import
+// Helper lấy Tên Viết Tắt
+const getInitials = (name) => {
+  if (!name) return "U";
+  const names = name.split(' ');
+  const first = names[0] ? names[0][0] : '';
+  const last = names.length > 1 ? names[names.length - 1][0] : '';
+  return (first + last).toUpperCase() || 'U';
+};
+
+export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMobile }) {
+  const location = useLocation();
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user")) || {};
+  const userInitials = getInitials(user?.name);
 
+  // --- Menu Arrays ---
   const userMenu = [
     { name: "Home", path: "/dashboard", icon: <Home size={18} /> },
     { name: "Analytics", path: "/analytics", icon: <BarChart2 size={18} /> },
@@ -42,7 +43,9 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
     { name: "Profile", path: "/profile", icon: <Settings size={18} /> }, 
   ];
 
+  // ✅ ADMIN MENU (ĐÃ CẬP NHẬT)
   const adminMenu = [
+    { name: "Admin Dashboard", path: "/admin/dashboard", icon: <LayoutDashboard size={18} /> },
     { name: "User Management", path: "/admin/users", icon: <Users size={18} /> },
     { name: "Default Categories", path: "/admin/categories", icon: <Shield size={18} /> },
   ];
@@ -68,13 +71,7 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
         <Link
           to={item.path}
           className={`flex items-center gap-4 px-4 py-3 rounded-xl w-full transition-all duration-200
-            ${
-              active
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-500/50"
-                : theme === "dark"
-                ? "text-gray-400 hover:bg-gray-700/50 hover:text-white"
-                : "text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-            }
+            ${active ? "bg-blue-600 text-white shadow-lg shadow-blue-500/50" : theme === "dark" ? "text-gray-400 hover:bg-gray-700/50 hover:text-white" : "text-gray-500 hover:bg-gray-100 hover:text-blue-600"}
             ${collapsed ? "justify-center" : ""}`}
         >
           {item.icon}
@@ -83,13 +80,7 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
           )}
         </Link>
         {collapsed && (
-          <span
-            className={`absolute left-full top-1/2 -translate-y-1/2 ml-4
-              opacity-0 invisible group-hover:opacity-100 group-hover:visible
-              px-3 py-1.5 text-xs font-medium rounded-lg shadow-lg
-              transition-all duration-200 whitespace-nowrap z-50
-              ${theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-gray-800"}`}
-          >
+          <span className={`absolute left-full top-1/2 -translate-y-1/2 ml-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible px-3 py-1.5 text-xs font-medium rounded-lg shadow-lg transition-all duration-200 whitespace-nowrap z-50 ${theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-gray-800"}`}>
             {item.name}
             <span className={`absolute left-[-4px] top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 ${theme === "dark" ? "bg-gray-800" : "bg-white"}`}></span>
           </span>
@@ -100,12 +91,12 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
 
   return (
     <aside
-      onMouseEnter={() => setCollapsed(false)}
-      onMouseLeave={() => setCollapsed(true)}
-      className={`fixed top-0 left-0 h-screen flex flex-col justify-between
+      onMouseEnter={!isMobile ? () => setCollapsed(false) : undefined}
+      onMouseLeave={!isMobile ? () => setCollapsed(true) : undefined}
+      className={`h-full flex flex-col justify-between
         transition-[width] duration-300 ease-in-out shadow-2xl z-50
         ${theme === "dark" ? "bg-gray-900 border-r border-gray-700/50" : "bg-white text-gray-800 border-r border-gray-200"}
-        ${collapsed ? "w-20" : "w-64"}`}
+        ${isMobile ? "w-64" : (collapsed ? "w-20" : "w-64")}`}
     >
       <div className="flex flex-col relative select-none">
         {/* Header (Logo & Tên) */}
@@ -123,10 +114,9 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
         {/* Menu (Đã cập nhật) */}
         <nav className="flex flex-col gap-2 px-3 mt-4">
           {userMenu.map(renderMenuItem)}
-          
           <div className="my-2 border-t border-gray-700/50 mx-3"></div>
           {settingsMenu.map(renderMenuItem)}
-
+          
           {/* KIỂM TRA QUYỀN ADMIN */}
           {user.is_admin && (
             <>
@@ -135,6 +125,7 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
                   Admin
                 </span>
               </div>
+              {/* ✅ Render menu admin mới (đã có Dashboard) */}
               {adminMenu.map(renderMenuItem)}
             </>
           )}
@@ -148,13 +139,11 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme }) {
           onClick={(e) => { e.stopPropagation(); navigate("/profile"); }}
           className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-colors ${collapsed ? "justify-center" : ""} ${theme === 'dark' ? 'hover:bg-gray-700/50' : 'hover:bg-gray-100'}`}
         >
-          <img
-            src={user?.profile_image || "https://i.pravatar.cc/40"}
-            alt="avatar"
-            className="w-10 h-10 rounded-full border-2 border-blue-400 object-cover"
-          />
+          <div className="w-10 h-10 rounded-full border-2 border-blue-400 bg-blue-600/50 flex items-center justify-center font-bold text-white flex-shrink-0">
+            {userInitials}
+          </div>
           {!collapsed && (
-            <div className="leading-tight">
+            <div className="leading-tight overflow-hidden">
               <p className="font-semibold text-sm truncate">{user?.name || "User"}</p>
               <p className="text-xs text-blue-400 hover:underline">View profile</p>
             </div>
