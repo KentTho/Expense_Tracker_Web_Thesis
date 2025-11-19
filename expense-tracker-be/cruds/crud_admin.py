@@ -76,30 +76,46 @@ def admin_update_user(db: Session, user: user_model.User, update_data: AdminUser
     return user
 
 
+# cruds/crud_admin.py (Cập nhật hàm delete)
+
+# ... (các imports giữ nguyên)
+
 def admin_delete_user(db: Session, user: user_model.User):
     """
-    Admin xóa user (Xóa CSDL và Firebase Auth).
-    Sẽ ném Exception nếu thất bại.
+    Admin xóa user.
+    Thứ tự: Xóa Firebase trước -> Xóa DB sau (để đảm bảo sạch sẽ).
     """
     firebase_uid = user.firebase_uid
+    user_email = user.email
 
-    # 1. Xóa khỏi CSDL (chưa commit)
-    db.delete(user)
+    print(f"🗑️ ADMIN: Attempting to delete user {user_email} ({firebase_uid})...")
 
-    # 2. Xóa khỏi Firebase Auth
     try:
+        # 1. Cố gắng xóa user khỏi Firebase trước
         if firebase_uid:
-            fb_auth.delete_user(firebase_uid)
-    except UserNotFoundError:
-        # User đã bị xóa khỏi Firebase, vẫn tiếp tục
-        pass
-    except Exception as e:
-        # Nếu lỗi (vd: network), ném lỗi để route rollback
-        raise e
+            try:
+                fb_auth.delete_user(firebase_uid)
+                print(f"✅ Firebase user {firebase_uid} deleted.")
+            except UserNotFoundError:
+                print(f"⚠️ Firebase user {firebase_uid} not found (already deleted?). Continuing...")
+            except Exception as fb_error:
+                # Nếu lỗi kết nối Firebase, in ra nhưng KHÔNG dừng lại (tùy chọn)
+                # Hoặc nếu bạn muốn chặn xóa DB nếu Firebase lỗi, hãy raise fb_error
+                print(f"❌ Firebase Error: {str(fb_error)}")
+                # raise fb_error # Bỏ comment dòng này nếu muốn bắt buộc xóa Firebase thành công
 
-        # 3. Commit CSDL (Chỉ chạy nếu bước 2 thành công)
-    db.commit()
-    return True
+        # 2. Xóa user khỏi CSDL
+        # SQLAlchemy sẽ tự động xóa incomes/expenses nhờ cascade="all, delete-orphan" trong model
+        db.delete(user)
+        db.commit()
+        print(f"✅ Database user {user_email} deleted successfully.")
+        return True
+
+    except Exception as e:
+        db.rollback()  # Hoàn tác nếu có lỗi
+        print(f"🔥 CRITICAL ERROR deleting user: {str(e)}")
+        # Ném lỗi ra ngoài để route trả về 500 và chi tiết lỗi
+        raise Exception(f"Database Error: {str(e)}")
 
 
 # =========================================================

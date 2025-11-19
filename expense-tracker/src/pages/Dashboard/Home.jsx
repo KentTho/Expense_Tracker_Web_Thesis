@@ -1,8 +1,10 @@
 // Home.jsx
-// - ✅ FIXED: Nút "+ New Transaction" giờ đây là một Dropdown Menu, liên kết đến /income và /expense.
+// - ✅ FIXED: Hiển thị ngày tháng (Date) & Category Name chính xác.
+// - ✅ ADDED: Hiển thị Broadcast Message (Thông báo từ Admin).
+// - ✅ ADDED: Dropdown Menu "New Transaction".
 // - RETAINED: Giao diện Glassmorphism & Smart Grid.
 
-import React, { useEffect, useState, useCallback, useRef } from "react"; // Thêm useRef
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useOutletContext, Link } from "react-router-dom";
 import {
     DollarSign,
@@ -15,8 +17,9 @@ import {
     BarChart2, 
     Activity,
     Clock,
-    Plus, // Thêm icon Plus
-    ChevronDown // Thêm icon ChevronDown
+    Plus, 
+    ChevronDown,
+    Megaphone // ✅ Import Megaphone icon cho Broadcast
 } from "lucide-react";
 import {
     ResponsiveContainer,
@@ -37,7 +40,9 @@ import {
     getExpenseDailyTrend, 
     getExpenseBreakdown 
 } from "../../services/expenseService";
-import { getRecentTransactions } from "../../services/transactionService"; 
+import { getRecentTransactions } from "../../services/transactionService";
+// ✅ Import service lấy cài đặt hệ thống (cho Broadcast)
+import { fetchSystemSettings } from "../../services/adminService";
 
 const BREAKDOWN_COLORS = [
     "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", 
@@ -45,7 +50,6 @@ const BREAKDOWN_COLORS = [
 ];
 
 const formatAmountDisplay = (amount, currencyCode = 'USD', decimals = 0) => {
-    // ... (Giữ nguyên logic)
     const numberAmount = Number(amount);
     if (isNaN(numberAmount)) return 'N/A';
     try {
@@ -61,7 +65,6 @@ const formatAmountDisplay = (amount, currencyCode = 'USD', decimals = 0) => {
 };
 
 const getGreeting = () => {
-    // ... (Giữ nguyên logic)
     const hour = new Date().getHours();
     if (hour < 12) return "Good Morning";
     if (hour < 18) return "Good Afternoon";
@@ -72,27 +75,35 @@ export default function Home() {
     const { theme, displayCurrency } = useOutletContext();
     const isDark = theme === "dark";
     
-    // ... (States cũ giữ nguyên)
     const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, balance: 0 });
     const [expenseBreakdown, setExpenseBreakdown] = useState([]);
     const [recentTransactions, setRecentTransactions] = useState([]);
     const [expenseTrend, setExpenseTrend] = useState([]); 
     const [loading, setLoading] = useState(true);
+    
+    // ✅ State cho Broadcast
+    const [broadcastMsg, setBroadcastMsg] = useState("");
 
-    // ✅ State mới cho dropdown
+    // State cho dropdown menu
     const [showAddMenu, setShowAddMenu] = useState(false);
-    const addMenuRef = useRef(null); // Ref để xử lý click bên ngoài
+    const addMenuRef = useRef(null);
 
-    // --- (Logic fetchData giữ nguyên) ---
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [kpiData, breakdownData, recentTx, trendData] = await Promise.all([
+            // ✅ Lấy thêm System Settings để hiển thị Broadcast
+            const [kpiData, breakdownData, recentTx, trendData, systemSettings] = await Promise.all([
                 getFinancialKpiSummary(),
                 getExpenseBreakdown(),
                 getRecentTransactions(10),
-                getExpenseDailyTrend(30) 
+                getExpenseDailyTrend(30),
+                fetchSystemSettings().catch(() => ({ broadcast_message: "" })) // Tránh lỗi nếu chưa có API
             ]);
+
+            // 0. Xử lý Broadcast
+            if (systemSettings && systemSettings.broadcast_message) {
+                setBroadcastMsg(systemSettings.broadcast_message);
+            }
 
             // 1. Xử lý KPI
             const totalIncome = Number(kpiData.total_income) || 0;
@@ -110,7 +121,7 @@ export default function Home() {
             })).filter(item => item.value > 0);
             setExpenseBreakdown(formattedBreakdown);
 
-            // 3. Xử lý Recent Transactions
+            // 3. Xử lý Recent Transactions (Format Date & Category)
             const formattedRecentTx = recentTx.map(tx => ({
                 ...tx,
                 date: tx.date ? tx.date.split('T')[0] : 'N/A',
@@ -137,7 +148,7 @@ export default function Home() {
         fetchData();
     }, [fetchData]);
 
-    // ✅ Effect xử lý click bên ngoài để đóng Dropdown
+    // Xử lý click outside dropdown
     useEffect(() => {
         function handleClickOutside(event) {
             if (addMenuRef.current && !addMenuRef.current.contains(event.target)) {
@@ -150,9 +161,7 @@ export default function Home() {
         };
     }, [addMenuRef]);
 
-
     if (loading) {
-        // ... (Giữ nguyên Loading UI)
         return (
             <div className={`min-h-screen flex justify-center items-center ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
                 <div className="text-center">
@@ -181,29 +190,26 @@ export default function Home() {
                         </p>
                     </div>
                     
-                    {/* ======================================================= */}
-                    {/* ✅ FIX: NÚT "+ NEW TRANSACTION" (ĐÃ SỬA THÀNH DROPDOWN) */}
-                    {/* ======================================================= */}
+                    {/* Dropdown Menu "New Transaction" */}
                     <div className="relative hidden sm:block" ref={addMenuRef}>
                         <button 
-                            onClick={() => setShowAddMenu(prev => !prev)} // Toggle menu
+                            onClick={() => setShowAddMenu(prev => !prev)} 
                             className="px-5 py-2.5 rounded-full bg-blue-600 text-white font-semibold shadow-lg hover:bg-blue-500 hover:shadow-blue-500/30 transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
                         >
                             <Plus size={18} /> New Transaction <ChevronDown size={18} />
                         </button>
 
-                        {/* Dropdown Menu */}
                         {showAddMenu && (
                             <div className={`absolute top-full right-0 mt-2 w-48 rounded-xl shadow-2xl p-2 z-50 ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border"}`}>
                                 <Link 
-                                    to="/income" // Link đến trang Income
+                                    to="/income"
                                     onClick={() => setShowAddMenu(false)}
                                     className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "text-green-400 hover:bg-gray-700" : "text-green-600 hover:bg-gray-50"}`}
                                 >
                                     <ArrowUp size={16} /> Add New Income
                                 </Link>
                                 <Link 
-                                    to="/expense" // Link đến trang Expense
+                                    to="/expense"
                                     onClick={() => setShowAddMenu(false)}
                                     className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "text-red-400 hover:bg-gray-700" : "text-red-600 hover:bg-gray-50"}`}
                                 >
@@ -213,11 +219,19 @@ export default function Home() {
                         )}
                     </div>
                 </div>
+
+                {/* ✅ HIỂN THỊ BROADCAST MESSAGE (Dưới Header) */}
+                {broadcastMsg && (
+                    <div className="mt-6 p-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg flex items-center gap-3 animate-pulse">
+                        <Megaphone size={24} />
+                        <p className="font-bold text-sm sm:text-base">{broadcastMsg}</p>
+                    </div>
+                )}
             </header>
 
             <main className="p-6 sm:p-8 space-y-8">
                 
-                {/* 1. KPI CARDS (Giữ nguyên) */}
+                {/* 1. KPI CARDS */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Total Income */}
                     <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-xl shadow-green-500/20 transition-transform hover:scale-[1.02]">
@@ -263,9 +277,9 @@ export default function Home() {
                     </div>
                 </div>
 
-                {/* 2. CHARTS (Giữ nguyên) */}
+                {/* 2. CHARTS */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* ... (Giữ nguyên 2 thẻ chart) ... */}
+                    {/* Chart 1: Trend */}
                     <div className={`lg:col-span-2 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold flex items-center gap-2">
@@ -298,6 +312,8 @@ export default function Home() {
                              )}
                         </div>
                     </div>
+
+                    {/* Chart 2: Breakdown */}
                     <div className={`lg:col-span-1 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold flex items-center gap-2">
@@ -336,7 +352,7 @@ export default function Home() {
                     </div>
                 </div>
 
-                {/* 3. RECENT TRANSACTIONS (Giữ nguyên) */}
+                {/* 3. RECENT TRANSACTIONS */}
                 <div className={`p-6 rounded-2xl shadow-lg ${isDark ? "bg-gray-800" : "bg-white"}`}>
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-xl font-bold flex items-center gap-2">

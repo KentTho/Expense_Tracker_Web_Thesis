@@ -1,6 +1,6 @@
 # routes/admin_route.py (Đã sắp xếp và cập nhật)
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import Request, APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
@@ -8,8 +8,8 @@ from uuid import UUID
 from db.database import get_db
 from services.auth_token_db import get_current_admin_user # Dùng "gác cổng" Admin
 from models import user_model # Import model
-from cruds import crud_admin
-from schemas import admin_schemas, category_schemas, user_schemas
+from cruds import crud_admin, crud_audit
+from schemas import admin_schemas, category_schemas, user_schemas, audit_schemas
 
 # Tất cả API trong file này đều yêu cầu quyền Admin
 router = APIRouter(
@@ -133,3 +133,56 @@ def delete_default_category(
     # TODO: Cần kiểm tra xem category này có đang được sử dụng không trước khi xóa
     crud_admin.admin_delete_default_category(db, category)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# === 1. API XEM LOGS (MỚI) ===
+@router.get("/logs", response_model=List[audit_schemas.AuditLogOut])
+def get_system_logs(
+        skip: int = 0,
+        limit: int = 50,
+        db: Session = Depends(get_db)
+):
+    """[Admin] Xem nhật ký hoạt động hệ thống"""
+    return crud_audit.get_audit_logs(db, skip=skip, limit=limit)
+
+
+# === 2. CẬP NHẬT HÀM DELETE USER ĐỂ GHI LOG ===
+@router.delete("/users/{user_id}")
+def delete_user_by_admin(
+        user_id: UUID,
+        request: Request,  # 👈 Lấy IP từ Request
+        current_admin=Depends(get_current_admin_user),  # 👈 Lấy thông tin Admin đang đăng nhập
+        db: Session = Depends(get_db)
+):
+    user = crud_admin.admin_get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    target_email = user.email  # Lưu lại email trước khi xóa
+
+    try:
+        crud_admin.admin_delete_user(db, user)
+
+        # ✅ GHI LOG THÀNH CÔNG
+        crud_audit.create_audit_log(
+            db=db,
+            action="DELETE_USER",
+            actor_email=current_admin.email,
+            target=target_email,
+            status="SUCCESS",
+            ip_address=request.client.host
+        )
+        return {"message": f"User {target_email} deleted successfully."}
+
+    except Exception as e:
+        # ❌ GHI LOG THẤT BẠI
+        crud_audit.create_audit_log(
+            db=db,
+            action="DELETE_USER",
+            actor_email=current_admin.email,
+            target=target_email,
+            status="ERROR",
+            details=str(e),
+            ip_address=request.client.host
+        )
+        raise HTTPException(status_code=500, detail=str(e))

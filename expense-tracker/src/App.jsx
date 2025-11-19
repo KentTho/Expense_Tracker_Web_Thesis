@@ -16,6 +16,8 @@ import DashboardLayout from "./layouts/DashboardLayout"; // ✅ layout chứa Si
 import AdminUserManagement from "./pages/AdminUserManagement";
 import AdminDefaultCategories from "./pages/AdminDefaultCategories";
 import AdminDashboard from "./pages/AdminDashboard"; // 👈 IMPORT TRANG MỚI
+import AdminSystemSettings from "./pages/AdminSystemSettings";
+import AdminAuditLogs from "./pages/AdminAuditLogs";
 // ✅ Hàm kiểm tra đăng nhập
 const Root = () => {
   const isAuthenticated = !!localStorage.getItem("idToken");
@@ -50,6 +52,8 @@ function App() {
         <Route path="/admin/dashboard" element={<AdminDashboard />} /> {/* 👈 TRANG MỚI */}
         <Route path="/admin/users" element={<AdminUserManagement />} />
         <Route path="/admin/categories" element={<AdminDefaultCategories />} />
+        <Route path="/admin/system" element={<AdminSystemSettings />} />
+        <Route path="/admin/logs" element={<AdminAuditLogs />} />
         </Route>
 
         {/* 🔹 fallback nếu route không tồn tại */}

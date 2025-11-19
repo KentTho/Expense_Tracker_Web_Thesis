@@ -1,15 +1,17 @@
 // Sidebar.jsx
-// - ✅ ADDED: Thêm link "Admin Dashboard" vào adminMenu.
+// - ✨ IDEA MỚI: "Workspace Switcher" tách biệt Admin và User.
+// - 🎨 UI: Thêm thanh gạt chuyển đổi chế độ (Personal <-> Admin).
+// - 🔧 LOGIC: Chỉ hiển thị menu tương ứng với chế độ đang chọn.
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom"; 
 import { toast } from "react-toastify";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import {
   Home, TrendingUp, Wallet, Settings, LogOut, Sun, Moon, 
-  BarChart2, Download, Lock, Tag, Users, Shield,
-  LayoutDashboard // 👈 THÊM ICON MỚI
+  BarChart2, Download, Lock, Tag, Users, Shield, LayoutDashboard,
+  FileText, Settings2, User, ShieldCheck
 } from "lucide-react";
 import logo from "../assets/logo.png";
 
@@ -28,26 +30,54 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
   const user = JSON.parse(localStorage.getItem("user")) || {};
   const userInitials = getInitials(user?.name);
 
-  // --- Menu Arrays ---
-  const userMenu = [
-    { name: "Home", path: "/dashboard", icon: <Home size={18} /> },
-    { name: "Analytics", path: "/analytics", icon: <BarChart2 size={18} /> },
-    { name: "Income", path: "/income", icon: <TrendingUp size={18} /> },
-    { name: "Expense", path: "/expense", icon: <Wallet size={18} /> },
-    { name: "Category", path: "/categories", icon: <Tag size={18} /> },
-    { name: "Data Export", path: "/dataexport", icon: <Download size={18} /> },
-  ];
-  
-  const settingsMenu = [
-    { name: "Security", path: "/security", icon: <Lock size={18} /> }, 
-    { name: "Profile", path: "/profile", icon: <Settings size={18} /> }, 
+  // ✅ STATE MỚI: Chế độ xem ('personal' hoặc 'admin')
+  // Mặc định là 'personal'. Nếu đang ở trang /admin/... thì tự động chuyển sang 'admin'
+  const [viewMode, setViewMode] = useState(
+    location.pathname.startsWith('/admin') ? 'admin' : 'personal'
+  );
+
+  // Tự động cập nhật viewMode khi URL thay đổi (để đồng bộ)
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin')) {
+        setViewMode('admin');
+    } else {
+        setViewMode('personal');
+    }
+  }, [location.pathname]);
+
+  // --- 1. MENU CÁ NHÂN (Personal) ---
+  const personalMenu = [
+    { category: "General", items: [
+        { name: "Home", path: "/dashboard", icon: <Home size={20} /> },
+        { name: "Analytics", path: "/analytics", icon: <BarChart2 size={20} /> },
+    ]},
+    { category: "Transactions", items: [
+        { name: "Income", path: "/income", icon: <TrendingUp size={20} /> },
+        { name: "Expense", path: "/expense", icon: <Wallet size={20} /> },
+    ]},
+    { category: "Management", items: [
+        { name: "Category", path: "/categories", icon: <Tag size={20} /> },
+        { name: "Data Export", path: "/dataexport", icon: <Download size={20} /> },
+    ]},
+    { category: "Settings", items: [
+        { name: "Security", path: "/security", icon: <Lock size={20} /> }, 
+        { name: "Profile", path: "/profile", icon: <Settings size={20} /> }, 
+    ]}
   ];
 
-  // ✅ ADMIN MENU (ĐÃ CẬP NHẬT)
-  const adminMenu = [
-    { name: "Admin Dashboard", path: "/admin/dashboard", icon: <LayoutDashboard size={18} /> },
-    { name: "User Management", path: "/admin/users", icon: <Users size={18} /> },
-    { name: "Default Categories", path: "/admin/categories", icon: <Shield size={18} /> },
+  // --- 2. MENU QUẢN TRỊ (Admin) ---
+  const adminMenuStructure = [
+    { category: "Overview", items: [
+        { name: "Dashboard", path: "/admin/dashboard", icon: <LayoutDashboard size={20} /> },
+        { name: "Audit Logs", path: "/admin/logs", icon: <FileText size={20} /> },
+    ]},
+    { category: "Management", items: [
+        { name: "Users", path: "/admin/users", icon: <Users size={20} /> },
+        { name: "Default Categories", path: "/admin/categories", icon: <Shield size={20} /> },
+    ]},
+    { category: "System", items: [
+        { name: "Settings", path: "/admin/system", icon: <Settings2 size={20} /> },
+    ]}
   ];
 
   const handleLogout = async () => {
@@ -63,26 +93,34 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
     }
   };
 
-  // Helper render menu item
+  // Helper render menu item (Viên thuốc)
   const renderMenuItem = (item) => {
     const active = location.pathname === item.path;
     return (
-      <div key={item.path} className="relative group w-full">
+      <div key={item.path} className="relative group w-full px-2 mb-1">
         <Link
           to={item.path}
-          className={`flex items-center gap-4 px-4 py-3 rounded-xl w-full transition-all duration-200
-            ${active ? "bg-blue-600 text-white shadow-lg shadow-blue-500/50" : theme === "dark" ? "text-gray-400 hover:bg-gray-700/50 hover:text-white" : "text-gray-500 hover:bg-gray-100 hover:text-blue-600"}
-            ${collapsed ? "justify-center" : ""}`}
+          className={`flex items-center gap-4 px-4 py-3 rounded-xl w-full transition-all duration-300 ease-out
+            ${
+              active
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 translate-x-1"
+                : theme === "dark"
+                ? "text-gray-400 hover:bg-white/10 hover:text-white hover:translate-x-1"
+                : "text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:translate-x-1"
+            }
+            ${collapsed ? "justify-center px-0" : ""}`}
         >
-          {item.icon}
+          <div className={`${active ? "animate-pulse-slow" : ""}`}>
+             {item.icon}
+          </div>
           {!collapsed && (
-            <span className="text-sm font-semibold truncate">{item.name}</span>
+            <span className="text-sm font-semibold tracking-wide truncate">{item.name}</span>
           )}
         </Link>
         {collapsed && (
-          <span className={`absolute left-full top-1/2 -translate-y-1/2 ml-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible px-3 py-1.5 text-xs font-medium rounded-lg shadow-lg transition-all duration-200 whitespace-nowrap z-50 ${theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-gray-800"}`}>
+          <span className={`absolute left-full top-1/2 -translate-y-1/2 ml-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible px-4 py-2 text-xs font-bold rounded-xl shadow-xl transition-all duration-300 whitespace-nowrap z-50 transform translate-x-2 group-hover:translate-x-0 ${theme === "dark" ? "bg-gray-800 text-white border border-gray-700" : "bg-white text-gray-900 border border-gray-100"}`}>
             {item.name}
-            <span className={`absolute left-[-4px] top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 ${theme === "dark" ? "bg-gray-800" : "bg-white"}`}></span>
+            <span className={`absolute left-[-6px] top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 rounded-sm ${theme === "dark" ? "bg-gray-800 border-l border-b border-gray-700" : "bg-white border-l border-b border-gray-100"}`}></span>
           </span>
         )}
       </div>
@@ -90,83 +128,139 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
   };
 
   return (
-    <aside
-      onMouseEnter={!isMobile ? () => setCollapsed(false) : undefined}
-      onMouseLeave={!isMobile ? () => setCollapsed(true) : undefined}
-      className={`h-full flex flex-col justify-between
-        transition-[width] duration-300 ease-in-out shadow-2xl z-50
-        ${theme === "dark" ? "bg-gray-900 border-r border-gray-700/50" : "bg-white text-gray-800 border-r border-gray-200"}
-        ${isMobile ? "w-64" : (collapsed ? "w-20" : "w-64")}`}
-    >
-      <div className="flex flex-col relative select-none">
-        {/* Header (Logo & Tên) */}
-        <div className="flex items-center justify-center px-3 py-5 h-[80px]"> 
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Expense Tracker Logo" className={`w-10 h-10 transition-all duration-300 transform-gpu drop-shadow-[0_0_10px_rgba(34,211,238,0.6)] hover:scale-110`} />
-            {!collapsed && (
-              <h2 className="text-xl font-bold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
-                Expense Tracker
-              </h2>
-            )}
-          </div>
-        </div>
-
-        {/* Menu (Đã cập nhật) */}
-        <nav className="flex flex-col gap-2 px-3 mt-4">
-          {userMenu.map(renderMenuItem)}
-          <div className="my-2 border-t border-gray-700/50 mx-3"></div>
-          {settingsMenu.map(renderMenuItem)}
-          
-          {/* KIỂM TRA QUYỀN ADMIN */}
-          {user.is_admin && (
-            <>
-              <div className="my-3">
-                <span className={`text-xs font-semibold uppercase ${collapsed ? 'hidden' : 'ml-4 text-gray-500'}`}>
-                  Admin
-                </span>
-              </div>
-              {/* ✅ Render menu admin mới (đã có Dashboard) */}
-              {adminMenu.map(renderMenuItem)}
-            </>
-          )}
-        </nav>
-      </div>
-
-      {/* Footer */}
-      <div className={`border-t pt-4 mt-4 w-full px-4 pb-4 ${theme === "dark" ? "border-white/10" : "border-gray-200"}`}>
-        {/* Avatar */}
-        <div
-          onClick={(e) => { e.stopPropagation(); navigate("/profile"); }}
-          className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-colors ${collapsed ? "justify-center" : ""} ${theme === 'dark' ? 'hover:bg-gray-700/50' : 'hover:bg-gray-100'}`}
+    <div className={`h-screen py-3 pl-3 transition-[width] duration-300 z-50 ${collapsed ? "w-24" : "w-72"}`}>
+        <aside
+            onMouseEnter={!isMobile ? () => setCollapsed(false) : undefined}
+            onMouseLeave={!isMobile ? () => setCollapsed(true) : undefined}
+            className={`h-full flex flex-col justify-between rounded-3xl border shadow-2xl backdrop-blur-xl overflow-hidden transition-colors duration-300
+                ${theme === "dark" 
+                    ? "bg-gray-900/95 border-white/10 shadow-black/50" 
+                    : "bg-white/90 border-white/40 shadow-blue-100"
+                }
+            `}
         >
-          <div className="w-10 h-10 rounded-full border-2 border-blue-400 bg-blue-600/50 flex items-center justify-center font-bold text-white flex-shrink-0">
-            {userInitials}
-          </div>
-          {!collapsed && (
-            <div className="leading-tight overflow-hidden">
-              <p className="font-semibold text-sm truncate">{user?.name || "User"}</p>
-              <p className="text-xs text-blue-400 hover:underline">View profile</p>
+            <div className="flex flex-col relative select-none h-full overflow-y-auto custom-scrollbar">
+                
+                {/* --- Header --- */}
+                <div className="flex flex-col items-center justify-center pt-8 pb-4 px-4"> 
+                    <div className={`flex items-center gap-3 mb-6 ${collapsed ? "flex-col" : "flex-row"}`}>
+                        <img src={logo} alt="Logo" className={`transition-all duration-500 transform hover:rotate-12 ${collapsed ? "w-10 h-10" : "w-10 h-10"}`} />
+                        {!collapsed && (
+                        <div className="flex flex-col">
+                            <h2 className="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">
+                                Expense Tracker
+                            </h2>
+                        </div>
+                        )}
+                    </div>
+
+                    {/* ✅ WORKSPACE SWITCHER (Chỉ hiện nếu là Admin) */}
+                    {user.is_admin && !collapsed && (
+                        <div className={`flex p-1 rounded-xl w-full mb-2 ${theme === 'dark' ? 'bg-black/40' : 'bg-gray-100'}`}>
+                            <button
+                                onClick={() => { setViewMode('personal'); navigate('/dashboard'); }}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all duration-300 ${
+                                    viewMode === 'personal' 
+                                    ? 'bg-blue-600 text-white shadow-md' 
+                                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                }`}
+                            >
+                                <User size={14} /> Personal
+                            </button>
+                            <button
+                                onClick={() => { setViewMode('admin'); navigate('/admin/dashboard'); }}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all duration-300 ${
+                                    viewMode === 'admin' 
+                                    ? 'bg-purple-600 text-white shadow-md' 
+                                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                }`}
+                            >
+                                <ShieldCheck size={14} /> Admin
+                            </button>
+                        </div>
+                    )}
+                     {/* Icon rút gọn cho Switcher khi collapsed */}
+                     {user.is_admin && collapsed && (
+                        <div className="mb-4 flex flex-col gap-2">
+                             <button 
+                                onClick={() => { setViewMode('personal'); navigate('/dashboard'); }}
+                                className={`p-2 rounded-lg ${viewMode === 'personal' ? 'bg-blue-600 text-white' : 'text-gray-500'}`}
+                             >
+                                <User size={16} />
+                             </button>
+                             <button 
+                                onClick={() => { setViewMode('admin'); navigate('/admin/dashboard'); }}
+                                className={`p-2 rounded-lg ${viewMode === 'admin' ? 'bg-purple-600 text-white' : 'text-gray-500'}`}
+                             >
+                                <ShieldCheck size={16} />
+                             </button>
+                        </div>
+                     )}
+                </div>
+
+                {/* --- Dynamic Menu Content --- */}
+                <nav className="flex flex-col gap-1 px-2 flex-1">
+                    {/* ✅ LOGIC RENDER MENU:
+                        - Nếu viewMode là 'admin': Render menu Admin.
+                        - Ngược lại: Render menu Personal.
+                    */}
+                    {(viewMode === 'admin' ? adminMenuStructure : personalMenu).map((section, index) => (
+                        <div key={index} className="mb-4">
+                            {/* Section Title (Chỉ hiện khi mở rộng) */}
+                            {!collapsed && (
+                                <h3 className="px-4 mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600">
+                                    {section.category}
+                                </h3>
+                            )}
+                            {section.items.map(renderMenuItem)}
+                        </div>
+                    ))}
+                </nav>
             </div>
-          )}
-        </div>
-        {/* Theme Toggle */}
-        <button
-          onClick={(e) => { e.stopPropagation(); setTheme(theme === "dark" ? "light" : "dark"); }}
-          className={`group flex items-center gap-3 w-full mt-3 px-2 py-2 rounded-lg transition-all duration-300 ${collapsed ? "justify-center" : ""}
-            ${theme === "dark" ? "bg-gray-700/50 hover:bg-gray-700" : "bg-gray-100 hover:bg-gray-200"}`}
-        >
-          {theme === "dark" ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} className="text-gray-700" />}
-          {!collapsed && (<span className="text-sm font-medium">{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>)}
-        </button>
-        {/* Logout */}
-        <button
-          onClick={(e) => { e.stopPropagation(); handleLogout(); }}
-          className={`group flex items-center gap-3 mt-2 w-full overflow-hidden rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 px-2 py-2 transition-all duration-300 ${collapsed ? "justify-center" : ""}`}
-        >
-          <LogOut size={18} />
-          {!collapsed && (<span className="text-sm font-medium">Logout</span>)}
-        </button>
-      </div>
-    </aside>
+
+            {/* --- Footer (User Profile) --- */}
+            <div className={`p-3 mt-auto ${theme === "dark" ? "bg-black/20" : "bg-gray-50/50"}`}>
+                <div className={`rounded-2xl p-3 transition-all duration-300 group ${theme === "dark" ? "hover:bg-white/5" : "hover:bg-white hover:shadow-md"}`}>
+                    <div 
+                        onClick={(e) => { e.stopPropagation(); navigate("/profile"); }}
+                        className={`flex items-center gap-3 cursor-pointer ${collapsed ? "justify-center" : ""}`}
+                    >
+                        <div className="relative">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:scale-105 transition-transform duration-300">
+                                {userInitials}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full"></div>
+                        </div>
+                        {!collapsed && (
+                        <div className="flex-1 overflow-hidden">
+                            <p className="font-bold text-sm truncate text-gray-700 dark:text-gray-200">{user?.name || "User"}</p>
+                            {/* Hiển thị Role */}
+                            <p className={`text-[10px] font-bold uppercase ${user.is_admin ? 'text-purple-500' : 'text-gray-500'}`}>
+                                {user.is_admin ? "Administrator" : "Member"}
+                            </p>
+                        </div>
+                        )}
+                    </div>
+
+                    {!collapsed && (
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setTheme(theme === "dark" ? "light" : "dark"); }}
+                                className={`flex items-center justify-center py-2 rounded-lg transition-colors ${theme === "dark" ? "bg-gray-800 hover:bg-gray-700 text-yellow-400" : "bg-white border border-gray-200 hover:bg-gray-100 text-gray-600"}`}
+                            >
+                                {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleLogout(); }}
+                                className="flex items-center justify-center py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors"
+                            >
+                                <LogOut size={16} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </aside>
+    </div>
   );
 }

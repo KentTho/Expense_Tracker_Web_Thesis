@@ -80,3 +80,36 @@ export async function adminDeleteDefaultCategory(id) {
     });
 }
 
+export async function getSystemSettings() {
+    // Dùng chung cho cả Admin và User (để hiển thị Broadcast)
+    return adminRequest("/../system/settings", { method: "GET" }); 
+    // Mẹo: adminRequest gọi vào /admin..., ta lùi lại để gọi /system
+    // Hoặc bạn có thể tạo hàm request riêng. Ở đây tôi dùng tạm adminRequest và sửa URL.
+}
+
+async function systemRequest(endpoint, method, body = null) {
+    const token = await getToken();
+    const res = await fetch(`${BACKEND_BASE}/system${endpoint}`, {
+        method: method,
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : null,
+    });
+    if (!res.ok) throw new Error("System request failed");
+    return res.json();
+}
+
+export async function fetchSystemSettings() {
+    return systemRequest("/settings", "GET");
+}
+
+export async function updateSystemSettings(data) {
+    return systemRequest("/settings", "PUT", data);
+}
+
+// --- Audit Logs (MỚI) ---
+export async function adminGetAuditLogs(limit = 50) {
+    return adminRequest(`/logs?limit=${limit}`, { method: "GET" });
+}

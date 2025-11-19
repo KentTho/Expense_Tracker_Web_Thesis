@@ -25,7 +25,8 @@ from routes import (
     analytics_route,
     summary_route,
     security_route,
-    admin_route
+    admin_route,
+    system_route
 )
 
 # -------------------------------------------------
@@ -117,6 +118,8 @@ app.include_router(summary_route.router)
 app.include_router(security_route.router)
 # ✅ ĐĂNG KÝ ROUTER CHO ADMIN
 app.include_router(admin_route.router)
+# ✅ ĐĂNG KÝ ROUTER
+app.include_router(system_route.router)
 @app.get("/", tags=["Root"])
 def root():
     return {"message": "Expense Tracker API is running successfully!"}

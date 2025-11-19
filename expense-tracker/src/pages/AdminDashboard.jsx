@@ -139,7 +139,8 @@ export default function AdminDashboard() {
                 <BarChart className="text-blue-500" size={24} />
                 New User Growth (Last 30 Days)
             </h2>
-            <div className="flex-1 min-h-[300px]">
+            {/* ✅ FIX: Thêm className="h-[300px] w-full" vào thẻ div bao quanh ResponsiveContainer */}
+            <div className="flex-1 min-h-[300px] h-[300px] w-full"> 
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={userGrowth}>
                         <defs>
