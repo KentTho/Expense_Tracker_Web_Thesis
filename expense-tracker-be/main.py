@@ -1,17 +1,15 @@
-# main.py
 import os
 import json
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 
-# Thư viện ngoài (External Libraries)
+# Thư viện ngoài
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials
 
-# Thư viện nội bộ (Internal Imports)
-
+# Thư viện nội bộ
 from db.database import SessionLocal, engine, Base
 from cruds.crud_category import seed_default_categories
 from routes import (
@@ -26,18 +24,17 @@ from routes import (
     summary_route,
     security_route,
     admin_route,
-    system_route
+    system_route,
+    chat_route
 )
 
 # -------------------------------------------------
-# 1. Khởi tạo & Cấu hình môi trường
+# 1. Cấu hình môi trường & Firebase
 # -------------------------------------------------
 load_dotenv()
 firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 
-# -------------------------------------------------
-# 2. Khởi tạo Firebase
-# -------------------------------------------------
+# Khởi tạo Firebase ngay khi file chạy
 if not firebase_admin._apps:
     if firebase_key_json:
         try:
@@ -46,24 +43,21 @@ if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
             print("✅ Firebase initialized successfully.")
         except Exception as e:
-            # Lỗi khi parse JSON hoặc khởi tạo
             print(f"❌ Error loading Firebase credentials: {e}")
-            raise RuntimeError("Lỗi cấu hình Firebase. Kiểm tra biến FIREBASE_SERVICE_ACCOUNT.")
+            raise RuntimeError("Lỗi cấu hình Firebase.")
     else:
         raise RuntimeError("FIREBASE_SERVICE_ACCOUNT not found in .env")
 
-
 # -------------------------------------------------
-# 3. Khởi tạo DB & Seeding logic
+# 2. Helper Database
 # -------------------------------------------------
-
-# Đảm bảo các bảng được tạo (Migration/Schema creation)
+# Tạo bảng nếu chưa có
 Base.metadata.create_all(bind=engine)
 
 
-# Helper để lấy DB session an toàn
 @contextmanager
 def get_db_session():
+    """Helper để lấy DB session cho việc seeding"""
     db = SessionLocal()
     try:
         yield db
@@ -72,28 +66,50 @@ def get_db_session():
 
 
 # -------------------------------------------------
-# 4. Cấu hình FastAPI & CORS
+# 3. Cấu hình Lifespan (Thay thế on_event startup)
 # -------------------------------------------------
-app = FastAPI(title="Expense Tracker API", description="API for managing personal income and expenses.")
-
-@app.on_event("startup")
-def startup_event():
-    """Chạy hàm seed categories khi ứng dụng khởi động"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Hàm này chạy khi Server bắt đầu (Startup)
+    và kết thúc (Shutdown).
+    Thay thế cho @app.on_event("startup") cũ.
+    """
+    # --- STARTUP LOGIC ---
     print("---------------------------------------")
-    print("🚀 Bắt đầu Database Seeding...")
+    print("🚀 Application Starting Up...")
+
+    # Chạy Seeding
     with get_db_session() as db:
         try:
-            # Gọi hàm seeding (chỉ chạy nếu chưa tồn tại)
+            print("🌱 Seeding default categories...")
             seed_default_categories(db)
             print("✅ Database Seeding hoàn tất.")
         except Exception as e:
             print(f"❌ Lỗi khi seeding database: {e}")
+
     print("---------------------------------------")
 
+    yield  # Server chạy tại đây
+
+    # --- SHUTDOWN LOGIC (Nếu cần) ---
+    print("🛑 Application Shutting Down...")
+
+
+# -------------------------------------------------
+# 4. Khởi tạo FastAPI
+# -------------------------------------------------
+app = FastAPI(
+    title="Expense Tracker API",
+    description="API for managing personal income and expenses.",
+    lifespan=lifespan  # ✅ Sử dụng lifespan mới
+)
+
+# Cấu hình CORS
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://expense-tracker-web-thesis-z6ye.vercel.app/"# Thêm domain frontend của bạn tại đây
+    "https://expense-tracker-web-thesis-z6ye.vercel.app"
 ]
 
 app.add_middleware(
@@ -104,7 +120,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Đăng ký Router
+# -------------------------------------------------
+# 5. Đăng ký Router
+# -------------------------------------------------
 app.include_router(auth_route.router)
 app.include_router(income_route.router)
 app.include_router(category_route.router)
@@ -114,12 +132,18 @@ app.include_router(dashboard_route.router)
 app.include_router(export_route.router)
 app.include_router(analytics_route.router)
 app.include_router(summary_route.router)
-# Route cơ bản
 app.include_router(security_route.router)
-# ✅ ĐĂNG KÝ ROUTER CHO ADMIN
 app.include_router(admin_route.router)
-# ✅ ĐĂNG KÝ ROUTER
 app.include_router(system_route.router)
+app.include_router(chat_route.router)
+
+
 @app.get("/", tags=["Root"])
 def root():
     return {"message": "Expense Tracker API is running successfully!"}
+
+# Thêm vào cuối file main.py
+if __name__ == "__main__":
+    import uvicorn
+    # Chạy server ở port 8000
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

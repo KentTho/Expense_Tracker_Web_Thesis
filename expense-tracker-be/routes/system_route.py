@@ -18,10 +18,12 @@ def update_settings(
     return crud_system.update_system_settings(db, payload)
 
 # API cho USER (và Admin): Xem cài đặt (để biết có bảo trì hay không, nhận thông báo)
+# routes/system_route.py
+# ...
 @router.get("/settings", response_model=system_schemas.SystemSettingsOut)
 def get_settings(
     db: Session = Depends(get_db),
-    # Cho phép user thường gọi để nhận thông báo Broadcast
+    # ✅ Dòng này quan trọng: Cho phép user thường gọi để lấy thông báo
     current_user = Depends(get_current_user_db)
 ):
     return crud_system.get_system_settings(db)

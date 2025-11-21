@@ -87,9 +87,15 @@ export async function getSystemSettings() {
     // Hoặc bạn có thể tạo hàm request riêng. Ở đây tôi dùng tạm adminRequest và sửa URL.
 }
 
+// services/adminService.jsx
+
+// ...
+
+// Helper riêng cho System (vì nó không nằm trong /admin)
 async function systemRequest(endpoint, method, body = null) {
     const token = await getToken();
-    const res = await fetch(`${BACKEND_BASE}/system${endpoint}`, {
+    // ✅ Đảm bảo đường dẫn là /system + endpoint
+    const res = await fetch(`${BACKEND_BASE}/system${endpoint}`, { 
         method: method,
         headers: {
             "Authorization": `Bearer ${token}`,

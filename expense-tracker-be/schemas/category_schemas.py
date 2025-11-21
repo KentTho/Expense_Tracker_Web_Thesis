@@ -50,4 +50,6 @@ class DefaultCategoryResponse(BaseModel):
     categories: List[DefaultCategoryItem]
 
     class Config:
-        orm_mode = True
+        # ❌ CŨ: orm_mode = True  <-- Gây ra warning
+        # ✅ MỚI: Sửa thành dòng dưới đây
+        from_attributes = True

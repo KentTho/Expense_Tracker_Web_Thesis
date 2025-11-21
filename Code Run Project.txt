@@ -1,39 +1,6 @@
-📝 Ghi chú dự án: Flutter + FastAPI + PostgreSQL
+📝 Ghi chú dự án:  FastAPI + PostgreSQL
 
 
-C:\Program Files\Java\jdk-21
-
- SHA1: 4D:BB:7F:73:CF:7A:D7:8C:1A:C3:B6:A4:51:A2:CF:D2:1B:70:DC:D3
-SHA256: 4E:B6:57:F2:66:89:D5:66:91:C7:2B:79:C5:B7:36:CE:FF:F1:BD:EE:C2:EC:E4:85:15:DD:90:C8:13:28:E7:75
-
-
- ⚙️ Frontend (Flutter)
-✅ Các lệnh cơ bản
-
- Khởi chạy dự án:
-
-  bash
-  flutter run
-  
-
- Chạy trên thiết bị cụ thể (VD: Emulator):
-
-  bash
-  flutter run -d emulator-5554
-  
-
- Mở trình giả lập cụ thể (VD: Pixel 6 Pro):
-
-  bash
-  flutter emulators --launch Pixel_6_Pro
-  
-
- Chạy lại code sau khi cập nhật (trong terminal Flutter):
-
-   Nhấn r: Hot reload (reset nhanh không mất trạng thái).
-   Nhấn R: Hot restart (khởi động lại toàn bộ app).
-
----
 
  🖥 Backend (FastAPI + Python)
 
@@ -76,20 +43,6 @@ netstat -ano | findstr :8000
 ✅ Nếu không thấy gì => nghĩa là uvicorn đã được dừng thành công.
 
 Nếu vẫn còn hiện ra PID cũ thì bạn hãy thử:
-
-
-taskkill /IM python.exe /F
-⚠️ Cảnh báo: Lệnh trên sẽ dừng tất cả tiến trình Python đang chạy (chỉ dùng nếu bạn không có process Python quan trọng đang chạy khác).
-
-
-
-
-
-
-> 🔗 Giao diện tài liệu API (Swagger UI):
-> [http://127.0.0.1:8000/docs/](http://127.0.0.1:8000/docs/)
-
----
 
  🗃️ Database (PostgreSQL)
 
@@ -165,21 +118,10 @@ psql -U admin -d mental_health_app
  Bảng chứa ký tự Unicode (Tiếng Việt) như “ệ”, “đ”, “ọ”,...
  Terminal Windows mặc định dùng mã hóa WIN1252 gây lỗi khi không trùng với UTF8.
 
----
+------
 
- 👥 Giao diện đăng ký / đăng nhập
-
-Link tham khảo giao diện:
-🔗 [ChatGPT Share Link](https://chatgpt.com/share/685bfd36-d014-8010-bdd8-86db07450109)
-
----
-
- 🧪 Gợi ý tiếp theo
-
- Test API /user/firebase để lưu người dùng mới sau khi xác thực Firebase.
- Thêm hướng dẫn insert dữ liệu test nếu cần (có thể bổ sung sau tùy mục tiêu dự án).
-
----
-
-Nếu bạn muốn mình chuyển thành file PDF, markdown, hoặc tạo checklist công việc (task checklist), cứ nói nhé.
-
+CHAT BOT - VIBE CODE EXPENSE TRACKER
+Framrework: ?? (Ex: Next.js theo kiểu dạng severless)
+Tạo cho tôi 1 webapp (severless) sử dụng (?? Framework) để deloy trên Vercel 
+Tạo câu trả lời bằng cách sử dụng OpenAI API
+FE: Viết 1 con chatbot giống như Dialogflow

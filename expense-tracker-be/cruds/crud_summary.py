@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from sqlalchemy import func, desc
 from models import transaction_model, category_model, income_model, expense_model
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 # Giả sử crud_income và crud_expense đã được import để lấy các hàm summary
 # from .crud_income import get_income_summary
 # from .crud_expense import get_expense_summary
@@ -216,3 +216,30 @@ def get_financial_kpi_summary(db: Session, user_id: UUID):
 
 # Sử dụng lại get_expense_summary từ crud_expense.py cho Breakdown Pie Chart:
 # get_expense_summary(db: Session, user_id: UUID)
+
+# ✅ HÀM MỚI: Thống kê theo khoảng thời gian
+def get_period_summary(db: Session, user_id: UUID, start_date: date, end_date: date):
+    """
+    Tính tổng thu và chi trong một khoảng thời gian cụ thể (Inclusive).
+    """
+    # 1. Tính tổng thu
+    total_income = db.query(func.sum(income_model.Income.amount)).filter(
+        income_model.Income.user_id == user_id,
+        income_model.Income.date >= start_date,
+        income_model.Income.date <= end_date
+    ).scalar() or Decimal(0)
+
+    # 2. Tính tổng chi
+    total_expense = db.query(func.sum(expense_model.Expense.amount)).filter(
+        expense_model.Expense.user_id == user_id,
+        expense_model.Expense.date >= start_date,
+        expense_model.Expense.date <= end_date
+    ).scalar() or Decimal(0)
+
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_income": float(total_income),
+        "total_expense": float(total_expense),
+        "net_balance": float(total_income - total_expense)
+    }

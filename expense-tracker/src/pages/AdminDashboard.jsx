@@ -168,7 +168,7 @@ export default function AdminDashboard() {
                 <PieIcon className="text-purple-500" size={24} />
                 Financial Snapshot
             </h2>
-            <div className="flex-1 min-h-[300px] relative">
+            <div className="h-[300px] w-full relative">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie

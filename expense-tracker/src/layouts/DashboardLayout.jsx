@@ -8,7 +8,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { Menu, X } from "lucide-react"; // Thêm X
 import { motion, AnimatePresence } from "framer-motion";
-
+import FinBotWidget from "../components/FinBotWidget"; // Import
 // 💡 SÁNG TẠO: Custom Hook để kiểm tra kích thước màn hình
 const useMediaQuery = (query) => {
   const [matches, setMatches] = useState(window.matchMedia(query).matches);
@@ -142,6 +142,7 @@ export default function DashboardLayout() {
         </AnimatePresence>
 
       </motion.main>
+      <FinBotWidget />
     </div>
   );
 }
