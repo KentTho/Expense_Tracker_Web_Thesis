@@ -157,6 +157,14 @@ export default function Income() {
 
     useEffect(() => {
         fetchData();
+
+        // ✅ LẮNG NGHE: Khi Bot phát tín hiệu, trang này sẽ tự chạy fetchData()
+        const handleUpdate = () => {
+            console.log("♻️ Updating Income data...");
+            fetchData(); 
+        };
+        window.addEventListener("transactionUpdated", handleUpdate);
+        return () => window.removeEventListener("transactionUpdated", handleUpdate);
     }, [fetchData]);
 
     const handleFormSubmit = async () => {

@@ -1,7 +1,7 @@
 // Sidebar.jsx
-// - ✨ IDEA MỚI: "Workspace Switcher" tách biệt Admin và User.
-// - 🎨 UI: Thêm thanh gạt chuyển đổi chế độ (Personal <-> Admin).
-// - 🔧 LOGIC: Chỉ hiển thị menu tương ứng với chế độ đang chọn.
+// - ✅ FIXED: Chuyển từ 'sticky' sang 'fixed' để đảm bảo Sidebar luôn đứng yên khi cuộn.
+// - ✅ RETAINED: Giữ nguyên thiết kế Floating Glassmorphism.
+// - ✅ REMOVED: Không có phần dịch thuật (theo yêu cầu).
 
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom"; 
@@ -30,13 +30,11 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
   const user = JSON.parse(localStorage.getItem("user")) || {};
   const userInitials = getInitials(user?.name);
 
-  // ✅ STATE MỚI: Chế độ xem ('personal' hoặc 'admin')
-  // Mặc định là 'personal'. Nếu đang ở trang /admin/... thì tự động chuyển sang 'admin'
+  // State cho Workspace Switcher
   const [viewMode, setViewMode] = useState(
     location.pathname.startsWith('/admin') ? 'admin' : 'personal'
   );
 
-  // Tự động cập nhật viewMode khi URL thay đổi (để đồng bộ)
   useEffect(() => {
     if (location.pathname.startsWith('/admin')) {
         setViewMode('admin');
@@ -85,15 +83,14 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
       await signOut(auth);
       localStorage.removeItem("idToken");
       localStorage.removeItem("user");
-      toast.success("👋 Logged out successfully!");
+      toast.success("Logged out successfully");
       setTimeout(() => navigate("/login"), 800);
     } catch (error) {
       console.error(error);
-      toast.error("❌ Logout failed!");
+      toast.error("Logout failed");
     }
   };
 
-  // Helper render menu item (Viên thuốc)
   const renderMenuItem = (item) => {
     const active = location.pathname === item.path;
     return (
@@ -127,8 +124,17 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
     );
   };
 
+  // ==============================================================
+  // 🎨 MAIN RENDER
+  // ==============================================================
   return (
-    <div className={`h-screen py-3 pl-3 transition-[width] duration-300 z-50 ${collapsed ? "w-24" : "w-72"}`}>
+    // ✅ THAY ĐỔI QUAN TRỌNG: 
+    // Dùng 'fixed' thay vì 'sticky'. 
+    // 'fixed' sẽ neo chặt element vào cửa sổ trình duyệt (viewport),
+    // không bị ảnh hưởng bởi thanh cuộn của phần nội dung chính.
+    <div className={`fixed top-0 left-0 h-screen py-3 pl-3 transition-[width] duration-300 z-50 ${collapsed ? "w-24" : "w-72"}`}>
+        
+        {/* Phần Sidebar bên trong (Floating Glassmorphism) */}
         <aside
             onMouseEnter={!isMobile ? () => setCollapsed(false) : undefined}
             onMouseLeave={!isMobile ? () => setCollapsed(true) : undefined}
@@ -139,7 +145,8 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
                 }
             `}
         >
-            <div className="flex flex-col relative select-none h-full overflow-y-auto custom-scrollbar">
+            {/* Nội dung menu có thể cuộn độc lập nếu màn hình quá ngắn */}
+            <div className="flex flex-col relative select-none h-full overflow-y-auto custom-scrollbar no-scrollbar">
                 
                 {/* --- Header --- */}
                 <div className="flex flex-col items-center justify-center pt-8 pb-4 px-4"> 
@@ -154,7 +161,7 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
                         )}
                     </div>
 
-                    {/* ✅ WORKSPACE SWITCHER (Chỉ hiện nếu là Admin) */}
+                    {/* Workspace Switcher (Admin Only) */}
                     {user.is_admin && !collapsed && (
                         <div className={`flex p-1 rounded-xl w-full mb-2 ${theme === 'dark' ? 'bg-black/40' : 'bg-gray-100'}`}>
                             <button
@@ -179,7 +186,7 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
                             </button>
                         </div>
                     )}
-                     {/* Icon rút gọn cho Switcher khi collapsed */}
+                     {/* Icon Switcher khi thu gọn */}
                      {user.is_admin && collapsed && (
                         <div className="mb-4 flex flex-col gap-2">
                              <button 
@@ -198,15 +205,10 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
                      )}
                 </div>
 
-                {/* --- Dynamic Menu Content --- */}
-                <nav className="flex flex-col gap-1 px-2 flex-1">
-                    {/* ✅ LOGIC RENDER MENU:
-                        - Nếu viewMode là 'admin': Render menu Admin.
-                        - Ngược lại: Render menu Personal.
-                    */}
+                {/* --- Dynamic Menu --- */}
+                <nav className="flex flex-col gap-1 px-2 flex-1 pb-20">
                     {(viewMode === 'admin' ? adminMenuStructure : personalMenu).map((section, index) => (
                         <div key={index} className="mb-4">
-                            {/* Section Title (Chỉ hiện khi mở rộng) */}
                             {!collapsed && (
                                 <h3 className="px-4 mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600">
                                     {section.category}
@@ -218,8 +220,8 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
                 </nav>
             </div>
 
-            {/* --- Footer (User Profile) --- */}
-            <div className={`p-3 mt-auto ${theme === "dark" ? "bg-black/20" : "bg-gray-50/50"}`}>
+            {/* --- Footer --- */}
+            <div className={`p-3 mt-auto absolute bottom-0 left-0 w-full ${theme === "dark" ? "bg-gray-900/90 backdrop-blur-md" : "bg-white/90 backdrop-blur-md"}`}>
                 <div className={`rounded-2xl p-3 transition-all duration-300 group ${theme === "dark" ? "hover:bg-white/5" : "hover:bg-white hover:shadow-md"}`}>
                     <div 
                         onClick={(e) => { e.stopPropagation(); navigate("/profile"); }}
@@ -234,7 +236,6 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
                         {!collapsed && (
                         <div className="flex-1 overflow-hidden">
                             <p className="font-bold text-sm truncate text-gray-700 dark:text-gray-200">{user?.name || "User"}</p>
-                            {/* Hiển thị Role */}
                             <p className={`text-[10px] font-bold uppercase ${user.is_admin ? 'text-purple-500' : 'text-gray-500'}`}>
                                 {user.is_admin ? "Administrator" : "Member"}
                             </p>
@@ -247,12 +248,14 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
                             <button
                                 onClick={(e) => { e.stopPropagation(); setTheme(theme === "dark" ? "light" : "dark"); }}
                                 className={`flex items-center justify-center py-2 rounded-lg transition-colors ${theme === "dark" ? "bg-gray-800 hover:bg-gray-700 text-yellow-400" : "bg-white border border-gray-200 hover:bg-gray-100 text-gray-600"}`}
+                                title="Toggle Theme"
                             >
                                 {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
                             </button>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleLogout(); }}
                                 className="flex items-center justify-center py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors"
+                                title="Logout"
                             >
                                 <LogOut size={16} />
                             </button>

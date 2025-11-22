@@ -218,28 +218,62 @@ def get_financial_kpi_summary(db: Session, user_id: UUID):
 # get_expense_summary(db: Session, user_id: UUID)
 
 # ✅ HÀM MỚI: Thống kê theo khoảng thời gian
-def get_period_summary(db: Session, user_id: UUID, start_date: date, end_date: date):
+# ✅ HÀM QUAN TRỌNG: Thống kê theo khoảng thời gian
+def get_period_summary(db: Session, user_id, start_date: date, end_date: date):
     """
-    Tính tổng thu và chi trong một khoảng thời gian cụ thể (Inclusive).
+    Tính tổng thu và chi trong một khoảng thời gian cụ thể.
+    Trả về kiểu float để tránh lỗi JSON Serialization.
     """
-    # 1. Tính tổng thu
-    total_income = db.query(func.sum(income_model.Income.amount)).filter(
-        income_model.Income.user_id == user_id,
-        income_model.Income.date >= start_date,
-        income_model.Income.date <= end_date
-    ).scalar() or Decimal(0)
+    try:
+        # 1. Tính tổng thu
+        total_income = db.query(func.sum(income_model.Income.amount)).filter(
+            income_model.Income.user_id == user_id,
+            income_model.Income.date >= start_date,
+            income_model.Income.date <= end_date
+        ).scalar() or Decimal(0)
 
-    # 2. Tính tổng chi
-    total_expense = db.query(func.sum(expense_model.Expense.amount)).filter(
-        expense_model.Expense.user_id == user_id,
-        expense_model.Expense.date >= start_date,
-        expense_model.Expense.date <= end_date
-    ).scalar() or Decimal(0)
+        # 2. Tính tổng chi
+        total_expense = db.query(func.sum(expense_model.Expense.amount)).filter(
+            expense_model.Expense.user_id == user_id,
+            expense_model.Expense.date >= start_date,
+            expense_model.Expense.date <= end_date
+        ).scalar() or Decimal(0)
 
-    return {
-        "start_date": start_date,
-        "end_date": end_date,
-        "total_income": float(total_income),
-        "total_expense": float(total_expense),
-        "net_balance": float(total_income - total_expense)
-    }
+        return {
+            "total_income": float(total_income),
+            "total_expense": float(total_expense),
+            "net_balance": float(total_income - total_expense)
+        }
+    except Exception as e:
+        print(f"Error in get_period_summary: {e}")
+        return {
+            "total_income": 0.0,
+            "total_expense": 0.0,
+            "net_balance": 0.0
+        }
+
+# ✅ HÀM MỚI (BẮT BUỘC CÓ ĐỂ VẼ BIỂU ĐỒ):
+def get_period_breakdown(db: Session, user_id, start_date: date, end_date: date):
+    """
+    Lấy danh sách chi tiêu theo danh mục trong khoảng thời gian để vẽ biểu đồ.
+    Trả về: List[dict] -> [{'name': 'Food', 'value': 50000}, ...]
+    """
+    results = (
+        db.query(
+            expense_model.Expense.category_name,
+            func.sum(expense_model.Expense.amount).label("total")
+        )
+        .filter(
+            expense_model.Expense.user_id == user_id,
+            expense_model.Expense.date >= start_date,
+            expense_model.Expense.date <= end_date
+        )
+        .group_by(expense_model.Expense.category_name)
+        .order_by(func.sum(expense_model.Expense.amount).desc())
+        .all()
+    )
+
+    return [
+        {"name": r.category_name, "value": float(r.total)}
+        for r in results if r.total > 0
+    ]

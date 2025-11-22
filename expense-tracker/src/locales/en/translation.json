@@ -1,0 +1,51 @@
+{
+    "sidebar": {
+      "home": "Home",
+      "analytics": "Analytics",
+      "income": "Income",
+      "expense": "Expense",
+      "category": "Category",
+      "export": "Data Export",
+      "security": "Security",
+      "profile": "Profile",
+      "admin_dashboard": "Admin Dashboard",
+      "user_mgmt": "User Management",
+      "def_category": "Default Categories",
+      "sys_settings": "System Settings",
+      "audit_logs": "Audit Logs",
+      "logout": "Logout",
+      "view_profile": "View profile",
+      "admin_zone": "ADMIN ZONE"
+    },
+    "dashboard": {
+      "greeting_morning": "Good Morning",
+      "greeting_afternoon": "Good Afternoon",
+      "greeting_evening": "Good Evening",
+      "overview_text": "Here's your financial overview today.",
+      "new_transaction": "New Transaction",
+      "add_income": "Add New Income",
+      "add_expense": "Add New Expense",
+      "total_income": "Total Income",
+      "total_expense": "Total Expense",
+      "net_balance": "Net Balance",
+      "available_balance": "Available balance across all accounts.",
+      "trend_title": "30-Day Expense Trend",
+      "breakdown_title": "Breakdown",
+      "details": "DETAILS",
+      "recent_activity": "Recent Activity",
+      "view_history": "View All History",
+      "no_trend": "No trend data yet.",
+      "no_expense": "No expense data.",
+      "no_activity": "No recent activity to show."
+    },
+    "common": {
+      "loading": "Loading...",
+      "success": "Success",
+      "error": "Error",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "edit": "Edit",
+      "search": "Search..."
+    }
+  }

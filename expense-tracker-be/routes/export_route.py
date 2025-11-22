@@ -15,25 +15,30 @@ router = APIRouter(prefix="/export", tags=["Export"])
 @router.get("/income")
 def export_income(current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
     """Xuất danh sách thu nhập thành Excel"""
-    # Lấy dữ liệu thô (trả về Schema hoặc Dict chứa items)
     raw_data = list_incomes_for_user(db, current_user.id)
-
-    # ✅ SỬA LỖI: Trích xuất danh sách 'items' từ kết quả trả về
-    # Kiểm tra nếu raw_data là dict thì dùng .get(), nếu là object (Pydantic) thì dùng .items
+    # Lấy list items từ object trả về
     incomes = raw_data.get("items", []) if isinstance(raw_data, dict) else getattr(raw_data, "items", [])
 
+    # 1. Tạo DataFrame
     df = pd.DataFrame([
         {
             "Category": i.category_name or "",
             "Amount": float(i.amount or 0),
             "Date": i.date.isoformat(),
-            "Emoji": i.emoji or "",
+            # ✅ FIX LỖI EMOJI: Ưu tiên lấy icon của Category, nếu không có mới lấy emoji của giao dịch
+            "Emoji": (i.category.icon if i.category else "") or i.emoji or "",
         }
-        for i in incomes  # Bây giờ 'i' đã là object Transaction thực sự
+        for i in incomes
     ])
-    total_amount = df["Amount"].sum() if not df.empty else 0
-    df.loc[len(df)] = ["", "TOTAL", total_amount, "", ""]
 
+    # 2. Tính tổng
+    total_amount = df["Amount"].sum() if not df.empty else 0
+
+    # 3. Thêm dòng TOTAL (4 cột)
+    if not df.empty:
+        df.loc[len(df)] = ["TOTAL", total_amount, "", ""]
+
+    # 4. Xuất file
     stream = BytesIO()
     df.to_excel(stream, index=False)
     stream.seek(0)
@@ -48,24 +53,29 @@ def export_income(current_user=Depends(get_current_user_db), db: Session = Depen
 @router.get("/expense")
 def export_expense(current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
     """Xuất danh sách chi tiêu thành Excel"""
-    # Lấy dữ liệu thô
     raw_data = list_expenses_for_user(db, current_user.id)
-
-    # ✅ SỬA LỖI: Trích xuất danh sách 'items'
     expenses = raw_data.get("items", []) if isinstance(raw_data, dict) else getattr(raw_data, "items", [])
 
+    # 1. Tạo DataFrame
     df = pd.DataFrame([
         {
             "Category": e.category_name or "",
             "Amount": float(e.amount or 0),
             "Date": e.date.isoformat(),
-            "Emoji": e.emoji or "",
+            # ✅ FIX LỖI EMOJI: Ưu tiên lấy icon của Category
+            "Emoji": (e.category.icon if e.category else "") or e.emoji or "",
         }
-        for e in expenses  # Bây giờ 'e' đã là object Transaction thực sự
+        for e in expenses
     ])
-    total_amount = df["Amount"].sum() if not df.empty else 0
-    df.loc[len(df)] = ["", "TOTAL", total_amount, "", ""]
 
+    # 2. Tính tổng
+    total_amount = df["Amount"].sum() if not df.empty else 0
+
+    # 3. Thêm dòng TOTAL (4 cột)
+    if not df.empty:
+        df.loc[len(df)] = ["TOTAL", total_amount, "", ""]
+
+    # 4. Xuất file
     stream = BytesIO()
     df.to_excel(stream, index=False)
     stream.seek(0)

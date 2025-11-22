@@ -180,7 +180,18 @@ export default function Expense() {
     }, [chartDays]);
 
     useEffect(() => {
-        fetchData();
+        fetchData(); // Gọi lần đầu khi mount
+
+        // ✅ LẮNG NGHE SỰ KIỆN TỪ CHATBOT
+        const handleUpdate = () => {
+            console.log("♻️ Data updated by Chatbot. Refreshing...");
+            fetchData(); // Gọi lại API để lấy data mới
+        };
+
+        window.addEventListener("transactionUpdated", handleUpdate);
+
+        // Dọn dẹp khi component bị hủy
+        return () => window.removeEventListener("transactionUpdated", handleUpdate);
     }, [fetchData]);
 
     // ----------------------------------------------------

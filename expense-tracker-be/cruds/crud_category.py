@@ -141,3 +141,23 @@ def _seed_category(db: Session, name: str, type: str, icon: str, color: str):
             color=color,
         )
         db.add(new_cat)
+
+
+def get_user_category_names_string(db: Session, user_id: UUID):
+    """
+    Lấy danh sách tên category của user (và default) để 'mớm' cho AI.
+    Trả về dạng:
+    - Income: [Salary, Business, Gift...]
+    - Expense: [Food & Drink, Travel, Bills...]
+    """
+    # Lấy tất cả category
+    cats = list_all_categories_for_user(db, user_id)
+
+    income_names = [c.name for c in cats if c.type == "income"]
+    expense_names = [c.name for c in cats if c.type == "expense"]
+
+    return f"""
+    DANH MỤC HIỆN CÓ (Ưu tiên dùng chính xác tên này):
+    - Thu nhập (Income): {', '.join(income_names)}
+    - Chi tiêu (Expense): {', '.join(expense_names)}
+    """

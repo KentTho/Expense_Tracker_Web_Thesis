@@ -1,0 +1,51 @@
+{
+    "sidebar": {
+      "home": "Trang chủ",
+      "analytics": "Phân tích",
+      "income": "Thu nhập",
+      "expense": "Chi tiêu",
+      "category": "Danh mục",
+      "export": "Xuất dữ liệu",
+      "security": "Bảo mật",
+      "profile": "Hồ sơ",
+      "admin_dashboard": "Bảng tin Admin",
+      "user_mgmt": "Quản lý User",
+      "def_category": "Danh mục Mặc định",
+      "sys_settings": "Cấu hình Hệ thống",
+      "audit_logs": "Nhật ký Hệ thống",
+      "logout": "Đăng xuất",
+      "view_profile": "Xem hồ sơ",
+      "admin_zone": "KHU VỰC QUẢN TRỊ"
+    },
+    "dashboard": {
+      "greeting_morning": "Chào buổi sáng",
+      "greeting_afternoon": "Chào buổi chiều",
+      "greeting_evening": "Chào buổi tối",
+      "overview_text": "Dưới đây là tổng quan tài chính hôm nay của bạn.",
+      "new_transaction": "Thêm Giao Dịch",
+      "add_income": "Thêm Thu Nhập",
+      "add_expense": "Thêm Chi Tiêu",
+      "total_income": "Tổng Thu Nhập",
+      "total_expense": "Tổng Chi Tiêu",
+      "net_balance": "Số Dư Ròng",
+      "available_balance": "Số dư khả dụng trên tất cả tài khoản.",
+      "trend_title": "Xu hướng Chi tiêu (30 ngày)",
+      "breakdown_title": "Cơ cấu Chi tiêu",
+      "details": "CHI TIẾT",
+      "recent_activity": "Hoạt động Gần đây",
+      "view_history": "Xem Lịch sử",
+      "no_trend": "Chưa có dữ liệu xu hướng.",
+      "no_expense": "Chưa có dữ liệu chi tiêu.",
+      "no_activity": "Chưa có hoạt động nào gần đây."
+    },
+    "common": {
+      "loading": "Đang tải...",
+      "success": "Thành công",
+      "error": "Lỗi",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "delete": "Xóa",
+      "edit": "Sửa",
+      "search": "Tìm kiếm..."
+    }
+  }
