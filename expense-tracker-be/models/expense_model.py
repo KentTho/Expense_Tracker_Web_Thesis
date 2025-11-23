@@ -1,4 +1,5 @@
 import uuid
+
 from sqlalchemy import (
     Column,
     String,
@@ -6,7 +7,8 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
-    func
+    func,
+    Text
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -27,6 +29,7 @@ class Expense(Base):
     currency_code = Column(String(3), default="USD", nullable=False)  # 💡 Bổ sung
     date = Column(Date, nullable=False)
     emoji = Column(String(64), nullable=True)
+    note = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Quan hệ

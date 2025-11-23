@@ -36,6 +36,7 @@ function buildIncomePayload(form) {
         // ✅ GỬI category_id: Đây là ID UUID thật từ DB (Default hoặc User Category)
         category_id: form.category_id || null, 
         currency_code: form.currency_code || "USD",
+        note: form.note || "",
     };
     
     // Loại bỏ mọi logic kiểm tra is_user_category

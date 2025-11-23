@@ -19,6 +19,7 @@ import {
     AlertTriangle, // Icon cho Delete Modal
     Activity,      // Icon Mini-stat
     ArrowUpRight,  // Icon Mini-stat
+    FileText,
 } from "lucide-react";
 import {
     ResponsiveContainer,
@@ -114,6 +115,7 @@ export default function Income() {
         date: new Date().toISOString().split('T')[0],
         emoji: "💰",
         category_id: "",
+        note: "",
     });
 
     // 📊 TÍNH TOÁN CHỈ SỐ (Total, Avg, Max)
@@ -219,6 +221,7 @@ export default function Income() {
             date: income.date,
             emoji: income.emoji,
             category_id: income.category?.id || '',
+            note: income.note || "",
         });
         setShowModal(true);
     };
@@ -254,6 +257,7 @@ export default function Income() {
             date: new Date().toISOString().split('T')[0],
             emoji: "💰",
             category_id: "",
+            note: "",
         });
     }
 
@@ -447,8 +451,14 @@ export default function Income() {
                                             </div>
                                             <div>
                                                 <p className="font-bold text-base">{income.category_name}</p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                                                     {income.date ? format(new Date(income.date), "dd/MM/yyyy") : 'N/A'}
+                                                    {/* ✅ HIỂN THỊ NOTE NẾU CÓ */}
+                                                    {income.note && (
+                                                        <span className="flex items-center text-gray-400 ml-2 italic">
+                                                            <FileText size={10} className="mr-1"/> {income.note}
+                                                        </span>
+                                                    )}
                                                 </p>
                                             </div>
                                         </div>
@@ -629,6 +639,23 @@ export default function Income() {
                                 />
                             </div>
                             
+                            {/* ✅ Ô NHẬP NOTE MỚI */}
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Note (Optional)</label>
+                                <div className="relative">
+                                    <FileText className="absolute left-3 top-3 text-gray-400" size={18} />
+                                    <textarea
+                                        name="note"
+                                        value={form.note}
+                                        onChange={handleFormChange}
+                                        placeholder="e.g. Lunch with friends..."
+                                        className={`w-full pl-10 pr-4 py-2 rounded-lg border outline-none text-base resize-none h-20 ${
+                                            isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"
+                                        }`}
+                                    />
+                                </div>
+                            </div>
+
                             <button
                                 onClick={handleFormSubmit}
                                 className="w-full mt-4 py-3 rounded-lg bg-green-600 hover:bg-green-500 text-white flex items-center justify-center gap-2 transition font-semibold shadow-lg"

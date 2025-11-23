@@ -15,6 +15,7 @@ class IncomeBase(BaseModel):
     currency_code: str = "USD"  # 💡 Bổ sung
     date: date
     emoji: Optional[str] = None
+    note: Optional[str] = None
     category_id: Optional[UUID] = None  # Liên kết Category (nếu có)
 
 

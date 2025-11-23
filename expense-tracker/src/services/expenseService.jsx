@@ -47,6 +47,7 @@ function buildExpensePayload(form) {
         date: form.date,
         emoji: form.emoji || null,
         currency_code: form.currency_code || "USD",
+        note: form.note || "",
     };
     return payload;
 }

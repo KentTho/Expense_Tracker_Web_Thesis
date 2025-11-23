@@ -15,7 +15,8 @@ def create_income(
         currency_code:Optional[str],
         date_val: date,
         emoji: Optional[str] = None,
-        category_id: Optional[UUID] = None
+        category_id: Optional[UUID] = None,
+        note: Optional[str] = None
 ):
     """🧾 Tạo thu nhập mới, tự động tạo Category nếu chưa có"""
 
@@ -74,7 +75,8 @@ def create_income(
         currency_code=currency_code,  # 💡 LƯU VÀO DB
         date=date_val,
         emoji=emoji,
-        category_id=category_id
+        category_id=category_id,
+        note=note
     )
     db.add(inc)
     db.commit()

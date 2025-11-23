@@ -17,6 +17,7 @@ import {
     AlertTriangle,
     Activity, // Thêm icon cho chỉ số phụ
     ArrowUpRight, // Thêm icon cho chỉ số phụ
+    FileText
 } from "lucide-react";
 import {
     ResponsiveContainer,
@@ -128,6 +129,7 @@ export default function Expense() {
         emoji: "💸",
         category_id: "",
         currency_code: expenseData.currency_code,
+        note: "",
     });
 
     // useEffects 
@@ -242,6 +244,7 @@ export default function Expense() {
             date: expense.date || new Date().toISOString().split('T')[0],
             emoji: expense.emoji || expense.category?.emoji || "💸",
             currency_code: expenseData.currency_code, 
+            note: expense.note,
         });
         setShowModal(true); 
     };

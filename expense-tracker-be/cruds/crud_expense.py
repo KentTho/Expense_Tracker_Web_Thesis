@@ -15,7 +15,8 @@ def create_expense(
         currency_code:Optional[str],
         date_val: date,
         emoji: Optional[str] = None,
-        category_id: Optional[UUID] = None
+        category_id: Optional[UUID] = None,
+        note: Optional[str] = None
 ):
     """🟢 Tạo mới chi tiêu (Expense), tự động tạo Category nếu chưa có"""
 
@@ -67,7 +68,8 @@ def create_expense(
         amount=amount,
         currency_code=currency_code,  # 💡 LƯU VÀO DB
         date=date_val,
-        emoji=emoji
+        emoji=emoji,
+        note=note
     )
     db.add(exp)
     db.commit()

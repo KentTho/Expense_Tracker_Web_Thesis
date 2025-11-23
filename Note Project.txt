@@ -179,3 +179,87 @@ Nếu `crud` hiện tại chưa làm ownership check thì rất quan trọng ph�
 
 
 
+
+
+
+# services/chat_service.py
+import os
+from datetime import date
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+from sqlalchemy.orm import Session
+from models import user_model
+from services.chat_tools import get_finbot_tools
+from cruds.crud_category import get_user_category_names_string
+
+
+def process_chat_message(db: Session, user: user_model.User, user_message: str):
+    # 1. Khởi tạo Gemini (Flash - Nhanh và Free)
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        temperature=0,
+    )
+
+    # 2. Lấy Tools và Context
+    tools = get_finbot_tools(db, user)
+    category_context = get_user_category_names_string(db, user.id)
+
+    # 3. SYSTEM PROMPT (CỰC KỲ QUAN TRỌNG)
+    SYSTEM_PROMPT = f"""
+    Bạn là FinBot, trợ lý tài chính thông minh.
+    Hôm nay là: {{current_date}} (Thứ {{weekday}}).
+
+    {category_context}
+
+    NHIỆM VỤ CỦA BẠN:
+
+    1. **GHI CHÉP (create_transaction):**
+       - Khi user muốn thêm tiền (VD: "ăn sáng 50k", "lương 10tr").
+       - Tự động suy luận Type, Amount.
+       - Chọn Category khớp với danh sách trên.
+
+    2. **THỐNG KÊ (get_statistics):**
+       - Khi user hỏi về quá khứ/hiện tại (VD: "tháng này tiêu gì", "tuần trước thu nhập bao nhiêu").
+       - TỰ TÍNH NGÀY (dựa trên {{current_date}}):
+         + "Tháng này": Từ ngày 1 tháng này -> Hôm nay.
+         + "Tháng trước": Từ ngày 1 tháng trước -> Ngày cuối tháng trước.
+         + "Tuần này": Từ Thứ 2 tuần này -> Hôm nay.
+
+    3. **SỐ DƯ (get_balance):**
+       - Khi user hỏi "còn bao nhiêu tiền", "tổng tài sản".
+
+    QUY TẮC TRẢ LỜI:
+    - Nếu gọi tool thành công: Báo kết quả ngắn gọn + Emoji.
+    - Nếu là thống kê: Hãy đưa ra nhận xét ngắn (VD: "Bạn đã tiêu khá nhiều vào...").
+    - Luôn dùng Tiếng Việt.
+    """
+
+    # 4. Tạo Prompt
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        ("human", "{input}"),
+        ("placeholder", "{agent_scratchpad}"),
+    ])
+
+    # 5. Tạo Agent Executor
+    agent = create_tool_calling_agent(llm, tools, prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+    # 6. Thực thi (Inject ngày tháng)
+    try:
+        today = date.today()
+        weekday_map = ["Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy", "Chủ Nhật"]
+
+        result = agent_executor.invoke({
+            "input": user_message,
+            "current_date": today.strftime("%Y-%m-%d"),
+            "weekday": weekday_map[today.weekday()]
+        })
+        return result["output"]
+    except Exception as e:
+        return f"Xin lỗi, hệ thống đang bận: {str(e)}"
+
+
+
+
