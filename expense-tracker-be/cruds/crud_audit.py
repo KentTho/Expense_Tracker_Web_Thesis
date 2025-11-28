@@ -12,7 +12,6 @@ def create_audit_log(
     details: str = None,
     ip_address: str = None
 ):
-    """Ghi lại một hành động vào nhật ký"""
     log = audit_model.AuditLog(
         action=action,
         actor_email=actor_email,
@@ -27,5 +26,5 @@ def create_audit_log(
     return log
 
 def get_audit_logs(db: Session, skip: int = 0, limit: int = 50):
-    """Lấy danh sách logs mới nhất"""
+    # Sắp xếp mới nhất lên đầu
     return db.query(audit_model.AuditLog).order_by(desc(audit_model.AuditLog.created_at)).offset(skip).limit(limit).all()

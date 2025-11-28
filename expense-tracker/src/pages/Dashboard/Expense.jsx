@@ -232,6 +232,7 @@ export default function Expense() {
             emoji: "💸",
             category_id: "",
             currency_code: expenseData.currency_code,
+            note: ""
         });
     };
 
@@ -456,8 +457,17 @@ export default function Expense() {
                                             </div>
                                             <div>
                                                 <p className="font-bold text-base">{expense.category?.name || expense.category_name || "Uncategorized"}</p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">{expense.date}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                                    {expense.date} 
+                                                    {expense.note && (
+                                                        <span className="flex items-center text-gray-400 ml-2 italic">
+                                                        <FileText size={10} className="mr-1"/> {expense.note}
+                                                    </span>
+                                                    )}
+                                                </p>
+
                                             </div>
+
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <p className="font-bold text-red-500 text-lg">
@@ -655,6 +665,23 @@ export default function Expense() {
                                             isDark
                                                 ? "bg-gray-700 border-gray-600 text-white"
                                                 : "bg-gray-100 border-gray-300"
+                                        }`}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* ✅ Ô NHẬP NOTE MỚI */}
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Note (Optional)</label>
+                                <div className="relative">
+                                    <FileText className="absolute left-3 top-3 text-gray-400" size={18} />
+                                    <textarea
+                                        name="note"
+                                        value={form.note}
+                                        onChange={handleFormChange}
+                                        placeholder="e.g. Lunch with friends..."
+                                        className={`w-full pl-10 pr-4 py-2 rounded-lg border outline-none text-base resize-none h-20 ${
+                                            isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"
                                         }`}
                                     />
                                 </div>

@@ -115,7 +115,12 @@ export async function updateSystemSettings(data) {
     return systemRequest("/settings", "PUT", data);
 }
 
-// --- Audit Logs (MỚI) ---
+// services/adminService.jsx
+
+// ... (các hàm khác)
+
+// ✅ PHẢI CÓ HÀM NÀY:
 export async function adminGetAuditLogs(limit = 50) {
+    // Gọi đến /admin/logs (vì adminRequest đã có prefix /admin)
     return adminRequest(`/logs?limit=${limit}`, { method: "GET" });
 }

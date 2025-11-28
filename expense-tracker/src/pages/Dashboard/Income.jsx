@@ -157,13 +157,14 @@ export default function Income() {
         }
     }, []);
 
+    // ✅ CẬP NHẬT USE EFFECT NÀY
     useEffect(() => {
-        fetchData();
+        fetchData(); // Lần đầu
 
-        // ✅ LẮNG NGHE: Khi Bot phát tín hiệu, trang này sẽ tự chạy fetchData()
+        // Lắng nghe Bot
         const handleUpdate = () => {
-            console.log("♻️ Updating Income data...");
-            fetchData(); 
+            console.log("♻️ Income Page: Nhận tín hiệu cập nhật từ Bot -> Tải lại dữ liệu!");
+            fetchData();
         };
         window.addEventListener("transactionUpdated", handleUpdate);
         return () => window.removeEventListener("transactionUpdated", handleUpdate);
@@ -494,7 +495,7 @@ export default function Income() {
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                     <Calendar size={24} className="text-green-500" /> Income Trend by Date
                 </h2>
-                <div className="h-[500px] w-full"> 
+                <div className="h-[500px] w-full min-w-0">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={dailyTrendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                             <defs>

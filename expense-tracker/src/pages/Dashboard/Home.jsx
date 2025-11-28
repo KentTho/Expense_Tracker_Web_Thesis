@@ -144,18 +144,14 @@ export default function Home() {
         }
     }, []); 
 
+    // ✅ CẬP NHẬT USE EFFECT NÀY
     useEffect(() => {
-        fetchData(); // Gọi lần đầu khi mount
-
-        // ✅ LẮNG NGHE SỰ KIỆN TỪ CHATBOT
+        fetchData();
         const handleUpdate = () => {
-            console.log("♻️ Data updated by Chatbot. Refreshing...");
-            fetchData(); // Gọi lại API để lấy data mới
+            console.log("♻️ Home Page: Nhận tín hiệu cập nhật từ Bot -> Tải lại dữ liệu!");
+            fetchData();
         };
-
         window.addEventListener("transactionUpdated", handleUpdate);
-
-        // Dọn dẹp khi component bị hủy
         return () => window.removeEventListener("transactionUpdated", handleUpdate);
     }, [fetchData]);
 

@@ -7,7 +7,9 @@ from cruds.crud_user import get_user_by_email, create_user, get_user_by_firebase
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/sync", response_model=UserOut)
-def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Session = Depends(get_db)):
+def auth_sync(payload: UserSyncPayload,
+              authorization: str = Header(...),
+              db: Session = Depends(get_db)):
     id_token = extract_token(authorization)
     decoded = verify_token_and_get_payload(id_token)
 
@@ -18,7 +20,12 @@ def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Se
 
     user = get_user_by_firebase_uid(db, uid)
     if not user:
-        user = create_user(db, firebase_uid=uid, email=email, name=name, profile_image=picture)
+        user = create_user(db,
+                           firebase_uid=uid,
+                           email=email,
+                           name=name,
+                           profile_image=picture
+                           )
     else:
         updated = False
         if email and user.email != email:
@@ -38,7 +45,9 @@ def get_profile(current_user = Depends(get_current_user_db)):
     return current_user
 
 @router.put("/user/profile", response_model=UserOut)
-def update_profile(data: UserUpdate, current_user = Depends(get_current_user_db), db: Session = Depends(get_db)):
+def update_profile(data: UserUpdate,
+                   current_user = Depends(get_current_user_db),
+                   db: Session = Depends(get_db)):
     user = current_user
     if data.name is not None:
         user.name = data.name

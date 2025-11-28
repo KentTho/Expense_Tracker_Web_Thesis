@@ -1,0 +1,11 @@
+# Bỏ qua file key trong thư mục backend
+expense-tracker-be/serviceAccountKey.json
+
+# Hoặc dùng lệnh này để bỏ qua file này ở BẤT KỲ ĐÂU trong dự án (an toàn nhất)
+**/serviceAccountKey.json
+
+# Bỏ qua môi trường ảo và các file rác khác
+**/venv/
+**/.venv/
+**/.env
+**/__pycache__/

@@ -1,5 +1,6 @@
 # services/chat_tools.py
 from langchain_core.tools import StructuredTool
+from mako.testing.helpers import result_lines
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from datetime import date
@@ -28,6 +29,9 @@ class AnalyzeInput(BaseModel):
     start_date: str = Field(description="YYYY-MM-DD")
     end_date: str = Field(description="YYYY-MM-DD")
 
+# ✅ SCHEMA MỚI CHO TOOL LỊCH SỬ
+class HistoryInput(BaseModel):
+    limit: int = Field(default=5, description="Số lượng giao dịch gần nhất cần xem")
 
 # --- HÀM CHÍNH ---
 def get_finbot_tools(db: Session, user: user_model.User):
@@ -73,6 +77,21 @@ def get_finbot_tools(db: Session, user: user_model.User):
         except Exception as e:
             return f"❌ Lỗi: {str(e)}"
 
+    # Tool 5: Xem lịch sử chi tiết (MỚI)
+    def get_history_func(limit: int = 5):
+        """Lấy danh sách giao dịch gần dây kèm ghi chú để trả lời user"""
+        try:
+            txs = crud_transaction.get_recent_transactions(db, user.id, limit)
+            if not txs: return "Không có giao dịch nào gần đây."
+
+            #Format dữ liệu trả về AI đọc
+            result_str = "Lịch sử giao dịch gần nhất:\n"
+            for t in txs:
+                note_str = f"(Note: {t.note})" if t.note else ""
+                result_str += f"- {t.transaction_date}: {t.type.upper()} {t.amount:,.of} - {t.category_name} {note_str} \n"
+
+                return result_str
+        except Exception as e: return  f"Lỗi xem lịch sử: {str(e)}"
     # --- TOOL 2: SỐ DƯ ---
     def get_balance_func():
         try:
@@ -116,5 +135,8 @@ def get_finbot_tools(db: Session, user: user_model.User):
         StructuredTool.from_function(func=get_statistics_func, name="get_statistics", description="Thống kê tổng quan.",
                                      args_schema=DateRangeInput),
         StructuredTool.from_function(func=analyze_spending_func, name="analyze_spending", description="Vẽ biểu đồ.",
-                                     args_schema=AnalyzeInput)
+                                     args_schema=AnalyzeInput),
+        StructuredTool.from_function(func=get_history_func, name="get_history",
+                                     description="Xem chi tiết các giao dịch gần đây (có ghi chú).",
+                                     args_schema=HistoryInput)
     ]

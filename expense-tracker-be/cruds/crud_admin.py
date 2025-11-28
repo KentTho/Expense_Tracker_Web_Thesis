@@ -80,43 +80,29 @@ def admin_update_user(db: Session, user: user_model.User, update_data: AdminUser
 
 # ... (các imports giữ nguyên)
 
+# cruds/crud_admin.py
+# ... (imports)
+
+# cruds/crud_admin.py
+
+# ... imports
+
 def admin_delete_user(db: Session, user: user_model.User):
-    """
-    Admin xóa user.
-    Thứ tự: Xóa Firebase trước -> Xóa DB sau (để đảm bảo sạch sẽ).
-    """
     firebase_uid = user.firebase_uid
-    user_email = user.email
 
-    print(f"🗑️ ADMIN: Attempting to delete user {user_email} ({firebase_uid})...")
+    # 1. Xóa Firebase (Bọc trong try-except để an toàn)
+    if firebase_uid:
+        try:
+            fb_auth.delete_user(firebase_uid)
+            print(f"✅ Firebase: Deleted {firebase_uid}")
+        except Exception as e:
+            print(f"⚠️ Firebase Error (Ignored): {e}")
+            # Vẫn tiếp tục xóa DB dù Firebase lỗi
 
-    try:
-        # 1. Cố gắng xóa user khỏi Firebase trước
-        if firebase_uid:
-            try:
-                fb_auth.delete_user(firebase_uid)
-                print(f"✅ Firebase user {firebase_uid} deleted.")
-            except UserNotFoundError:
-                print(f"⚠️ Firebase user {firebase_uid} not found (already deleted?). Continuing...")
-            except Exception as fb_error:
-                # Nếu lỗi kết nối Firebase, in ra nhưng KHÔNG dừng lại (tùy chọn)
-                # Hoặc nếu bạn muốn chặn xóa DB nếu Firebase lỗi, hãy raise fb_error
-                print(f"❌ Firebase Error: {str(fb_error)}")
-                # raise fb_error # Bỏ comment dòng này nếu muốn bắt buộc xóa Firebase thành công
-
-        # 2. Xóa user khỏi CSDL
-        # SQLAlchemy sẽ tự động xóa incomes/expenses nhờ cascade="all, delete-orphan" trong model
-        db.delete(user)
-        db.commit()
-        print(f"✅ Database user {user_email} deleted successfully.")
-        return True
-
-    except Exception as e:
-        db.rollback()  # Hoàn tác nếu có lỗi
-        print(f"🔥 CRITICAL ERROR deleting user: {str(e)}")
-        # Ném lỗi ra ngoài để route trả về 500 và chi tiết lỗi
-        raise Exception(f"Database Error: {str(e)}")
-
+    # 2. Xóa DB
+    db.delete(user)
+    db.commit()
+    return True, "User deleted successfully"
 
 # =========================================================
 # 3. DEFAULT CATEGORY MANAGEMENT (Quản lý Danh mục Mặc định)

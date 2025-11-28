@@ -24,10 +24,16 @@ export default function AdminAuditLogs() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-        const data = await adminGetAuditLogs(100); // Lấy 100 log gần nhất
-        setLogs(data);
+        const data = await adminGetAuditLogs(100);
+        console.log("AUDIT LOGS DATA:", data); // ✅ Thêm dòng này để debug
+        if (Array.isArray(data)) {
+            setLogs(data);
+        } else {
+            setLogs([]);
+        }
     } catch (error) {
         toast.error("Failed to load audit logs");
+        console.error(error);
     } finally {
         setLoading(false);
     }
@@ -39,9 +45,9 @@ export default function AdminAuditLogs() {
 
   // Lọc logs theo từ khóa
   const filteredLogs = logs.filter(log => 
-    log.action.toLowerCase().includes(filter.toLowerCase()) ||
-    log.target?.toLowerCase().includes(filter.toLowerCase()) ||
-    log.actor_email.toLowerCase().includes(filter.toLowerCase())
+    (log.action || "").toLowerCase().includes(filter.toLowerCase()) ||
+    (log.target || "").toLowerCase().includes(filter.toLowerCase()) ||
+    (log.actor_email || "").toLowerCase().includes(filter.toLowerCase())
   );
 
   return (

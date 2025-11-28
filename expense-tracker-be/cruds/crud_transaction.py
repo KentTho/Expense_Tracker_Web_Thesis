@@ -91,7 +91,8 @@ def get_recent_transactions(db: Session, user_id: UUID, limit: int = 10) -> List
             income_model.Income.emoji,
             income_model.Income.amount,
             income_model.Income.date.label("transaction_date"),
-            income_model.Income.category_name
+            income_model.Income.category_name,
+            income_model.Income.note
         )
         .filter(income_model.Income.user_id == user_id)
     )
@@ -104,7 +105,8 @@ def get_recent_transactions(db: Session, user_id: UUID, limit: int = 10) -> List
             expense_model.Expense.emoji,
             expense_model.Expense.amount,
             expense_model.Expense.date.label("transaction_date"),
-            expense_model.Expense.category_name
+            expense_model.Expense.category_name,
+            expense_model.Expense.note
         )
         .filter(expense_model.Expense.user_id == user_id)
     )

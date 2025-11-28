@@ -27,7 +27,11 @@ from routes import (
     system_route,
     chat_route
 )
+# main.py
+import firebase_admin_init # 👈 Thêm dòng này lên đầu file main.py
 
+
+# ...
 # -------------------------------------------------
 # 1. Cấu hình môi trường & Firebase
 # -------------------------------------------------
