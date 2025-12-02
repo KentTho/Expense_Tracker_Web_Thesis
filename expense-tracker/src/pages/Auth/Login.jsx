@@ -2,7 +2,7 @@
 // - REDESIGN: "Right Content" được làm mới thành "Hero Card" sáng tạo.
 // - UPDATED: Form đăng nhập (icon, inputs) được tinh chỉnh.
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // ✅ Import useEffect
 import { useNavigate, Link } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -16,6 +16,14 @@ export default function Login() {
   const [loading, setLoading] = useState(false); // Thêm loading state
   const navigate = useNavigate();
 
+  // ✅ BẢO MẬT: Nếu đã đăng nhập, đá về Dashboard ngay
+  useEffect(() => {
+    const token = localStorage.getItem("idToken");
+    if (token) {
+      navigate("/dashboard");
+    }
+  }, [navigate]);
+  
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
