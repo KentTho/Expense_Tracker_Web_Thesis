@@ -19,14 +19,13 @@ import { BACKEND_BASE } from "../../services/api";
 import { getToken } from "../../services/incomeService"; 
 
 export default function ExportData() {
-  const { theme } = useOutletContext();
+  const { theme, currencyCode } = useOutletContext();
   const isDark = theme === "dark";
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState({ income: false, expense: false });
   const [data, setData] = useState([]); // Master data list
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [currencySymbol, setCurrencySymbol] = useState("$"); 
   
   // ✅ NEW: State for the preview filter
   const [previewFilter, setPreviewFilter] = useState("all");
@@ -34,25 +33,17 @@ export default function ExportData() {
   // ===========================
   // 🧩 HELPER: CURRENCY FORMATTING
   // ===========================
-  const formatCurrency = (amount, symbol) => {
+  const formatCurrency = (amount, currencyCode) => {
     // Round to 0 decimal places
     const roundedAmount = Math.round(Number(amount));
     try {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: 'USD', // Default currency for formatting
+            currency: currencyCode, // Default currency for formatting
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
-        }).format(roundedAmount).replace('$', symbol); // Replace default $ with the user's symbol
-    } catch (e) {
-        // Fallback if symbol is invalid
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-        }).format(roundedAmount);
-    }
+        }).format(roundedAmount).replace(currencyCode, currencyCode); // Replace default $ with the user's symbol
+    } catch (e) { return `${currencyCode} ${Number(amount).toLocaleString()}`; }
   };
 
 
@@ -82,11 +73,6 @@ export default function ExportData() {
       const incomeData = incomeResponse.items;
       const expenseData = expenseResponse.items;
       
-      // Update currency symbol from response
-      if (incomeResponse.currency_symbol) {
-        setCurrencySymbol(incomeResponse.currency_symbol);
-      }
-
       // Combine data
       const combined = [
         ...incomeData.map((i) => ({ ...i, type: "income" })),
@@ -361,7 +347,7 @@ export default function ExportData() {
                         </td>
                         <td className="py-4 px-4 font-medium">{item.category_name}</td>
                         <td className="py-4 px-4 font-semibold">
-                          {formatCurrency(item.amount, currencySymbol)}
+                          {formatCurrency(item.amount, currencyCode)}
                         </td>
                         <td className="py-4 px-4 text-gray-500 dark:text-gray-400">{item.date}</td>
                         {/* Upgraded icon size */}
@@ -387,7 +373,7 @@ export default function ExportData() {
                   <TrendingUp size={16} /> Total Income
                 </p>
                 <p className="text-2xl font-bold text-green-400 mt-1">
-                  {formatCurrency(totalIncome, currencySymbol)}
+                  {formatCurrency(totalIncome, currencyCode)}
                 </p>
               </div>
               {/* Total Expense */}
@@ -396,7 +382,7 @@ export default function ExportData() {
                   <TrendingDown size={16} /> Total Expense
                 </p>
                 <p className="text-2xl font-bold text-red-400 mt-1">
-                  {formatCurrency(totalExpense, currencySymbol)}
+                  {formatCurrency(totalExpense, currencyCode)}
                 </p>
               </div>
               {/* Net Balance */}
@@ -405,7 +391,7 @@ export default function ExportData() {
                   <Scale size={16} /> Net Balance (Displayed)
                 </p>
                 <p className={`text-2xl font-bold mt-1 ${netBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {formatCurrency(netBalance, currencySymbol)}
+                  {formatCurrency(netBalance, currencyCode)}
                 </p>
               </div>
             </div>

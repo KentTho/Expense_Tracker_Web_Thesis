@@ -1,8 +1,5 @@
 // Home.jsx
-// - ✅ FIXED: Hiển thị ngày tháng (Date) & Category Name chính xác.
-// - ✅ ADDED: Hiển thị Broadcast Message (Thông báo từ Admin).
-// - ✅ ADDED: Dropdown Menu "New Transaction".
-// - RETAINED: Giao diện Glassmorphism & Smart Grid.
+// - ✅ FIXED: Đổi 'displayCurrency' -> 'currencyCode' để khớp với DashboardLayout.
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useOutletContext, Link } from "react-router-dom";
@@ -19,7 +16,8 @@ import {
     Clock,
     Plus, 
     ChevronDown,
-    Megaphone // ✅ Import Megaphone icon cho Broadcast
+    Megaphone,
+    AlertTriangle
 } from "lucide-react";
 import {
     ResponsiveContainer,
@@ -41,8 +39,8 @@ import {
     getExpenseBreakdown 
 } from "../../services/expenseService";
 import { getRecentTransactions } from "../../services/transactionService";
-// ✅ Import service lấy cài đặt hệ thống (cho Broadcast)
 import { fetchSystemSettings } from "../../services/adminService";
+import { getUserProfile } from "../../services/profileService"; 
 
 const BREAKDOWN_COLORS = [
     "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", 
@@ -72,7 +70,8 @@ const getGreeting = () => {
 };
 
 export default function Home() {
-    const { theme, displayCurrency } = useOutletContext();
+    // ✅ SỬA 1: Lấy 'currencyCode' thay vì 'displayCurrency'
+    const { theme, currencyCode } = useOutletContext();
     const isDark = theme === "dark";
     
     const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, balance: 0 });
@@ -80,32 +79,29 @@ export default function Home() {
     const [recentTransactions, setRecentTransactions] = useState([]);
     const [expenseTrend, setExpenseTrend] = useState([]); 
     const [loading, setLoading] = useState(true);
-    
-    // ✅ State cho Broadcast
     const [broadcastMsg, setBroadcastMsg] = useState("");
+    
+    const [budget, setBudget] = useState(0); 
 
-    // State cho dropdown menu
     const [showAddMenu, setShowAddMenu] = useState(false);
     const addMenuRef = useRef(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            // ✅ Lấy thêm System Settings để hiển thị Broadcast
-            const [kpiData, breakdownData, recentTx, trendData, systemSettings] = await Promise.all([
+            const [kpiData, breakdownData, recentTx, trendData, systemSettings, userProfile] = await Promise.all([
                 getFinancialKpiSummary(),
                 getExpenseBreakdown(),
                 getRecentTransactions(10),
                 getExpenseDailyTrend(30),
-                fetchSystemSettings().catch(() => ({ broadcast_message: "" })) // Tránh lỗi nếu chưa có API
+                fetchSystemSettings().catch(() => ({ broadcast_message: "" })),
+                getUserProfile().catch(() => ({}))
             ]);
 
-            // 0. Xử lý Broadcast
             if (systemSettings && systemSettings.broadcast_message) {
                 setBroadcastMsg(systemSettings.broadcast_message);
             }
 
-            // 1. Xử lý KPI
             const totalIncome = Number(kpiData.total_income) || 0;
             const totalExpense = Number(kpiData.total_expense) || 0;
             setSummary({
@@ -114,14 +110,16 @@ export default function Home() {
                 balance: totalIncome - totalExpense,
             });
 
-            // 2. Xử lý Breakdown
+            if (userProfile) {
+                setBudget(Number(userProfile.monthly_budget || 0));
+            }
+
             const formattedBreakdown = breakdownData.map(item => ({
                 name: item.category_name,
                 value: Number(item.total_amount) || 0,
             })).filter(item => item.value > 0);
             setExpenseBreakdown(formattedBreakdown);
 
-            // 3. Xử lý Recent Transactions (Format Date & Category)
             const formattedRecentTx = recentTx.map(tx => ({
                 ...tx,
                 date: tx.date ? tx.date.split('T')[0] : 'N/A',
@@ -129,7 +127,6 @@ export default function Home() {
             }));
             setRecentTransactions(formattedRecentTx);
 
-            // 4. Xử lý Trend
             const formattedTrend = trendData.map(item => ({
                 date: item.date, 
                 amount: Number(item.total_amount) || 0
@@ -144,18 +141,16 @@ export default function Home() {
         }
     }, []); 
 
-    // ✅ CẬP NHẬT USE EFFECT NÀY
     useEffect(() => {
         fetchData();
         const handleUpdate = () => {
-            console.log("♻️ Home Page: Nhận tín hiệu cập nhật từ Bot -> Tải lại dữ liệu!");
+            console.log("♻️ Home Page: Reloading data...");
             fetchData();
         };
         window.addEventListener("transactionUpdated", handleUpdate);
         return () => window.removeEventListener("transactionUpdated", handleUpdate);
     }, [fetchData]);
 
-    // Xử lý click outside dropdown
     useEffect(() => {
         function handleClickOutside(event) {
             if (addMenuRef.current && !addMenuRef.current.contains(event.target)) {
@@ -167,6 +162,55 @@ export default function Home() {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, [addMenuRef]);
+
+    const renderBudgetCard = () => {
+        if (budget <= 0) return null; 
+
+        const totalExpense = summary.total_expense;
+        const percentage = Math.min((totalExpense / budget) * 100, 100);
+        
+        let progressColor = "bg-green-500";
+        let statusText = "Safe zone";
+        let iconColor = "text-gray-500";
+
+        if (percentage >= 80) { 
+            progressColor = "bg-yellow-500"; 
+            statusText = "Warning"; 
+            iconColor = "text-yellow-500";
+        }
+        if (percentage >= 100) { 
+            progressColor = "bg-red-600"; 
+            statusText = "Over budget!"; 
+            iconColor = "text-red-600 animate-pulse";
+        }
+
+        return (
+            <div className={`mb-8 p-5 rounded-2xl shadow-lg flex flex-col sm:flex-row items-center gap-5 transition-all ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border border-red-100"}`}>
+                <div className={`p-3 rounded-full ${isDark ? "bg-gray-700" : "bg-red-50"}`}>
+                    <AlertTriangle className={iconColor} size={28} />
+                </div>
+                <div className="flex-1 w-full">
+                    <div className="flex justify-between mb-2">
+                        <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Monthly Budget</span>
+                        <span className={`text-sm font-bold ${percentage >= 100 ? "text-red-600" : "text-gray-500"}`}>
+                            {percentage.toFixed(1)}% ({statusText})
+                        </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700 overflow-hidden">
+                        <div 
+                            className={`h-3 rounded-full transition-all duration-1000 ease-out ${progressColor}`} 
+                            style={{ width: `${percentage}%` }}
+                        ></div>
+                    </div>
+                    <div className="flex justify-between mt-2 text-xs text-gray-400">
+                        {/* ✅ SỬA: Dùng currencyCode */}
+                        <span>Spent: <b>{formatAmountDisplay(totalExpense, currencyCode)}</b></span>
+                        <span>Limit: <b>{formatAmountDisplay(budget, currencyCode)}</b></span>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     if (loading) {
         return (
@@ -197,7 +241,7 @@ export default function Home() {
                         </p>
                     </div>
                     
-                    {/* Dropdown Menu "New Transaction" */}
+                    {/* Dropdown Menu */}
                     <div className="relative hidden sm:block" ref={addMenuRef}>
                         <button 
                             onClick={() => setShowAddMenu(prev => !prev)} 
@@ -227,7 +271,6 @@ export default function Home() {
                     </div>
                 </div>
 
-                {/* ✅ HIỂN THỊ BROADCAST MESSAGE (Dưới Header) */}
                 {broadcastMsg && (
                     <div className="mt-6 p-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg flex items-center gap-3 animate-pulse">
                         <Megaphone size={24} />
@@ -238,6 +281,8 @@ export default function Home() {
 
             <main className="p-6 sm:p-8 space-y-8">
                 
+                {renderBudgetCard()}
+
                 {/* 1. KPI CARDS */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Total Income */}
@@ -249,7 +294,8 @@ export default function Home() {
                                 <span className="text-sm font-bold uppercase tracking-wider">Total Income</span>
                             </div>
                             <p className="text-3xl sm:text-4xl font-extrabold">
-                                {formatAmountDisplay(summary.total_income, displayCurrency, 0)}
+                                {/* ✅ SỬA: Dùng currencyCode */}
+                                {formatAmountDisplay(summary.total_income, currencyCode, 0)}
                             </p>
                         </div>
                     </div>
@@ -262,7 +308,8 @@ export default function Home() {
                                 <span className="text-sm font-bold uppercase tracking-wider">Total Expense</span>
                             </div>
                             <p className="text-3xl sm:text-4xl font-extrabold">
-                                {formatAmountDisplay(summary.total_expense, displayCurrency, 0)}
+                                {/* ✅ SỬA: Dùng currencyCode */}
+                                {formatAmountDisplay(summary.total_expense, currencyCode, 0)}
                             </p>
                         </div>
                     </div>
@@ -275,7 +322,8 @@ export default function Home() {
                                 <span className="text-sm font-bold uppercase tracking-wider">Net Balance</span>
                             </div>
                             <p className={`text-3xl sm:text-4xl font-extrabold ${summary.balance >= 0 ? "text-blue-500" : "text-red-500"}`}>
-                                {formatAmountDisplay(summary.balance, displayCurrency, 0)}
+                                {/* ✅ SỬA: Dùng currencyCode */}
+                                {formatAmountDisplay(summary.balance, currencyCode, 0)}
                             </p>
                             <p className="text-xs text-gray-400 mt-2">
                                 Available balance across all accounts.
@@ -306,8 +354,18 @@ export default function Home() {
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
                                         <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 12}} dy={10} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 12}} tickFormatter={(val) => formatAmountDisplay(val, displayCurrency, 0).replace(displayCurrency, "")} />
-                                        <Tooltip contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} formatter={(val) => [formatAmountDisplay(val, displayCurrency), "Expense"]} />
+                                        <YAxis 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 12}} 
+                                            // ✅ SỬA: tickFormatter dùng currencyCode
+                                            tickFormatter={(val) => formatAmountDisplay(val, currencyCode, 0).replace(currencyCode, "")} 
+                                        />
+                                        <Tooltip 
+                                            contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                                            // ✅ SỬA: formatter dùng currencyCode
+                                            formatter={(val) => [formatAmountDisplay(val, currencyCode), "Expense"]} 
+                                        />
                                         <Area type="monotone" dataKey="amount" stroke="#EF4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
@@ -338,7 +396,11 @@ export default function Home() {
                                                 <Cell key={`cell-${index}`} fill={BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length]} stroke={isDark ? "#1F2937" : "#FFF"} strokeWidth={2} />
                                             ))}
                                         </Pie>
-                                        <Tooltip contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} formatter={(val) => formatAmountDisplay(val, displayCurrency)} />
+                                        <Tooltip 
+                                             contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                                             // ✅ SỬA: formatter dùng currencyCode
+                                             formatter={(val) => formatAmountDisplay(val, currencyCode)}
+                                        />
                                     </PieChart>
                                 </ResponsiveContainer>
                             ) : (
@@ -391,7 +453,8 @@ export default function Home() {
                                     </div>
                                     <div className="text-right">
                                         <p className={`text-lg font-bold ${tx.type === "income" ? "text-green-500" : "text-red-500"}`}>
-                                            {tx.type === "income" ? "+" : "-"} {formatAmountDisplay(tx.amount, tx.currency_code || displayCurrency, 0)}
+                                            {/* ✅ SỬA: Dùng currencyCode */}
+                                            {tx.type === "income" ? "+" : "-"} {formatAmountDisplay(tx.amount, tx.currency_code || currencyCode, 0)}
                                         </p>
                                         <span className={`text-xs font-bold px-2 py-0.5 rounded ${tx.type === "income" ? "bg-green-100 text-green-600 dark:bg-green-900/30" : "bg-red-100 text-red-600 dark:bg-red-900/30"}`}>
                                             {tx.type.toUpperCase()}

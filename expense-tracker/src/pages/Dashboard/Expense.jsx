@@ -471,7 +471,7 @@ export default function Expense() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <p className="font-bold text-red-500 text-lg">
-                                                - {formatAmountDisplay(expense.amount, expense.currency_code || currentCurrencyCode, 0)}
+                                                - {formatAmountDisplay(expense.amount, expense.currentCurrencyCode || currentCurrencyCode, 0)}
                                             </p>
                                             <div className="flex gap-1">
                                                 <button

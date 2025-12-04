@@ -59,11 +59,12 @@ def update_profile(data: UserUpdate,
         user.gender = data.gender
     if data.birthday is not None:
         user.birthday = data.birthday
-        # ✅ THÊM LOGIC CẬP NHẬT TIỀN TỆ:
     if data.currency_code is not None:
         user.currency_code = data.currency_code
     if data.currency_symbol is not None:
         user.currency_symbol = data.currency_symbol
+    if data.monthly_budget is not None:
+        user.monthly_budget = data.monthly_budget
 
     db.add(user)
     db.commit()

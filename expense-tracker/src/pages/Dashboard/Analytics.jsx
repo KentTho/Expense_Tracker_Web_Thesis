@@ -1,11 +1,10 @@
 // Analytics.jsx
-// - REDESIGN: Bố cục Dashboard (2/3 + 1/3) sáng tạo.
-// - UPGRADED: KPI Cards (Glassmorphism) đồng bộ với Home.
-// - UPGRADED: Biểu đồ Donut với Legend bên cạnh.
-// - UPGRADED: Bảng (Table) với font to, icon to, filter tách biệt.
+// - ✅ FIXED: Thay thế 'PRIMARY_CURRENCY' cứng bằng 'currencyCode' động từ Context.
+// - ✅ FIXED: Cập nhật hiển thị tiền tệ cho KPI, Biểu đồ và Bảng dữ liệu.
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
+import { useTranslation } from "react-i18next"; 
 import {
     Calendar,
     Filter,
@@ -22,24 +21,20 @@ import {
     BarChart,
     Bar,
     XAxis,
-    YAxis, // Thêm YAxis
+    YAxis,
     Tooltip,
     Pie,
     PieChart as RePieChart,
     Cell, 
     Legend, 
-    CartesianGrid // Thêm Grid
+    CartesianGrid
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
 
-// Imports Dịch vụ
 import { getIncomes } from "../../services/incomeService";
 import { getExpenses } from "../../services/expenseService";
 import { getCategories } from "../../services/categoryService"; 
 
-// ----------------------------------------------------
-// 💡 HELPER: Định dạng tiền tệ
-// ----------------------------------------------------
 const formatAmountDisplay = (amount, currencyCode = 'USD', decimals = 0) => {
     const numberAmount = Number(amount);
     if (isNaN(numberAmount)) return 'N/A';
@@ -60,13 +55,13 @@ const formatAmountDisplay = (amount, currencyCode = 'USD', decimals = 0) => {
     }
 };
 
-// 💡 HELPER: Custom Tooltip (Style mới)
+// Custom Tooltip
 const CustomTooltip = ({ active, payload, label, currencyCode, isPie }) => {
     if (active && payload && payload.length) {
         const item = payload[0].payload;
         const value = item.value || payload[0].value;
         const name = item.name || label;
-        const color = payload[0].fill || '#8884d8'; // Dùng fill
+        const color = payload[0].fill || '#8884d8'; 
         
         return (
             <div className="p-3 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl backdrop-blur-sm">
@@ -75,6 +70,7 @@ const CustomTooltip = ({ active, payload, label, currencyCode, isPie }) => {
                     {name}
                 </p>
                 <p className="text-base font-bold" style={{ color: color }}>
+                    {/* ✅ SỬA: Dùng currencyCode */}
                     Total: {formatAmountDisplay(value, currencyCode, 0)}
                 </p>
                 {isPie && item.percent !== undefined && ( 
@@ -88,12 +84,10 @@ const CustomTooltip = ({ active, payload, label, currencyCode, isPie }) => {
     return null;
 };
 
-// 💡 HELPER: Custom Label cho Pie (Giữ nguyên)
 const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
     const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-
     if (percent > 0.05) { 
         return (
             <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs font-semibold">
@@ -104,14 +98,11 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
     return null;
 };
 
-
-// Màu sắc (Giữ nguyên)
 const PIE_COLORS = [
     '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4',
     '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#6B7280', '#A8A29E'
 ];
 
-// Hàm trích xuất (Giữ nguyên)
 const extractItemsAndCurrency = (response, defaultCurrency = 'USD') => {
     let items = [];
     let currencyCode = defaultCurrency;
@@ -125,24 +116,22 @@ const extractItemsAndCurrency = (response, defaultCurrency = 'USD') => {
 };
 
 
-// ----------------------------------------------------
-// 🧩 Main Analytics Component
-// ----------------------------------------------------
 export default function Analytics() {
-    const { theme } = useOutletContext();
+    const { t } = useTranslation(); 
+    // ✅ SỬA: Lấy currencyCode từ Context
+    const { theme, currencyCode } = useOutletContext();
     const isDark = theme === "dark";
-    const PRIMARY_CURRENCY = 'USD'; // Giả sử USD là tiền tệ chính
+    
+    // ❌ XÓA: const PRIMARY_CURRENCY = 'USD'; 
 
-    // States (Giữ nguyên)
     const [transactions, setTransactions] = useState([]);
     const [categories, setCategories] = useState([]); 
-    const [loading, setLoading] = useState(true); // Bắt đầu = true
+    const [loading, setLoading] = useState(true); 
     const [filters, setFilters] = useState({
         type: "all", category: "all", startDate: "", endDate: "",
     });
     const [filteredData, setFilteredData] = useState([]);
 
-    // Fetch Data (Giữ nguyên logic)
     const fetchTransactions = useCallback(async () => {
         setLoading(true);
         try {
@@ -159,16 +148,17 @@ export default function Analytics() {
             ];
             setCategories(allFetchedCategories.sort((a, b) => a.name.localeCompare(b.name)));
 
-            const { items: incomeItems } = extractItemsAndCurrency(incomeResponse, PRIMARY_CURRENCY);
-            const { items: expenseItems } = extractItemsAndCurrency(expenseResponse, PRIMARY_CURRENCY);
+            // Dùng USD làm fallback cho việc extract, nhưng hiển thị sẽ dùng currencyCode
+            const { items: incomeItems } = extractItemsAndCurrency(incomeResponse, 'USD');
+            const { items: expenseItems } = extractItemsAndCurrency(expenseResponse, 'USD');
 
             const allTransactions = [
                 ...incomeItems.map(t => ({
                     ...t, type: 'income',
                     category: t.category?.name || t.category_name || 'Uncategorized (Income)',
                     category_id: t.category?.id || t.category_id || 'uncat_inc', 
-                    emoji: t.category?.icon || t.emoji || '💰', // Sửa: Dùng icon
-                    currency_code: t.currency_code || PRIMARY_CURRENCY, 
+                    emoji: t.category?.icon || t.emoji || '💰',
+                    currency_code: t.currency_code || 'USD', 
                     date: t.date ? t.date.split('T')[0] : 'N/A',
                     amount: Number(t.amount || 0), 
                 })),
@@ -176,8 +166,8 @@ export default function Analytics() {
                     ...t, type: 'expense',
                     category: t.category?.name || t.category_name || 'Uncategorized (Expense)',
                     category_id: t.category?.id || t.category_id || 'uncat_exp', 
-                    emoji: t.category?.icon || t.emoji || '💸', // Sửa: Dùng icon
-                    currency_code: t.currency_code || PRIMARY_CURRENCY, 
+                    emoji: t.category?.icon || t.emoji || '💸',
+                    currency_code: t.currency_code || 'USD', 
                     date: t.date ? t.date.split('T')[0] : 'N/A',
                     amount: Number(t.amount || 0), 
                 }))
@@ -189,17 +179,16 @@ export default function Analytics() {
             
         } catch (error) {
             console.error("Error fetching transactions:", error);
-            toast.error(error.message || "Failed to load transaction data.");
+            toast.error(t('common.error')); 
         } finally {
             setLoading(false);
         }
-    }, [PRIMARY_CURRENCY]); 
+    }, [t]); 
 
     useEffect(() => {
         fetchTransactions();
     }, [fetchTransactions]);
 
-    // Logic Filters (Giữ nguyên)
     const applyFilters = useCallback(() => {
         let data = transactions;
         if (filters.type !== 'all') { data = data.filter(t => t.type === filters.type); }
@@ -217,7 +206,6 @@ export default function Analytics() {
         applyFilters();
     }, [applyFilters]);
 
-    // Logic Tính toán Dữ liệu (Giữ nguyên)
     const { totalIncome, totalExpense, netBalance, barData, expensePieData, incomePieData } = useMemo(() => {
         let totalIncome = 0, totalExpense = 0;
         const expenseBreakdown = {}, incomeBreakdown = {};
@@ -238,8 +226,8 @@ export default function Analytics() {
 
         const netBalance = totalIncome - totalExpense;
         const barData = [
-            { name: 'Income', value: totalIncome, color: '#10B981' },
-            { name: 'Expense', value: totalExpense, color: '#EF4444' },
+            { name: t('sidebar.income'), value: totalIncome, color: '#10B981' }, 
+            { name: t('sidebar.expense'), value: totalExpense, color: '#EF4444' },
         ];
 
         const expensePieDataRaw = Object.values(expenseBreakdown).sort((a, b) => b.value - a.value);
@@ -251,23 +239,18 @@ export default function Analytics() {
         const incomePieData = incomePieDataRaw.map((item) => ({ ...item, percent: totalIncomePie === 0 ? 0 : item.value / totalIncomePie, }));
 
         return { totalIncome, totalExpense, netBalance, barData, expensePieData, incomePieData };
-    }, [filteredData]);
+    }, [filteredData, t]);
     
-    // UI Handlers (Giữ nguyên)
     const handleFilterChange = (e) => setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
     const resetFilters = () => setFilters({ type: "all", category: "all", startDate: "", endDate: "" });
-    const handleExport = () => toast.success(`Exporting ${filteredData.length} items...`);
-
-    // ----------------------------------------------------
-    // 🎨 RENDER (ĐÃ THIẾT KẾ LẠI)
-    // ----------------------------------------------------
+    const handleExport = () => toast.success(t('common.loading')); 
 
     if (loading && transactions.length === 0) {
         return (
             <div className={`min-h-screen flex justify-center items-center ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
                 <div className="text-center">
                     <Loader2 className="animate-spin text-blue-500 mx-auto mb-4" size={48} />
-                    <p className="text-gray-500 font-medium">Analyzing your finances...</p>
+                    <p className="text-gray-500 font-medium">{t('common.loading')}</p>
                 </div>
             </div>
         );
@@ -278,61 +261,65 @@ export default function Analytics() {
             <Toaster position="top-center" />
             <h1 className="text-4xl font-extrabold mb-8 flex items-center gap-3">
                 <BarChart3 className="mr-2 text-blue-500" size={36} />
-                Financial Analytics
+                {t('sidebar.analytics')}
             </h1>
 
             <main>
-                {/* 📊 KPI CARDS (REDESIGN - Giống Home.jsx) */}
+                {/* KPI CARDS */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    {/* Total Income */}
                     <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-xl shadow-green-500/20">
                         <div className="absolute right-0 top-0 p-4 opacity-10"><TrendingUp size={100} /></div>
                         <div className="relative z-10">
-                            <h2 className="text-sm font-bold uppercase tracking-wider opacity-90">Total Income</h2>
+                            <h2 className="text-sm font-bold uppercase tracking-wider opacity-90">{t('dashboard.total_income')}</h2>
                             <p className="text-4xl font-extrabold mt-2">
-                                {formatAmountDisplay(totalIncome, PRIMARY_CURRENCY, 0)}
+                                {/* ✅ SỬA: Dùng currencyCode */}
+                                {formatAmountDisplay(totalIncome, currencyCode, 0)}
                             </p>
                         </div>
                     </div>
 
-                    {/* Total Expense */}
                     <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-xl shadow-red-500/20">
                          <div className="absolute right-0 top-0 p-4 opacity-10"><TrendingDown size={100} /></div>
                         <div className="relative z-10">
-                            <h2 className="text-sm font-bold uppercase tracking-wider opacity-90">Total Expense</h2>
+                            <h2 className="text-sm font-bold uppercase tracking-wider opacity-90">{t('dashboard.total_expense')}</h2>
                             <p className="text-4xl font-extrabold mt-2">
-                                {formatAmountDisplay(totalExpense, PRIMARY_CURRENCY, 0)}
+                                {/* ✅ SỬA: Dùng currencyCode */}
+                                {formatAmountDisplay(totalExpense, currencyCode, 0)}
                             </p>
                         </div>
                     </div>
 
-                    {/* Net Balance */}
                     <div className={`relative overflow-hidden p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-100"}`}>
                          <div className="absolute right-0 top-0 p-4 opacity-5"><DollarSign size={120} /></div>
                         <div className="relative z-10">
-                             <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Net Balance</h2>
+                             <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('dashboard.net_balance')}</h2>
                             <p className={`text-4xl font-extrabold mt-2 ${netBalance >= 0 ? 'text-blue-500' : 'text-red-500'}`}>
-                                {formatAmountDisplay(netBalance, PRIMARY_CURRENCY, 0)}
+                                {/* ✅ SỬA: Dùng currencyCode */}
+                                {formatAmountDisplay(netBalance, currencyCode, 0)}
                             </p>
                         </div>
                     </div>
                 </div>
 
-                {/* 📊 CHARTS SECTION (REDESIGN - Bố cục 2/3 + 1/3) */}
+                {/* CHARTS */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                    
-                    {/* 1. Hero Chart: Income vs Expense (2 cột) */}
                     <div className={`lg:col-span-2 p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border"}`}>
                         <h2 className="text-xl font-semibold mb-6 flex items-center">
-                            <BarChart3 size={20} className="mr-2 text-blue-500" /> Income vs Expense
+                            <BarChart3 size={20} className="mr-2 text-blue-500" /> {t('sidebar.income')} vs {t('sidebar.expense')}
                         </h2>
                         <div className="min-h-[400px]">
                             <ResponsiveContainer width="100%" height={400}>
                                 <BarChart data={barData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
                                     <XAxis dataKey="name" stroke={isDark ? "#9CA3AF" : "#6B7280"} fontSize={14} tickLine={false} axisLine={false} />
-                                    <YAxis stroke={isDark ? "#9CA3AF" : "#6B7280"} fontSize={14} tickLine={false} axisLine={false} tickFormatter={(val) => formatAmountDisplay(val, PRIMARY_CURRENCY, 0).replace(PRIMARY_CURRENCY, "")} />
-                                    <Tooltip content={<CustomTooltip currencyCode={PRIMARY_CURRENCY} />} />
+                                    <YAxis 
+                                        stroke={isDark ? "#9CA3AF" : "#6B7280"} 
+                                        fontSize={14} tickLine={false} axisLine={false} 
+                                        // ✅ SỬA: tickFormatter dùng currencyCode
+                                        tickFormatter={(val) => formatAmountDisplay(val, currencyCode, 0).replace(currencyCode, "")} 
+                                    />
+                                    {/* ✅ SỬA: Tooltip dùng currencyCode */}
+                                    <Tooltip content={<CustomTooltip currencyCode={currencyCode} />} />
                                     <Bar dataKey="value" fill="#8884d8" radius={[8, 8, 0, 0]}>
                                         {barData.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.color} />
@@ -343,12 +330,10 @@ export default function Analytics() {
                         </div>
                     </div>
 
-                    {/* 2. Breakdown Charts (1 cột, xếp chồng) */}
-                    <div className="lg:col-span-1 flex flex-col gap-6">
-                        {/* Expense Breakdown */}
+                    <div className={`lg:col-span-1 flex flex-col gap-6`}>
                         <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border"}`}>
                             <h2 className="text-xl font-semibold mb-4 flex items-center text-red-500">
-                                <PieChart size={20} className="mr-2" /> Expense Breakdown
+                                <PieChart size={20} className="mr-2" /> {t('sidebar.expense')} {t('dashboard.breakdown_title')}
                             </h2>
                             <div className="min-h-[170px]">
                                 {expensePieData.length > 0 ? (
@@ -363,21 +348,20 @@ export default function Analytics() {
                                                     <Cell key={`cell-exp-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                                                 ))}
                                             </Pie>
-                                            {/* Chú thích bên cạnh */}
                                             <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                                            <Tooltip content={<CustomTooltip currencyCode={PRIMARY_CURRENCY} isPie={true} />} />
+                                            {/* ✅ SỬA: Tooltip dùng currencyCode */}
+                                            <Tooltip content={<CustomTooltip currencyCode={currencyCode} isPie={true} />} />
                                         </RePieChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <p className="text-center py-10 text-gray-500 dark:text-gray-400">No expense data.</p>
+                                    <p className="text-center py-10 text-gray-500 dark:text-gray-400">{t('dashboard.no_expense')}</p>
                                 )}
                             </div>
                         </div>
                         
-                        {/* Income Breakdown */}
                         <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border"}`}>
                              <h2 className="text-xl font-semibold mb-4 flex items-center text-green-500">
-                                <PieChart size={20} className="mr-2" /> Income Breakdown
+                                <PieChart size={20} className="mr-2" /> {t('sidebar.income')} {t('dashboard.breakdown_title')}
                             </h2>
                             <div className="min-h-[170px]">
                                 {incomePieData.length > 0 ? (
@@ -393,7 +377,8 @@ export default function Analytics() {
                                                 ))}
                                             </Pie>
                                             <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                                            <Tooltip content={<CustomTooltip currencyCode={PRIMARY_CURRENCY} isPie={true} />} />
+                                            {/* ✅ SỬA: Tooltip dùng currencyCode */}
+                                            <Tooltip content={<CustomTooltip currencyCode={currencyCode} isPie={true} />} />
                                         </RePieChart>
                                     </ResponsiveContainer>
                                 ) : (
@@ -404,27 +389,26 @@ export default function Analytics() {
                     </div>
                 </div>
                     
-                {/* ⚙️ FILTER BAR (TÁCH RIÊNG) */}
+                {/* FILTER BAR (Giữ nguyên) */}
                 <div className={`p-4 rounded-xl flex flex-wrap items-center gap-4 mb-6 ${isDark ? "bg-gray-800" : "bg-white shadow-md"}`}>
-                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                     {/* ... code bộ lọc ... */}
+                     <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                         <Filter size={18} />
                         <span className="font-semibold">Filters:</span>
                     </div>
-                    {/* Type Filter */}
+                    
                     <div>
-                        <label htmlFor="filterType" className="sr-only">Type</label>
                         <select 
                             id="filterType" name="type" value={filters.type} onChange={handleFilterChange}
                             className={`p-2 rounded-lg border text-sm font-medium ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
                         >
                             <option value="all">All Types</option>
-                            <option value="income">Income</option>
-                            <option value="expense">Expense</option>
+                            <option value="income">{t('sidebar.income')}</option>
+                            <option value="expense">{t('sidebar.expense')}</option>
                         </select>
                     </div>
-                    {/* Category Filter */}
+                   
                     <div>
-                        <label htmlFor="filterCategory" className="sr-only">Category</label>
                         <select 
                             id="filterCategory" name="category" value={filters.category} onChange={handleFilterChange}
                             className={`p-2 rounded-lg border text-sm font-medium ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
@@ -437,9 +421,8 @@ export default function Analytics() {
                             ))}
                         </select>
                     </div>
-                    {/* Date Filters */}
+                    
                     <div>
-                        <label htmlFor="startDate" className="sr-only">Start Date</label>
                         <input 
                             type="date" id="startDate" name="startDate" value={filters.startDate} onChange={handleFilterChange}
                             className={`p-2 rounded-lg border text-sm font-medium ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
@@ -447,34 +430,31 @@ export default function Analytics() {
                     </div>
                     <span className="text-gray-400">to</span>
                     <div>
-                        <label htmlFor="endDate" className="sr-only">End Date</label>
                         <input 
                             type="date" id="endDate" name="endDate" value={filters.endDate} onChange={handleFilterChange}
                             className={`p-2 rounded-lg border text-sm font-medium ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
                         />
                     </div>
-                    {/* Reset Button */}
                     <button 
                         onClick={resetFilters}
                         className={`px-3 py-2 text-sm rounded-lg font-medium ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}
                     >
-                        Reset
+                        {t('common.cancel')}
                     </button>
                 </div>
 
-                {/* ⚙️ TRANSACTIONS TABLE CARD (NÂNG CẤP) */}
+                {/* TRANSACTIONS TABLE */}
                 <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border"}`}>
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-semibold">Transaction History ({filteredData.length} items)</h2>
+                        <h2 className="text-2xl font-semibold">{t('dashboard.view_history')} ({filteredData.length})</h2>
                         <button 
                             onClick={handleExport}
                             className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center transition-colors font-medium shadow-lg shadow-blue-500/30"
                         >
-                            <Download size={16} className="mr-2"/> Export Report
+                            <Download size={16} className="mr-2"/> {t('sidebar.export')}
                         </button>
                     </div>
 
-                    {/* Table (Nâng cấp Font/Icon/Padding) */}
                     <div className="overflow-x-auto max-h-96 overflow-y-auto custom-scrollbar">
                         <table className="min-w-full text-base border-collapse">
                             <thead>
@@ -486,29 +466,30 @@ export default function Analytics() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {filteredData.map((t) => (
-                                    <tr key={t.id} className={`transition-colors ${isDark ? "hover:bg-gray-700/50" : "hover:bg-gray-50"}`}>
-                                        <td className="py-4 px-4 text-sm text-gray-500 dark:text-gray-400">{t.date}</td>
+                                {filteredData.map((tx) => (
+                                    <tr key={tx.id} className={`transition-colors ${isDark ? "hover:bg-gray-700/50" : "hover:bg-gray-50"}`}>
+                                        <td className="py-4 px-4 text-sm text-gray-500 dark:text-gray-400">{tx.date}</td>
                                         <td className="py-4 px-4 font-bold">
                                             <span className={`py-1 px-2.5 rounded-full text-sm ${
-                                                t.type === "income" ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
+                                                tx.type === "income" ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
                                             }`}>
-                                                {t.type}
+                                                {tx.type === "income" ? t('sidebar.income') : t('sidebar.expense')}
                                             </span>
                                         </td>
                                         <td className="py-4 px-4 flex items-center gap-3">
-                                            <span className="text-xl">{t.emoji}</span>
-                                            <span className="font-medium">{t.category}</span>
+                                            <span className="text-xl">{tx.emoji}</span>
+                                            <span className="font-medium">{tx.category}</span>
                                         </td>
                                         <td className="py-4 px-4 text-right font-semibold">
-                                            {t.type === "expense" ? "-" : "+"} {formatAmountDisplay(t.amount, t.currency_code, 0)}
+                                            {/* ✅ SỬA: Dùng currencyCode */}
+                                            {tx.type === "expense" ? "-" : "+"} {formatAmountDisplay(tx.amount, currencyCode, 0)}
                                         </td>
                                     </tr>
                                 ))}
                                 {filteredData.length === 0 && (
                                     <tr>
                                         <td colSpan="4" className="text-center py-10 text-gray-500">
-                                            No transactions found for the selected filters.
+                                            {t('dashboard.no_activity')}
                                         </td>
                                     </tr>
                                 )}

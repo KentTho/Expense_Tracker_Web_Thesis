@@ -6,20 +6,32 @@ import { Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "../components/firebase"; // ✅ Import Firebase Auth
 import { onAuthStateChanged } from "firebase/auth";
+import { getUserProfile } from "../services/profileService";
 import FinBotWidget from "../components/FinBotWidget";
 
 export default function DashboardLayout() {
   const [isOpen, setIsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [theme, setTheme] = useState("dark");
-  
+  const [currentUser, setCurrentUser] = useState(null);
   // ✅ State để kiểm tra xem đã check xong auth chưa
   const [isAuthChecked, setIsAuthChecked] = useState(false);
   const navigate = useNavigate();
 
+  // Hàm để các trang con gọi khi cần cập nhật lại thông tin User (ví dụ sau khi đổi tiền tệ)
+  const refreshUserProfile = async () => {
+    try {
+        const data = await getUserProfile();
+        setCurrentUser(data);
+        // Cập nhật luôn vào localStorage để đồng bộ
+        localStorage.setItem("user", JSON.stringify(data));
+    } catch (error) {
+        console.error("Failed to refresh user profile", error);
+    }
+  };
   // ✅ 1. BẢO MẬT: KIỂM TRA ĐĂNG NHẬP
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       const localToken = localStorage.getItem("idToken");
       
       if (!user || !localToken) {
@@ -31,6 +43,7 @@ export default function DashboardLayout() {
       } else {
         // ✅ Đã đăng nhập -> Cho phép hiện nội dung
         setIsAuthChecked(true);
+        await refreshUserProfile();
       }
     });
 
@@ -129,7 +142,13 @@ export default function DashboardLayout() {
 
         {/* Nội dung trang */}
         <div className="mt-10 md:mt-0 transition-all duration-300">
-          <Outlet context={{ theme, setTheme, displayCurrency: "USD" }} />
+          <Outlet context={{ 
+                theme, 
+                setTheme, 
+                currentUser, 
+                refreshUserProfile, // Để Profile.jsx gọi khi save
+                currencyCode: currentUser?.currency_code || "USD" // Mặc định USD
+            }} />
         </div>
 
         {/* Chatbot Widget */}

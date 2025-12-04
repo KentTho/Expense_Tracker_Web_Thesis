@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import date, datetime
 from uuid import UUID
-
+from decimal import Decimal # ✅ Import Decimal
 
 class UserUpdate(BaseModel):
     """Schema cập nhật thông tin người dùng"""
@@ -11,10 +11,9 @@ class UserUpdate(BaseModel):
     profile_image: Optional[str] = None
     gender: Optional[str] = None
     birthday: Optional[date] = None
-
-# ✅ THÊM 2 DÒNG NÀY:
     currency_code: Optional[str] = None
     currency_symbol: Optional[str] = None
+    monthly_budget: Optional[Decimal] = None
 class UserOut(BaseModel):
     """Schema phản hồi thông tin người dùng"""
     id: UUID
@@ -27,8 +26,8 @@ class UserOut(BaseModel):
     firebase_uid: Optional[str] = None
     is_2fa_enabled: bool = False
     restrict_multi_device: bool = False
-    # ✅ THÊM DÒNG NÀY
     is_admin: bool = False
+    monthly_budget: Optional[Decimal] = None
 
     class Config:
         from_attributes = True

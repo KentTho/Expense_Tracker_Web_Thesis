@@ -91,7 +91,7 @@ const CustomTooltip = ({ active, payload, label, currencyCode }) => {
 };
 
 export default function Income() {
-    const { theme } = useOutletContext();
+    const { theme, currencyCode } = useOutletContext();
     const isDark = theme === "dark";
 
     const [incomes, setIncomes] = useState([]);
@@ -107,7 +107,6 @@ export default function Income() {
     const [editId, setEditId] = useState(null);
     const [loading, setLoading] = useState(false);
     const [filterDate, setFilterDate] = useState(""); 
-    const [displayCurrency, setDisplayCurrency] = useState("USD"); 
     
     const [form, setForm] = useState({
         category_name: "",
@@ -115,6 +114,7 @@ export default function Income() {
         date: new Date().toISOString().split('T')[0],
         emoji: "💰",
         category_id: "",
+        currency_code: currencyCode || "USD",
         note: "",
     });
 
@@ -323,19 +323,6 @@ export default function Income() {
                     <DollarSign size={32} className="text-green-500" /> Income Transactions
                 </h1>
                 <div className="flex gap-3 items-center">
-                    {/* Currency Selector */}
-                    <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                        <select
-                            value={displayCurrency}
-                            onChange={(e) => setDisplayCurrency(e.target.value)}
-                            className={`px-2 py-1 text-sm bg-transparent outline-none font-medium ${isDark ? "text-white" : "text-gray-700"}`}
-                        >
-                            {CURRENCIES.map((c) => (
-                                <option key={c.code} value={c.code}>{c.code}</option>
-                            ))}
-                        </select>
-                    </div>
-
                     <button
                         onClick={() => setShowSummaryModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium shadow-lg"
@@ -377,7 +364,7 @@ export default function Income() {
                             Total Income (All Time)
                         </h2>
                         <p className="text-5xl font-extrabold text-green-500 tracking-tight leading-tight">
-                            {formatAmountDisplay(totalIncome, displayCurrency)}
+                            {formatAmountDisplay(totalIncome, currencyCode)}
                         </p>
                         <p className="text-sm text-gray-400 mt-2 mb-6">
                             Calculated from {incomes.length} transactions.
@@ -391,7 +378,7 @@ export default function Income() {
                                 <Activity size={12} /> Avg. / Txn
                             </p>
                             <p className="font-bold text-lg text-gray-700 dark:text-gray-200">
-                                {formatAmountDisplay(avgIncome, displayCurrency)}
+                                {formatAmountDisplay(avgIncome, currencyCode)}
                             </p>
                         </div>
                         <div>
@@ -399,7 +386,7 @@ export default function Income() {
                                 <ArrowUpRight size={12} /> Highest Txn
                             </p>
                             <p className="font-bold text-lg text-gray-700 dark:text-gray-200">
-                                {formatAmountDisplay(maxIncome, displayCurrency)}
+                                {formatAmountDisplay(maxIncome, currencyCode)}
                             </p>
                         </div>
                     </div>
@@ -465,7 +452,7 @@ export default function Income() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <p className="font-bold text-green-500 text-lg">
-                                                + {formatAmountDisplay(income.amount, displayCurrency)}
+                                                + {formatAmountDisplay(income.amount, currencyCode)}
                                             </p>
                                             <div className="flex gap-1">
                                                 <button
@@ -515,11 +502,11 @@ export default function Income() {
                             /> 
                             <YAxis 
                                 stroke={isDark ? "#9CA3AF" : "#6B7280"} 
-                                tickFormatter={(value) => formatAmountDisplay(value, displayCurrency)}
+                                tickFormatter={(value) => formatAmountDisplay(value, currencyCode)}
                                 tick={{ fontSize: 14, fontWeight: 600 }} // ✅ Font to
                                 width={100} // ✅ Rộng hơn
                             /> 
-                            <Tooltip content={<CustomTooltip currencyCode={displayCurrency} />} />
+                            <Tooltip content={<CustomTooltip currencyCode={currencyCode} />} />
                             <Area 
                                 type="monotone" 
                                 dataKey="amount" 
@@ -697,7 +684,7 @@ export default function Income() {
                                     <XAxis 
                                         type="number" 
                                         stroke={isDark ? "#9CA3AF" : "#6B7280"} 
-                                        tickFormatter={(value) => formatAmountDisplay(value, displayCurrency)}
+                                        tickFormatter={(value) => formatAmountDisplay(value, currencyCode)}
                                         tick={{ fontSize: 12 }}
                                     />
                                     <YAxis 
@@ -708,7 +695,7 @@ export default function Income() {
                                         tick={{ fontSize: 12, fontWeight: 500 }}
                                     />
                                     <Tooltip 
-                                        formatter={(value) => [`${formatAmountDisplay(value, displayCurrency)}`, "Amount"]}
+                                        formatter={(value) => [`${formatAmountDisplay(value, currencyCode)}`, "Amount"]}
                                         contentStyle={{ 
                                             backgroundColor: isDark ? "#1F2937" : "#FFFFFF", 
                                             borderColor: isDark ? "#4B5563" : "#D1D5DB", 
