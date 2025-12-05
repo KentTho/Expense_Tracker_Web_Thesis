@@ -124,3 +124,22 @@ export async function getValidToken() {
   localStorage.setItem("idToken", token);
   return token;
 }
+
+// ✅ Hàm gọi API verify 2FA
+export async function verify2FALogin(code) {
+  const token = localStorage.getItem("idToken"); // Token đã lưu ở bước 1
+  const res = await fetch(`${BACKEND_BASE}/security/2fa/login-verify`, {
+      method: "POST",
+      headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code }),
+  });
+
+  if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Invalid Code");
+  }
+  return res.json();
+}

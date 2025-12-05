@@ -27,6 +27,8 @@ class UserOut(BaseModel):
     is_2fa_enabled: bool = False
     restrict_multi_device: bool = False
     is_admin: bool = False
+    currency_code: str = "USD"
+    currency_symbol: str = "$"
     monthly_budget: Optional[Decimal] = None
 
     class Config:

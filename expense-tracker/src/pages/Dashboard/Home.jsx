@@ -1,5 +1,6 @@
 // Home.jsx
-// - ✅ FIXED: Đổi 'displayCurrency' -> 'currencyCode' để khớp với DashboardLayout.
+// - ✅ FIXED: Đổi 'displayCurrency' thành 'currencyCode' để khớp với dữ liệu từ DashboardLayout.
+// - ✅ RESULT: Hiển thị đúng tiền tệ (VND/USD) ngay khi thay đổi bên Profile.
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useOutletContext, Link } from "react-router-dom";
@@ -70,7 +71,7 @@ const getGreeting = () => {
 };
 
 export default function Home() {
-    // ✅ SỬA 1: Lấy 'currencyCode' thay vì 'displayCurrency'
+    // ✅ SỬA LỖI TẠI ĐÂY: Lấy 'currencyCode' thay vì 'displayCurrency'
     const { theme, currencyCode } = useOutletContext();
     const isDark = theme === "dark";
     
@@ -203,7 +204,7 @@ export default function Home() {
                         ></div>
                     </div>
                     <div className="flex justify-between mt-2 text-xs text-gray-400">
-                        {/* ✅ SỬA: Dùng currencyCode */}
+                        {/* ✅ SỬA: Dùng biến currencyCode */}
                         <span>Spent: <b>{formatAmountDisplay(totalExpense, currencyCode)}</b></span>
                         <span>Limit: <b>{formatAmountDisplay(budget, currencyCode)}</b></span>
                     </div>
@@ -241,7 +242,6 @@ export default function Home() {
                         </p>
                     </div>
                     
-                    {/* Dropdown Menu */}
                     <div className="relative hidden sm:block" ref={addMenuRef}>
                         <button 
                             onClick={() => setShowAddMenu(prev => !prev)} 
@@ -285,7 +285,6 @@ export default function Home() {
 
                 {/* 1. KPI CARDS */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Total Income */}
                     <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-xl shadow-green-500/20 transition-transform hover:scale-[1.02]">
                         <div className="absolute right-0 top-0 p-4 opacity-10"><Wallet size={100} /></div>
                         <div className="relative z-10">
@@ -299,7 +298,7 @@ export default function Home() {
                             </p>
                         </div>
                     </div>
-                    {/* Total Expense */}
+
                     <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-xl shadow-red-500/20 transition-transform hover:scale-[1.02]">
                          <div className="absolute right-0 top-0 p-4 opacity-10"><Activity size={100} /></div>
                         <div className="relative z-10">
@@ -313,7 +312,7 @@ export default function Home() {
                             </p>
                         </div>
                     </div>
-                    {/* Net Balance */}
+
                     <div className={`relative overflow-hidden p-6 rounded-2xl shadow-xl transition-transform hover:scale-[1.02] ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-100"}`}>
                          <div className="absolute right-0 top-0 p-4 opacity-5"><DollarSign size={120} /></div>
                         <div className="relative z-10">
@@ -334,7 +333,6 @@ export default function Home() {
 
                 {/* 2. CHARTS */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Chart 1: Trend */}
                     <div className={`lg:col-span-2 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold flex items-center gap-2">
@@ -378,7 +376,6 @@ export default function Home() {
                         </div>
                     </div>
 
-                    {/* Chart 2: Breakdown */}
                     <div className={`lg:col-span-1 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold flex items-center gap-2">
@@ -407,14 +404,6 @@ export default function Home() {
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                                     <PieIcon size={48} className="mb-2 opacity-20" />
                                     <p>No expense data.</p>
-                                </div>
-                            )}
-                             {expenseBreakdown.length > 0 && (
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                    <div className="text-center">
-                                        <p className="text-xs text-gray-500 uppercase font-bold">Top</p>
-                                        <p className="text-lg font-bold">{expenseBreakdown[0]?.name}</p>
-                                    </div>
                                 </div>
                             )}
                         </div>

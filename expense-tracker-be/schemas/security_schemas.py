@@ -15,3 +15,7 @@ class SecuritySettingsUpdate(BaseModel):
     # Dùng Optional để user có thể cập nhật từng cái một
     is_2fa_enabled: Optional[bool] = None
     restrict_multi_device: Optional[bool] = None
+
+# Schema body nhận mã code
+class Verify2FALogin(BaseModel):
+    code: str

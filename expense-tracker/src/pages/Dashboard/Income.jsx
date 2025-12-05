@@ -6,6 +6,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
+import { useTranslation } from "react-i18next"; 
 import {
     PlusCircle,
     Trash2,
@@ -16,10 +17,10 @@ import {
     Download,
     X,
     BarChart3,
-    AlertTriangle, // Icon cho Delete Modal
-    Activity,      // Icon Mini-stat
-    ArrowUpRight,  // Icon Mini-stat
-    FileText,
+    AlertTriangle, 
+    Activity,      
+    ArrowUpRight,  
+    FileText
 } from "lucide-react";
 import {
     ResponsiveContainer,
@@ -43,19 +44,8 @@ import {
 import { getCategories } from "../../services/categoryService"; 
 import { format } from "date-fns";
 
-// Màu sắc chủ đạo
 const INCOME_TREND_COLOR = "#10B981"; 
 
-// Danh sách đơn vị tiền tệ
-const CURRENCIES = [
-    { code: "USD", name: "US Dollar ($)" },
-    { code: "VND", name: "Vietnamese Dong (₫)" },
-    { code: "EUR", name: "Euro (€)" },
-    { code: "JPY", name: "Japanese Yen (¥)" },
-    { code: "GBP", name: "British Pound (£)" },
-];
-
-// HELPER: ĐỊNH DẠNG TIỀN TỆ
 const formatAmountDisplay = (amount, currencyCode) => {
     const roundedAmount = Math.round(Number(amount));
     try {
@@ -66,23 +56,18 @@ const formatAmountDisplay = (amount, currencyCode) => {
             maximumFractionDigits: 0,
         }).format(roundedAmount);
     } catch (e) {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 0, 
-            maximumFractionDigits: 0,
-        }).format(roundedAmount);
+        return `${currencyCode} ${roundedAmount.toLocaleString()}`;
     }
 };
 
-// Custom Tooltip (Style giống Expense)
-const CustomTooltip = ({ active, payload, label, currencyCode }) => {
+// CustomTooltip (Đã nhận currencyCode chuẩn)
+const CustomTooltip = ({ active, payload, label, currencyCode, t }) => {
     if (active && payload && payload.length) {
         return (
             <div className="p-3 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl backdrop-blur-sm">
-                <p className="text-sm font-bold mb-1 text-gray-700 dark:text-gray-200">{`Date: ${label}`}</p>
+                <p className="text-sm font-bold mb-1 text-gray-700 dark:text-gray-200">{`${t ? t('common.date') : 'Date'}: ${label}`}</p>
                 <p className="text-base font-bold text-green-500">
-                    Income: {formatAmountDisplay(payload[0].value, currencyCode)}
+                    {t ? t('sidebar.income') : 'Income'}: {formatAmountDisplay(payload[0].value, currencyCode)}
                 </p>
             </div>
         );
@@ -91,34 +76,42 @@ const CustomTooltip = ({ active, payload, label, currencyCode }) => {
 };
 
 export default function Income() {
-    const { theme, currencyCode } = useOutletContext();
+    const { t } = useTranslation(); 
+    
+    // ✅ LẤY CURRENCY CODE TỪ CONTEXT (THAY VÌ STATE CỤC BỘ)
+    const { theme, currencyCode } = useOutletContext(); 
     const isDark = theme === "dark";
 
     const [incomes, setIncomes] = useState([]);
     const [categories, setCategories] = useState([]);
     const [incomeSummary, setIncomeSummary] = useState([]); 
     
-    // Modal States
     const [showModal, setShowModal] = useState(false); 
     const [showSummaryModal, setShowSummaryModal] = useState(false); 
-    const [showDeleteModal, setShowDeleteModal] = useState(false); // 🔔 Delete Modal
+    const [showDeleteModal, setShowDeleteModal] = useState(false); 
     const [deleteId, setDeleteId] = useState(null);
 
     const [editId, setEditId] = useState(null);
     const [loading, setLoading] = useState(false);
     const [filterDate, setFilterDate] = useState(""); 
     
+    // Form state (Giữ nguyên logic form)
     const [form, setForm] = useState({
         category_name: "",
         amount: "",
         date: new Date().toISOString().split('T')[0],
         emoji: "💰",
         category_id: "",
-        currency_code: currencyCode || "USD",
         note: "",
+        // ✅ Form sẽ dùng currencyCode toàn cục làm mặc định khi gửi lên
+        currency_code: currencyCode 
     });
 
-    // 📊 TÍNH TOÁN CHỈ SỐ (Total, Avg, Max)
+    // Effect: Cập nhật currency cho form khi Global currency thay đổi
+    useEffect(() => {
+        setForm(prev => ({ ...prev, currency_code: currencyCode }));
+    }, [currencyCode]);
+
     const { totalIncome, avgIncome, maxIncome } = useMemo(() => {
         const total = incomes.reduce((sum, income) => sum + Number(income.amount), 0);
         const avg = incomes.length > 0 ? total / incomes.length : 0;
@@ -151,19 +144,17 @@ export default function Income() {
 
         } catch (err) {
             console.error("Error fetching data:", err);
-            toast.error("Failed to load income data.");
+            toast.error(t('common.error')); 
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [t]);
 
-    // ✅ CẬP NHẬT USE EFFECT NÀY
+    // Lắng nghe sự kiện từ Chatbot
     useEffect(() => {
-        fetchData(); // Lần đầu
-
-        // Lắng nghe Bot
+        fetchData();
         const handleUpdate = () => {
-            console.log("♻️ Income Page: Nhận tín hiệu cập nhật từ Bot -> Tải lại dữ liệu!");
+            console.log("♻️ Income Page: Reloading data...");
             fetchData();
         };
         window.addEventListener("transactionUpdated", handleUpdate);
@@ -172,7 +163,7 @@ export default function Income() {
 
     const handleFormSubmit = async () => {
         if (!form.amount || !form.date) {
-            toast.error("Please fill in required fields (Amount and Date)!");
+            toast.error(t('common.fill_required')); 
             return;
         }
         
@@ -190,27 +181,19 @@ export default function Income() {
             if (editId) {
                 const updated = await updateIncome(editId, finalForm);
                 updatedList = incomes.map((i) => (i.id === editId ? updated : i));
-                toast.success("Income updated successfully!");
+                toast.success(t('income.update_success')); 
             } else {
                 const created = await createIncome(finalForm);
                 updatedList = [...incomes, created];
-                toast.success("New income added!");
+                toast.success(t('income.create_success')); 
             }
             setIncomes(updatedList);
             await fetchData(); 
             
-            setShowModal(false);
-            setEditId(null);
-            setForm({
-                category_name: "",
-                amount: "",
-                date: new Date().toISOString().split('T')[0],
-                emoji: "💰",
-                category_id: "",
-            });
+            handleCloseModal();
         } catch (err) {
             console.error(err);
-            toast.error(`Error while saving income: ${err.message}`);
+            toast.error(t('common.error'));
         }
     };
     
@@ -218,16 +201,16 @@ export default function Income() {
         setEditId(income.id);
         setForm({
             category_name: income.category_name,
-            amount: String(Math.round(income.amount)), // Làm tròn khi edit
+            amount: String(Math.round(income.amount)), 
             date: income.date,
             emoji: income.emoji,
             category_id: income.category?.id || '',
             note: income.note || "",
+            currency_code: currencyCode // Dùng currency hiện tại
         });
         setShowModal(true);
     };
 
-    // 🔔 Logic Delete mới
     const initiateDelete = (id) => {
         setDeleteId(id);
         setShowDeleteModal(true);
@@ -239,10 +222,10 @@ export default function Income() {
             await deleteIncome(deleteId);
             setIncomes(incomes.filter((i) => i.id !== deleteId));
             await fetchData(); 
-            toast.success("Income deleted successfully!");
+            toast.success(t('income.delete_success')); 
         } catch (err) {
             console.error(err);
-            toast.error("Error deleting income.");
+            toast.error(t('common.error'));
         } finally {
             setShowDeleteModal(false);
             setDeleteId(null);
@@ -259,6 +242,7 @@ export default function Income() {
             emoji: "💰",
             category_id: "",
             note: "",
+            currency_code: currencyCode
         });
     }
 

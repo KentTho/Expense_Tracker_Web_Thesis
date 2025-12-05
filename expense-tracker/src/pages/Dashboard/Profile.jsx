@@ -1,4 +1,7 @@
-// pages/Profile.jsx (ĐÃ SỬA LỖI CẬP NHẬT TIỀN TỆ)
+// pages/Profile.jsx
+// - ✅ UPDATED: Chỉ giữ lại USD và VND.
+// - ✅ LOGIC: Giữ nguyên logic lưu trữ, chỉ thay đổi danh sách lựa chọn.
+
 import React, { useState, useEffect } from "react";
 import { getAuth } from "firebase/auth";
 import { useOutletContext, useNavigate } from "react-router-dom";
@@ -13,15 +16,11 @@ import {
   updateUserProfile,
 } from "../../services/profileService";
 
-// Helper Component: Input Field
+// Helper Component: Input Field (Giữ nguyên)
 const InfoInput = ({ isEditing, label, name, value, onChange, type = "text", children }) => {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
-
-  if (!isEditing) {
-    return children; 
-  }
-
+  if (!isEditing) return children; 
   return (
     <div>
       <label className="text-xs font-semibold uppercase text-gray-500">{label}</label>
@@ -40,15 +39,11 @@ const InfoInput = ({ isEditing, label, name, value, onChange, type = "text", chi
   );
 };
 
-// Helper Component: Select Field
+// Helper Component: Select Field (Giữ nguyên)
 const InfoSelect = ({ isEditing, label, name, value, onChange, options, children }) => {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
-
-  if (!isEditing) {
-    return children;
-  }
-
+  if (!isEditing) return children;
   return (
     <div>
       <label className="text-xs font-semibold uppercase text-gray-500">{label}</label>
@@ -71,7 +66,6 @@ const InfoSelect = ({ isEditing, label, name, value, onChange, options, children
 };
 
 export default function Profile() {
-  // ✅ SỬA 1: Lấy thêm hàm refreshUserProfile từ Context
   const { theme, refreshUserProfile } = useOutletContext(); 
   const isDark = theme === "dark";
   const navigate = useNavigate();
@@ -81,7 +75,6 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Fetch profile
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -94,12 +87,9 @@ export default function Profile() {
         const data = await getUserProfile();
         setUser(data);
         setForm(data);
-
-        // Clean storage for safety
         const userForStorage = { ...data };
         delete userForStorage.profile_image;
         localStorage.setItem("user", JSON.stringify(userForStorage));
-
       } catch (err) {
         console.error("Fetch error:", err);
         toast.error("Could not load profile.");
@@ -115,11 +105,10 @@ export default function Profile() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle Image Upload
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // Limit 2MB
+      if (file.size > 2 * 1024 * 1024) { 
         toast.error("Image is too large (max 2MB).");
         return;
       }
@@ -152,7 +141,6 @@ export default function Profile() {
 
       const updated = await updateUserProfile(payload);
 
-      // ✅ SỬA 2: Gọi hàm refresh để DashboardLayout cập nhật tiền tệ toàn cục
       if (refreshUserProfile) {
           await refreshUserProfile();
       }
@@ -182,10 +170,10 @@ export default function Profile() {
       <Toaster position="top-center" />
       
       <main className="p-6 sm:p-8 max-w-6xl mx-auto">
-        
-        {/* Header */}
+        {/* Header & Identity Card (Giữ nguyên) */}
         <div className="flex justify-between items-center mb-8">
-          <div>
+            {/* ... (Code header giữ nguyên) ... */}
+            <div>
             <h1 className="text-3xl font-extrabold flex items-center gap-3">
               <User className="text-blue-500" size={32} /> My Profile
             </h1>
@@ -217,17 +205,12 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* CỘT 1: IDENTITY CARD */}
-          <div className="lg:col-span-1">
+           {/* CỘT 1: IDENTITY CARD */}
+           <div className="lg:col-span-1">
             <div className={`p-6 rounded-3xl shadow-xl flex flex-col items-center text-center relative overflow-hidden ${isDark ? "bg-gray-800" : "bg-white"}`}>
-              
-              {/* Background Decor */}
               <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-blue-500 to-purple-600"></div>
-              
-              {/* Avatar */}
               <div className="relative mt-16 mb-4 group">
                 <div className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 overflow-hidden bg-gray-200 shadow-2xl">
                   <img 
@@ -243,11 +226,8 @@ export default function Profile() {
                   </label>
                 )}
               </div>
-
-              {/* Basic Info */}
               <h2 className="text-2xl font-bold">{user.name || "User"}</h2>
               <p className="text-gray-500 dark:text-gray-400">{user.email}</p>
-              
               <div className="mt-6 w-full pt-6 border-t border-gray-100 dark:border-gray-700 grid grid-cols-2 gap-4">
                  <div>
                     <p className="text-xs font-bold text-gray-400 uppercase">Role</p>
@@ -268,9 +248,10 @@ export default function Profile() {
           {/* CỘT 2: CHI TIẾT & CÀI ĐẶT */}
           <div className="lg:col-span-2 space-y-8">
             
-            {/* 1. Personal Details */}
+            {/* Personal Details (Giữ nguyên) */}
             <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
-              <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+               {/* ... Phần Personal Details giữ nguyên code cũ ... */}
+               <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
                 <User size={20} className="text-blue-500"/> Personal Details
               </h3>
               
@@ -348,7 +329,7 @@ export default function Profile() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                {/* Currency Code */}
+                {/* ✅ UPDATED: CHỈ CÒN USD VÀ VND */}
                 <InfoSelect 
                     isEditing={isEditing} 
                     label="Default Currency" 
@@ -357,9 +338,7 @@ export default function Profile() {
                     onChange={handleChange}
                     options={[
                         { value: "USD", label: "USD ($)" },
-                        { value: "VND", label: "VND (₫)" },
-                        { value: "EUR", label: "EUR (€)" },
-                        { value: "JPY", label: "JPY (¥)" },
+                        { value: "VND", label: "VND (₫)" }
                     ]}
                 >
                     <div className="flex items-center gap-3">

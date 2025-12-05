@@ -5,7 +5,7 @@ from typing import Dict, Any
 
 from db.database import get_db
 from services.auth_token_db import get_current_user_db
-from schemas.security_schemas import SecuritySettingsOut, SecuritySettingsUpdate
+from schemas.security_schemas import SecuritySettingsOut, SecuritySettingsUpdate, Verify2FALogin
 from cruds import crud_security
 
 router = APIRouter(prefix="/security", tags=["Security"])
@@ -70,3 +70,13 @@ def verify_enabling_2fa(
             raise HTTPException(status_code=400, detail="Invalid 2FA code")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/2fa/login-verify")
+def verify_login_2fa_route(
+    payload: Verify2FALogin,
+    current_user = Depends(get_current_user_db),
+    db: Session = Depends(get_db)
+):
+    """API này được gọi sau khi user đã đăng nhập Firebase thành công nhưng bị chặn ở bước 2"""
+    crud_security.verify_login_2fa(db, current_user.id, payload.code)
+    return {"message": "2FA Verified Successfully"}

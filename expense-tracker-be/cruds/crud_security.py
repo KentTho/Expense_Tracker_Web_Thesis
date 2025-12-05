@@ -1,4 +1,5 @@
 # cruds/crud_security.py (TẠO MỚI)
+from langgraph_sdk.auth.exceptions import HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 from models import user_model  # Giả sử model User của bạn ở đây
@@ -65,7 +66,6 @@ def enable_2fa_verify_code(db: Session, user_id: UUID, code: str):
         raise Exception("2FA is not being set up or user not found")
 
     totp = pyotp.TOTP(user.otp_secret)
-
     if totp.verify(code, valid_window=1):
         # Xác thực thành công
         user.is_2fa_enabled = True
@@ -74,3 +74,17 @@ def enable_2fa_verify_code(db: Session, user_id: UUID, code: str):
     else:
         # Xác thực thất bại
         return False
+
+def verify_login_2fa(db: Session, user_id: UUID, code: str):
+    user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
+
+    if not user or not user.is_2fa_enabled:
+        return True
+    if not user.otp_secret:
+        raise HTTPException(status_code=400, detail="2FA is enabled but no secret found. Please contact admin")
+
+    totp = pyotp.TOTP(user.otp_secret)
+    if totp.verify(code):
+        return True
+    else:
+        raise HTTPException(status_code=400, detail="Invalid 2FA COde")
