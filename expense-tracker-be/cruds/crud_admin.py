@@ -20,16 +20,33 @@ from firebase_admin.auth import UserNotFoundError
 # =========================================================
 
 def admin_get_global_kpis(db: Session):
-    """Lấy KPI thống kê toàn hệ thống"""
+    """Lấy KPI thống kê toàn hệ thống (Đã nâng cấp)"""
+
+    # 1. Các chỉ số tài chính (Cũ)
     total_users = db.query(func.count(user_model.User.id)).scalar()
     total_income = db.query(func.sum(income_model.Income.amount)).scalar() or Decimal(0)
     total_expense = db.query(func.sum(expense_model.Expense.amount)).scalar() or Decimal(0)
+
+    # 2. ✅ TÍNH TOÁN CHỈ SỐ MỚI
+    # Đếm user đã bật 2FA
+    total_2fa = db.query(func.count(user_model.User.id)).filter(
+        user_model.User.is_2fa_enabled == True
+    ).scalar() or 0
+
+    # Đếm user mới trong 24h qua
+    one_day_ago = datetime.utcnow() - timedelta(hours=24)
+    new_users = db.query(func.count(user_model.User.id)).filter(
+        user_model.User.created_at >= one_day_ago
+    ).scalar() or 0
 
     return {
         "total_users": total_users,
         "total_income": float(total_income),
         "total_expense": float(total_expense),
-        "net_balance": float(total_income - total_expense)
+        "net_balance": float(total_income - total_expense),
+        # ✅ Trả về dữ liệu mới
+        "total_2fa_users": total_2fa,
+        "new_users_24h": new_users
     }
 
 
@@ -90,7 +107,7 @@ def admin_update_user(db: Session, user: user_model.User, update_data: AdminUser
 def admin_delete_user(db: Session, user: user_model.User):
     firebase_uid = user.firebase_uid
 
-    # 1. Xóa Firebase (Bọc trong try-except để an toàn)
+    # 1. Xóa Firebase (Bọc trong try-except để a toàn)
     if firebase_uid:
         try:
             fb_auth.delete_user(firebase_uid)
@@ -160,3 +177,4 @@ def admin_delete_default_category(db: Session, category: category_model.Category
     db.delete(category)
     db.commit()
     return True
+

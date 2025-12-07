@@ -1,4 +1,5 @@
-// pages/AdminUserManagement.jsx (ĐÃ THÊM EDIT MODAL)
+// pages/AdminUserManagement.jsx
+
 import React, { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
@@ -9,10 +10,10 @@ import {
   adminGetAllUsers,
   adminDeleteUser,
   adminGetGlobalKPIs,
-  adminUpdateUser, // ✅ Import hàm Update
+  adminUpdateUser, 
 } from "../services/adminService";
 
-// Helper: Nút gạt (Giống trang Security)
+// Helper: Nút gạt (Toggle Switch)
 const ToggleSwitch = ({ checked, onChange, name, disabled }) => (
   <div 
     onClick={() => !disabled && onChange({ target: { name, checked: !checked } })}
@@ -46,12 +47,11 @@ export default function AdminUserManagement() {
   
   // States cho Modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false); // ✅ State cho Edit Modal
-  const [currentUser, setCurrentUser] = useState(null); // ✅ User đang được chọn
-  const [editForm, setEditForm] = useState({ name: "", email: "", is_admin: false }); // ✅ State cho form edit
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "", is_admin: false });
 
   const fetchData = async () => {
-    // ... (Giữ nguyên logic fetchData) ...
     setLoading(true);
     try {
       const [usersData, kpisData] = await Promise.all([
@@ -89,10 +89,17 @@ export default function AdminUserManagement() {
   const handleUpdate = async () => {
     if (!currentUser) return;
     try {
-        const updatedUser = await adminUpdateUser(currentUser.id, editForm);
+        // Chỉ gửi name và is_admin, không gửi email (vì email không được sửa)
+        const payload = {
+            name: editForm.name,
+            is_admin: editForm.is_admin
+        };
+        
+        const updatedUser = await adminUpdateUser(currentUser.id, payload);
+        
         // Cập nhật lại list user trong state
         setUsers(users.map(u => (u.id === updatedUser.id ? updatedUser : u)));
-        toast.success(`User ${updatedUser.email} updated!`);
+        toast.success(`User updated successfully!`);
     } catch (error) {
         toast.error(error.message);
     } finally {
@@ -112,7 +119,7 @@ export default function AdminUserManagement() {
     try {
       await adminDeleteUser(currentUser.id);
       setUsers(users.filter(u => u.id !== currentUser.id));
-      toast.success(`User ${currentUser.email} deleted.`);
+      toast.success(`User deleted.`);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -137,7 +144,7 @@ export default function AdminUserManagement() {
         User Management
       </h1>
 
-      {/* 1. KPI Cards (Giữ nguyên) */}
+      {/* 1. KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className={`p-6 rounded-2xl ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border"}`}>
             <p className="text-sm font-semibold text-gray-400 flex items-center gap-2"><Users size={16} /> Total Users</p>
@@ -145,15 +152,15 @@ export default function AdminUserManagement() {
         </div>
         <div className={`p-6 rounded-2xl ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border"}`}>
             <p className="text-sm font-semibold text-gray-400 flex items-center gap-2"><ShieldCheck size={16} /> 2FA Enabled</p>
-            <p className="text-4xl font-bold mt-2">N/A</p> 
+            <p className="text-4xl font-bold mt-2 text-green-500">{kpis?.total_2fa_users ?? 0}</p> 
         </div>
         <div className={`p-6 rounded-2xl ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border"}`}>
             <p className="text-sm font-semibold text-gray-400 flex items-center gap-2"><UserPlus size={16} /> New Users (24h)</p>
-            <p className="text-4xl font-bold mt-2">N/A</p>
+            <p className="text-4xl font-bold mt-2 text-blue-500">+{kpis?.new_users_24h ?? 0}</p>
         </div>
       </div>
 
-      {/* 2. Control Panel (Search) (Giữ nguyên) */}
+      {/* 2. Control Panel */}
       <div className={`p-4 rounded-2xl mb-6 ${isDark ? "bg-gray-800" : "bg-white"}`}>
         <div className="relative w-full max-w-md">
             <input
@@ -169,7 +176,7 @@ export default function AdminUserManagement() {
         </div>
       </div>
 
-      {/* 3. User List Table (Giữ nguyên) */}
+      {/* 3. User List Table */}
       <div className={`rounded-2xl shadow-xl overflow-hidden ${isDark ? "bg-gray-800" : "bg-white"}`}>
         {loading ? (
             <div className="h-64 flex justify-center items-center"><Loader2 className="animate-spin" /></div>
@@ -216,8 +223,7 @@ export default function AdminUserManagement() {
                             </td>
                             <td className="py-4 px-4 text-sm text-gray-400">{formatDate(user.created_at)}</td>
                             <td className="py-4 px-4">
-                                {/* ✅ Kích hoạt nút Edit */}
-                                <button onClick={() => initiateEdit(user)} className="p-2 text-gray-400 hover:text-blue-500" title="Edit User">
+                                <button onClick={() => initiateEdit(user)} className="p-2 text-gray-400 hover:text-blue-500" title="Edit Role">
                                     <Edit size={18} />
                                 </button>
                                 <button onClick={() => initiateDelete(user)} className="p-2 text-gray-400 hover:text-red-500" title="Delete User">
@@ -231,12 +237,12 @@ export default function AdminUserManagement() {
         )}
       </div>
 
-      {/* ✅ MODAL SỬA USER (MỚI) */}
+      {/* ✅ MODAL SỬA USER (ĐÃ KHÓA EMAIL) */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className={`w-full max-w-md p-6 rounded-2xl shadow-2xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold">Edit User</h3>
+                    <h3 className="text-xl font-bold">Edit User Permissions</h3>
                     <button onClick={() => setShowEditModal(false)}><X size={20} /></button>
                 </div>
                 
@@ -252,19 +258,19 @@ export default function AdminUserManagement() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-1">Email</label>
+                        <label className="block text-sm font-medium mb-1">Email (Read-only)</label>
                         <input
                             type="email"
                             name="email"
                             value={editForm.email}
-                            onChange={handleFormChange}
-                            className={`w-full px-3 py-2 rounded-lg border ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"}`}
+                            readOnly // 🔒 KHÓA KHÔNG CHO SỬA
+                            className={`w-full px-3 py-2 rounded-lg border opacity-60 cursor-not-allowed ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"}`}
                         />
                     </div>
                     <div className="flex justify-between items-center p-3 rounded-lg bg-gray-100 dark:bg-gray-700/50">
                         <div>
                             <label className="block text-sm font-bold">Administrator Access</label>
-                            <p className="text-xs text-gray-500">Grants full access to manage users and settings.</p>
+                            <p className="text-xs text-gray-500">Grant full control over the system.</p>
                         </div>
                         <ToggleSwitch
                             name="is_admin"
@@ -303,7 +309,7 @@ export default function AdminUserManagement() {
                     <h3 className="text-xl font-bold mb-2">Delete User?</h3>
                     <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
                         Are you sure you want to delete <strong className={isDark ? "text-white" : "text-black"}>{currentUser?.email}</strong>? 
-                        This action is irreversible and will delete all their data.
+                        This action is irreversible.
                     </p>
                     <div className="flex gap-3 w-full">
                         <button

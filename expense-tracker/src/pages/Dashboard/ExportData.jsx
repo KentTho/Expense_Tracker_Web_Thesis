@@ -1,7 +1,4 @@
 // ExportData.jsx
-// - ADDED: Preview filter (All, Income, Expense) for the table.
-// - UPDATED: All comments and UI text are now in English.
-// - RETAINED: Redesigned UI (Glow Cards, Upgraded Table Font/Icons).
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
@@ -14,6 +11,7 @@ import {
   TrendingDown,
   Scale,
   Filter, // Added icon for filter
+  FileText
 } from "lucide-react";
 import { BACKEND_BASE } from "../../services/api";
 import { getToken } from "../../services/incomeService"; 
@@ -319,6 +317,7 @@ export default function ExportData() {
                     {/* Upgraded padding */}
                     <th className="py-3 px-4 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Type</th>
                     <th className="py-3 px-4 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Category</th>
+                    <th className="py-3 px-4 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Note</th>
                     <th className="py-3 px-4 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Amount</th>
                     <th className="py-3 px-4 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Date</th>
                     <th className="py-3 px-4 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Emoji</th>
@@ -346,6 +345,10 @@ export default function ExportData() {
                           </span>
                         </td>
                         <td className="py-4 px-4 font-medium">{item.category_name}</td>
+                        {/* ✅ HIỂN THỊ NOTE */}
+                        <td className="py-4 px-4 text-sm text-gray-400 italic max-w-xs truncate">
+                            {item.note ? <span className="flex items-center gap-1"><FileText size={12}/> {item.note}</span> : "-"}
+                        </td>
                         <td className="py-4 px-4 font-semibold">
                           {formatCurrency(item.amount, currencyCode)}
                         </td>

@@ -1,6 +1,4 @@
 // Home.jsx
-// - ✅ FIXED: Đổi 'displayCurrency' thành 'currencyCode' để khớp với dữ liệu từ DashboardLayout.
-// - ✅ RESULT: Hiển thị đúng tiền tệ (VND/USD) ngay khi thay đổi bên Profile.
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useOutletContext, Link } from "react-router-dom";

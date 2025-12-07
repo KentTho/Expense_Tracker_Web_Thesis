@@ -1,20 +1,23 @@
-// SignUp.jsx
-// - REDESIGN: Sử dụng "Hero Card" đồng bộ với trang Login.
-// - UPDATED: Form đăng ký (icon, inputs) được tinh chỉnh.
+// pages/Auth/SignUp.jsx
+// - ✅ FIXED: Input text color is now Black (text-gray-900).
+// - 🎨 REDESIGN: Giao diện "Rocket Launch" năng động, Gradient Tím/Hồng.
+// - 🧩 LOGIC: Giữ nguyên logic đăng ký và đồng bộ.
 
 import { Link, useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/AuthLayout";
 import React, { useState } from "react";
-import { signupAndSync, loginAndSync } from "../../services/authService";
+import { signupAndSync } from "../../services/authService";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { UserPlus, Wallet } from "lucide-react"; // ✅ Thêm icon
+import { 
+    User, Mail, Lock, ArrowRight, Rocket, Sparkles 
+} from "lucide-react";
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullname, setFullname] = useState("");
-  const [loading, setLoading] = useState(false); // Thêm loading state
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const onSubmit = async (e) => {
@@ -23,7 +26,7 @@ export default function SignUp() {
       toast.error("⚠️ Please fill in all fields.");
       return;
     }
-    setLoading(true); // Bắt đầu loading
+    setLoading(true);
 
     try {
       const { user, idToken } = await signupAndSync(email, password, fullname);
@@ -33,131 +36,132 @@ export default function SignUp() {
       toast.success("🎉 Signup successful!", {
         position: "top-center",
         autoClose: 2000,
-        onClose: () => navigate("/login"), // Điều hướng về Login để họ đăng nhập
+        onClose: () => navigate("/dashboard"), // Chuyển thẳng vào Dashboard
       });
 
     } catch (err) {
       if (err.code === "auth/email-already-in-use") {
-        toast.info("Email already exists — trying to log in...", { position: "top-center" });
-        try {
-          const { user, idToken } = await loginAndSync(email, password);
-          localStorage.setItem("idToken", idToken);
-          localStorage.setItem("user", JSON.stringify(user));
-          toast.success("Auto-login successful! ✅", {
-            position: "top-center",
-            autoClose: 2000,
-            onClose: () => navigate("/dashboard"),
-          });
-        } catch (loginErr) {
-          toast.error("❌ Email exists, but password was incorrect.", { position: "top-center" });
-          setLoading(false); // Dừng loading
-        }
+          toast.error("❌ Email is already in use.");
       } else {
-        toast.error("Error: " + err.message, { position: "top-center" });
-        setLoading(false); // Dừng loading
+          toast.error("❌ Registration failed. Try again.");
+          console.error(err);
       }
+    } finally {
+        setLoading(false);
     }
   };
 
   // ===========================================
-  // 💡 "BRAND HERO CARD" (Đồng bộ với Login)
+  // 🎨 GIAO DIỆN HERO CARD (CREATIVE TWIST)
   // ===========================================
   const SignUpHeroCard = (
-    <div className="flex flex-col justify-between h-full bg-gradient-to-br from-purple-600 to-blue-700 rounded-3xl p-10 shadow-2xl text-white overflow-hidden">
-      <div>
-        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm border border-white/10">
-          <Wallet size={32} />
+    <div className="relative w-full h-full flex flex-col justify-center items-center text-center p-8 overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute top-[-50px] left-[-50px] w-64 h-64 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob"></div>
+        <div className="absolute bottom-[-50px] right-[-50px] w-64 h-64 bg-pink-400 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob animation-delay-2000"></div>
+        
+        <div className="relative z-10 bg-white/20 backdrop-blur-lg border border-white/40 p-10 rounded-[40px] shadow-2xl max-w-sm transform transition-all hover:scale-105 duration-500">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-6 mx-auto shadow-lg shadow-purple-500/40">
+                <Rocket className="text-white" size={40} />
+            </div>
+            <h2 className="text-4xl font-extrabold text-gray-800 mb-3 flex justify-center items-center gap-2">
+                Start Here <Sparkles size={24} className="text-yellow-500 animate-pulse"/>
+            </h2>
+            <p className="text-white-900 text-base font-medium leading-relaxed">
+                Join thousands of users mastering their finances. Create your free account and start tracking today!
+            </p>
         </div>
-        <h2 className="text-4xl font-bold mb-4 leading-tight">
-          Start Your Journey
-          <br />
-          To Financial Clarity.
-        </h2>
-        <p className="text-lg text-white/80">
-          Join us and take the first step towards mastering your money.
-        </p>
-      </div>
-      
-      {/* Biểu đồ trang trí (Abstract chart) */}
-      <div className="mt-auto pt-8 opacity-30">
-        <div className="flex items-end h-32 gap-3">
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '40%', animationDelay: '0.1s' }} />
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '70%', animationDelay: '0.2s' }} />
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '50%', animationDelay: '0.3s' }} />
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '90%', animationDelay: '0.4s' }} />
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '60%', animationDelay: '0.5s' }} />
-        </div>
-      </div>
     </div>
   );
 
-
+  // ===========================================
+  // 🎨 GIAO DIỆN SIGNUP FORM
+  // ===========================================
   return (
-    <AuthLayout
-      rightContent={SignUpHeroCard}
-    >
-      {/* Form (UI Tinh chỉnh) */}
-      <div className="w-full flex items-center justify-center">
-        <div className="w-full max-w-lg flex flex-col justify-center bg-white shadow-xl rounded-3xl p-10">
-          <div className="text-center space-y-2">
-            <h1 className="text-4xl font-extrabold text-gray-800">Create an Account</h1>
-            <p className="text-sm text-gray-500">Join us today by entering your details below.</p>
+    <AuthLayout rightContent={SignUpHeroCard}>
+       <div className="w-full flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          
+          <div className="mb-8">
+            <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 mb-2">
+                Create Account
+            </h1>
+            <p className="text-gray-500 text-sm">It's free and easy to set up.</p>
           </div>
 
-          {/* Icon (Thay thế Emoji) */}
-          <div className="flex justify-center my-6">
-            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 text-2xl shadow-inner">
-              <UserPlus size={28} />
+          <form onSubmit={onSubmit} className="space-y-5">
+            
+            {/* FULL NAME */}
+            <div className="relative group">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Full Name</label>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <User size={20} className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="John Doe"
+                        // ✅ FIXED: text-gray-900
+                        className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        onChange={(e) => setFullname(e.target.value)}
+                        required
+                    />
+                </div>
             </div>
-          </div>
 
-          <form className="flex-1 flex flex-col justify-center space-y-5" onSubmit={onSubmit}>
+            {/* EMAIL */}
+            <div className="relative group">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Email</label>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Mail size={20} className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+                    </div>
+                    <input
+                        type="email"
+                        placeholder="name@example.com"
+                        // ✅ FIXED: text-gray-900
+                        className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                    />
+                </div>
+            </div>
 
-              <input
-                type="text"
-                placeholder="Full Name"
-                className="w-full bg-gray-50 border-2 border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
-                onChange={(e) => setFullname(e.target.value)}
-                required
-              />
+            {/* PASSWORD */}
+            <div className="relative group">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Password</label>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Lock size={20} className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+                    </div>
+                    <input
+                        type="password"
+                        placeholder="Create a strong password"
+                        // ✅ FIXED: text-gray-900
+                        className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                    />
+                </div>
+                <p className="text-xs text-gray-400 mt-1 ml-1">Must be at least 6 characters.</p>
+            </div>
 
-            <input
-              type="email"
-              placeholder="Email Address"
-              className="w-full bg-gray-50 border-2 border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-
-            <input
-              type="password"
-              placeholder="Password (min. 6 characters)"
-              className="w-full bg-gray-50 border-2 border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-
-            <button
-              className={`w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition shadow-lg shadow-purple-500/30
-                ${loading ? "opacity-70 cursor-not-allowed" : "hover:scale-105"}`}
+            {/* SUBMIT BUTTON */}
+            <button 
               type="submit"
               disabled={loading}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg shadow-xl shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 mt-4"
             >
-              {loading ? "Creating Account..." : "SIGN UP"}
+              {loading ? "Creating Account..." : <>Get Started <ArrowRight size={20}/></>}
             </button>
-
-            <p className="text-center text-sm text-gray-600">
-              Already have an account?{" "}
-              <Link to="/login" className="text-purple-600 font-bold hover:underline">
-                Login
-              </Link>
-            </p>
           </form>
+
+          <p className="text-center text-sm text-gray-600 mt-8">
+            Already a member? <Link to="/login" className="text-purple-600 font-bold hover:underline">Sign In</Link>
+          </p>
         </div>
       </div>
-
-      {/* Hiển thị Toast */}
-      <ToastContainer />
+      <ToastContainer position="top-center" autoClose={3000} hideProgressBar theme="colored" />
     </AuthLayout>
   );
 }

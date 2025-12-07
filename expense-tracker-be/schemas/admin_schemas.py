@@ -34,6 +34,8 @@ class AdminGlobalKPIs(BaseModel):
     total_income: float
     total_expense: float
     net_balance: float
+    total_2fa_users: int = 0
+    new_users_24h: int = 0
 
 class AdminUserGrowth(BaseModel):
     """Schema cho biểu đồ tăng trưởng user"""

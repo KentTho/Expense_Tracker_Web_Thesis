@@ -1,6 +1,4 @@
 // Category.jsx
-// - ✅ FIXED: Sửa lỗi Crash khi mở chọn màu (Thêm fallback color).
-// - ✅ RETAINED: Giữ nguyên giao diện Glow Card và Modal 2 cột.
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";

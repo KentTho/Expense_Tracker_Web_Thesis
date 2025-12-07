@@ -27,10 +27,15 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
     weekday_map = ["Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy", "Chủ Nhật"]
     weekday_str = weekday_map[today.weekday()]
 
-    # Xử lý Admin
+    # ✅ NÂNG CẤP KHU VỰC ADMIN
     admin_str = ""
     if user.is_admin:
-        admin_str = "5. **ADMIN (get_system_stats):** Tra cứu số user, dòng tiền hệ thống."
+        admin_str = """
+        6. **QUẢN TRỊ VIÊN (Admin Mode):**
+           - **Tổng quan:** Hỏi "tình hình hệ thống", "số liệu toàn sàn" -> Dùng `admin_get_kpi`.
+           - **Giám sát:** Hỏi "ai vừa làm gì", "xem log", "nhật ký" -> Dùng `admin_get_logs`.
+           - **Tra cứu:** Hỏi "check user A", "tìm thông tin email B" -> Dùng `admin_search_user`.
+        """
 
     # 3. SYSTEM PROMPT (BẢN ĐẦY ĐỦ NHẤT)
     SYSTEM_TEMPLATE = """

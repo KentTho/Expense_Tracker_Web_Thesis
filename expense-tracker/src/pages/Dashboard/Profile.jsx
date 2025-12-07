@@ -1,6 +1,4 @@
 // pages/Profile.jsx
-// - ✅ UPDATED: Chỉ giữ lại USD và VND.
-// - ✅ LOGIC: Giữ nguyên logic lưu trữ, chỉ thay đổi danh sách lựa chọn.
 
 import React, { useState, useEffect } from "react";
 import { getAuth } from "firebase/auth";

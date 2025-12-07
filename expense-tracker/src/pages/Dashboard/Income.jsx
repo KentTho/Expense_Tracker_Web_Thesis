@@ -462,47 +462,80 @@ export default function Income() {
             </div>
             
             {/* --- ROW 2: CHART (NẰM DƯỚI CÙNG, FULL WIDTH) --- */}
-            <div className={`w-full p-6 rounded-2xl shadow-xl mb-8 ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                    <Calendar size={24} className="text-green-500" /> Income Trend by Date
-                </h2>
-                <div className="h-[500px] w-full min-w-0">
+            {/* ... (Phần code bên trên giữ nguyên) */}
+
+            {/* CHART SECTION - UI/UX UPGRADED */}
+            <div className={`w-full p-6 rounded-2xl shadow-xl mb-8 transition-all duration-300 hover:shadow-2xl ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
+                <div className="flex justify-between items-end mb-6">
+                    <div>
+                        <h2 className="text-xl font-bold flex items-center gap-2">
+                            <Calendar size={24} className="text-green-500" /> 
+                            Income Trend
+                        </h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Overview of your earnings over time
+                        </p>
+                    </div>
+                </div>
+
+                <div className="h-[400px] w-full"> 
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={dailyTrendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <AreaChart data={dailyTrendData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
                             <defs>
+                                {/* ✨ NÂNG CẤP: Gradient mượt mà hơn */}
                                 <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={INCOME_TREND_COLOR} stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor={INCOME_TREND_COLOR} stopOpacity={0}/>
+                                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor="#10B981" stopOpacity={0.05}/>
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
+                            
+                            <CartesianGrid 
+                                strokeDasharray="3 3" 
+                                stroke={isDark ? "#374151" : "#E5E7EB"} 
+                                vertical={false} // 💡 Chỉ hiện dòng ngang cho đỡ rối
+                                opacity={0.5}
+                            />
+                            
                             <XAxis 
                                 dataKey="date" 
                                 stroke={isDark ? "#9CA3AF" : "#6B7280"} 
-                                angle={-45} 
-                                textAnchor="end" 
-                                height={70} 
-                                tick={{ fontSize: 14, fontWeight: 600 }} // ✅ Font to
+                                angle={0} // 💡 Để thẳng dễ đọc hơn nếu ít ngày, hoặc giữ -45 nếu nhiều
+                                tickMargin={15}
+                                tick={{ fontSize: 12, fontWeight: 500 }}
+                                axisLine={false}
+                                tickLine={false}
                             /> 
+                            
                             <YAxis 
                                 stroke={isDark ? "#9CA3AF" : "#6B7280"} 
-                                tickFormatter={(value) => formatAmountDisplay(value, currencyCode)}
-                                tick={{ fontSize: 14, fontWeight: 600 }} // ✅ Font to
-                                width={100} // ✅ Rộng hơn
+                                tickFormatter={(value) => formatAmountDisplay(value, currencyCode).replace(currencyCode, "").trim()} // 💡 Bỏ mã tiền cho gọn trục Y
+                                tick={{ fontSize: 12, fontWeight: 500 }}
+                                width={80}
+                                axisLine={false}
+                                tickLine={false}
                             /> 
-                            <Tooltip content={<CustomTooltip currencyCode={currencyCode} />} />
+                            
+                            <Tooltip 
+                                content={<CustomTooltip currencyCode={currencyCode} />}
+                                cursor={{ stroke: '#10B981', strokeWidth: 1, strokeDasharray: '5 5' }} // 💡 Đường gióng khi hover
+                            />
+                            
                             <Area 
-                                type="monotone" 
+                                type="monotone" // 💡 Đường cong mềm mại
                                 dataKey="amount" 
-                                stroke={INCOME_TREND_COLOR} 
-                                strokeWidth={3}
+                                stroke="#10B981" 
+                                strokeWidth={3} // 💡 Đường viền dày hơn
                                 fillOpacity={1} 
                                 fill="url(#colorIncome)" 
+                                activeDot={{ r: 6, strokeWidth: 0, fill: '#059669' }} // 💡 Điểm sáng khi hover
+                                animationDuration={1500} // 💡 Hiệu ứng xuất hiện từ từ
                             />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
             </div>
+
+{/* ... (Phần code bên dưới giữ nguyên) */}
             
             {/* --- DELETE CONFIRMATION MODAL --- */}
             {showDeleteModal && (

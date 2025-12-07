@@ -1,32 +1,29 @@
-// Login.jsx
-// - REDESIGN: "Right Content" được làm mới thành "Hero Card" sáng tạo.
-// - UPDATED: Form đăng nhập (icon, inputs) được tinh chỉnh.
+// pages/Auth/Login.jsx
 
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import AuthLayout from "../../components/AuthLayout";
-// ✅ Import hàm mới
 import { loginAndSync, verify2FALogin } from "../../services/authService"; 
-import { LogIn, Wallet, ShieldCheck, ArrowRight } from "lucide-react";
+import { 
+  LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle 
+} from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // ✅ State quản lý bước 2FA
+  // State quản lý bước 2FA
   const [show2FA, setShow2FA] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   
   const navigate = useNavigate();
 
-  // Chỉ check token nếu KHÔNG phải đang ở màn hình nhập 2FA
   useEffect(() => {
     const token = localStorage.getItem("idToken");
-    // Nếu có token và user chưa bật 2FA (hoặc đã verify xong), mới đá về dashboard
-    // Logic này hơi lắt léo: Ta sẽ check sau khi login thành công
+    // Logic check token giữ nguyên
   }, [navigate]);
 
   const handleLogin = async (e) => {
@@ -37,33 +34,26 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      // Bước 1: Đăng nhập Firebase & Sync BE
       const { user, idToken } = await loginAndSync(email, password);
       
-      // Lưu tạm token
       localStorage.setItem("idToken", idToken);
       localStorage.setItem("user", JSON.stringify(user));
 
-      // ✅ KIỂM TRA: Nếu user có bật 2FA
       if (user.is_2fa_enabled) {
-          setShow2FA(true); // Chuyển sang màn hình nhập mã
-          toast.info("🔐 2FA Enabled. Please enter code from Authenticator app.");
+          setShow2FA(true);
+          toast.info("🔐 Security Check Required");
       } else {
-          // Nếu không bật 2FA -> Vào thẳng Dashboard
-          toast.success("✅ Login successful!");
+          toast.success("✅ Welcome back!");
           setTimeout(() => navigate("/dashboard"), 1000);
       }
     } catch (err) {
       toast.error("❌ Invalid email or password.");
       console.error(err);
     } finally {
-        // Chỉ tắt loading nếu KHÔNG chuyển sang màn 2FA
-        // Nếu chuyển sang 2FA thì giữ loading hoặc tắt tùy UI
         if (!show2FA) setLoading(false);
     }
   };
 
-  // ✅ Hàm xử lý nhập mã 2FA
   const handleVerify2FA = async (e) => {
       e.preventDefault();
       if (otpCode.length !== 6) {
@@ -73,7 +63,7 @@ export default function Login() {
       setLoading(true);
       try {
           await verify2FALogin(otpCode);
-          toast.success("✅ 2FA Verified! Redirecting...");
+          toast.success("✅ Verified! Redirecting...");
           setTimeout(() => navigate("/dashboard"), 1000);
       } catch (error) {
           toast.error("❌ " + error.message);
@@ -82,43 +72,74 @@ export default function Login() {
   };
 
   // ===========================================
-  // 💡 GIAO DIỆN 2FA FORM
+  // 🎨 GIAO DIỆN HERO CARD (BÊN PHẢI)
+  // ===========================================
+  const LoginHeroCard = (
+    <div className="relative w-full h-full flex flex-col justify-center items-center text-center p-8">
+        {/* Background mờ trang trí */}
+        <div className="absolute top-10 right-10 w-32 h-32 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
+        <div className="absolute bottom-10 left-10 w-32 h-32 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
+        
+        <div className="relative z-10 bg-white/30 backdrop-blur-md border border-white/50 p-8 rounded-3xl shadow-2xl max-w-sm">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg transform -rotate-6">
+                <LogIn className="text-white" size={32} />
+            </div>
+            <h2 className="text-3xl font-extrabold text-gray-800 mb-2">Welcome Back!</h2>
+            <p className="text-white-600 text-sm leading-relaxed">
+                Access your financial dashboard, track expenses, and manage your budget intelligently with FinBot.
+            </p>
+            <div className="mt-6 flex justify-center gap-2">
+                <div className="h-1.5 w-8 bg-blue-600 rounded-full"></div>
+                <div className="h-1.5 w-2 bg-gray-300 rounded-full"></div>
+                <div className="h-1.5 w-2 bg-gray-300 rounded-full"></div>
+            </div>
+        </div>
+    </div>
+  );
+
+  // ===========================================
+  // 🎨 GIAO DIỆN 2FA FORM (BƯỚC 2)
   // ===========================================
   if (show2FA) {
       return (
         <AuthLayout rightContent={
-            <div className="flex flex-col justify-center h-full items-center text-white bg-gradient-to-br from-blue-600 to-purple-700 rounded-3xl p-10 shadow-2xl">
-                <ShieldCheck size={64} className="mb-6" />
-                <h2 className="text-3xl font-bold mb-4">Two-Factor Authentication</h2>
-                <p className="text-center opacity-90">Your account is protected. Please enter the code from your Google Authenticator app.</p>
+            <div className="flex flex-col justify-center h-full items-center text-white bg-gradient-to-br from-blue-900 to-slate-900 rounded-3xl p-10 shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                <ShieldCheck size={80} className="mb-6 text-green-400 animate-pulse" />
+                <h2 className="text-3xl font-bold mb-4">Security Verification</h2>
+                <p className="text-center opacity-80 text-sm leading-relaxed">
+                    Your account is protected by 2FA.<br/>Please enter the 6-digit code from your Authenticator App.
+                </p>
             </div>
         }>
-            <div className="w-full flex items-center justify-center">
-                <div className="w-full max-w-lg bg-white shadow-xl rounded-3xl p-10">
+            <div className="w-full flex items-center justify-center p-6">
+                <div className="w-full max-w-md">
                     <div className="text-center mb-8">
-                        <h1 className="text-3xl font-bold text-gray-800">Verification</h1>
-                        <p className="text-gray-500 mt-2">Enter the 6-digit code</p>
+                        <h1 className="text-3xl font-extrabold text-gray-900">Two-Factor Auth</h1>
+                        <p className="text-gray-500 mt-2 text-sm">Enter the code to continue</p>
                     </div>
                     <form onSubmit={handleVerify2FA} className="space-y-6">
-                        <input
-                            type="text"
-                            maxLength="6"
-                            value={otpCode}
-                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g,''))} // Chỉ cho nhập số
-                            className="w-full text-center text-3xl tracking-[0.5em] font-bold py-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 outline-none"
-                            placeholder="000000"
-                            autoFocus
-                        />
+                        <div className="relative">
+                            <input
+                                type="text"
+                                maxLength="6"
+                                value={otpCode}
+                                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g,''))}
+                                className="w-full text-center text-4xl tracking-[0.5em] font-bold py-5 border-2 border-gray-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-gray-900 placeholder-gray-200 bg-gray-50"
+                                placeholder="000000"
+                                autoFocus
+                            />
+                        </div>
                         <button 
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                            className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                         >
-                            {loading ? "Verifying..." : <>Verify <ArrowRight size={20}/></>}
+                            {loading ? "Verifying..." : <>Verify & Login <CheckCircle size={20}/></>}
                         </button>
                     </form>
-                    <button onClick={() => window.location.reload()} className="w-full mt-4 text-sm text-gray-500 hover:text-gray-800">
-                        Cancel & Back to Login
+                    <button onClick={() => window.location.reload()} className="w-full mt-6 text-sm text-gray-500 hover:text-blue-600 font-medium transition-colors">
+                        ← Cancel & Return to Login
                     </button>
                 </div>
             </div>
@@ -127,86 +148,75 @@ export default function Login() {
   }
 
   // ===========================================
-  // 💡 IDEA MỚI: "BRAND HERO CARD" CHO BÊN PHẢI
+  // 🎨 GIAO DIỆN LOGIN FORM (BƯỚC 1 - UPDATE)
   // ===========================================
-  const LoginHeroCard = (
-    <div className="flex flex-col justify-between h-full bg-gradient-to-br from-purple-600 to-blue-700 rounded-3xl p-10 shadow-2xl text-white overflow-hidden">
-      <div>
-        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm border border-white/10">
-          <Wallet size={32} />
-        </div>
-        <h2 className="text-4xl font-bold mb-4 leading-tight">
-          All Your Finances,
-          <br />
-          One Single View.
-        </h2>
-        <p className="text-lg text-white/80">
-          Track, analyze, and optimize your spending and income with ease.
-        </p>
-      </div>
-      
-      {/* Biểu đồ trang trí (Abstract chart) */}
-      <div className="mt-auto pt-8 opacity-30">
-        <div className="flex items-end h-32 gap-3">
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '40%', animationDelay: '0.1s' }} />
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '70%', animationDelay: '0.2s' }} />
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '50%', animationDelay: '0.3s' }} />
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '90%', animationDelay: '0.4s' }} />
-          <div className="flex-1 bg-white/50 rounded-t-lg animate-pulse" style={{ height: '60%', animationDelay: '0.5s' }} />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <AuthLayout rightContent={LoginHeroCard}>
-       {/* ... Form Login cũ ... */}
-       <div className="w-full flex items-center justify-center">
-        <div className="w-full max-w-lg flex flex-col justify-center bg-white shadow-xl rounded-3xl p-10 relative">
-          {/* ... Header, Icon ... */}
-           <div className="text-center space-y-2">
-            <h1 className="text-4xl font-extrabold text-gray-800">Welcome Back</h1>
-            <p className="text-sm text-gray-500">Please enter your details to log in</p>
-          </div>
-          <div className="flex justify-center my-6">
-            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 text-2xl shadow-inner">
-              <LogIn size={28} />
-            </div>
+       <div className="w-full flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          
+          <div className="mb-10">
+            <h1 className="text-4xl font-extrabold text-gray-900 mb-2">Sign In</h1>
+            <p className="text-gray-500 text-sm">Welcome back! Please enter your details.</p>
           </div>
 
-          <form onSubmit={handleLogin} className="flex-1 flex flex-col justify-center space-y-5">
-            <input
-              type="email"
-              placeholder="Email Address"
-              className="w-full bg-gray-50 border-2 border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500"
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              className="w-full bg-gray-50 border-2 border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500"
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-             <div className="text-right -mt-2">
-                <Link to="/forgot-password" class="text-sm text-purple-600 hover:underline font-medium">Forgot Password?</Link>
-              </div>
+          <form onSubmit={handleLogin} className="space-y-6">
+            
+            {/* EMAIL INPUT */}
+            <div className="relative group">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Email</label>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Mail size={20} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+                    </div>
+                    <input
+                        type="email"
+                        placeholder="Enter your email"
+                        // ✅ FIXED: text-gray-900 (Màu đen)
+                        className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                    />
+                </div>
+            </div>
+
+            {/* PASSWORD INPUT */}
+            <div className="relative group">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Password</label>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Lock size={20} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+                    </div>
+                    <input
+                        type="password"
+                        placeholder="••••••••"
+                        // ✅ FIXED: text-gray-900 (Màu đen)
+                        className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                    />
+                </div>
+                <div className="text-right mt-2">
+                    <Link to="/forgot-password" class="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors">Forgot Password?</Link>
+                </div>
+            </div>
+
+            {/* SUBMIT BUTTON */}
             <button 
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition shadow-lg"
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-lg shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
             >
-              {loading ? "Logging In..." : "LOGIN"}
+              {loading ? "Logging In..." : <>Login <ArrowRight size={20}/></>}
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-600 mt-6">
-            Don’t have an account? <Link to="/signup" className="text-purple-600 font-bold hover:underline">Sign Up</Link>
+          <p className="text-center text-sm text-gray-600 mt-8">
+            Don’t have an account? <Link to="/signup" className="text-blue-600 font-bold hover:underline">Create account</Link>
           </p>
         </div>
       </div>
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar theme="colored" />
     </AuthLayout>
   );
 }

@@ -1,7 +1,4 @@
 // ForgotPassword.jsx
-// - REDESIGN: Sử dụng AuthLayout 2 cột (đồng bộ với Login/SignUp).
-// - ADDED: "Hero Card" với nội dung mới.
-// - UPDATED: Form, Icon, Inputs, và Toast (Tiếng Anh).
 
 import React, { useState } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";

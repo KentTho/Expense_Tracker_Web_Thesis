@@ -1,6 +1,4 @@
 // Expense.jsx
-// - ✅ FIXED: Kết nối với Global Currency (currencyCode) từ Context.
-// - ✅ RETAINED: Giữ nguyên toàn bộ logic Chatbot, Biểu đồ và CRUD.
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";

@@ -1,8 +1,4 @@
 // SecuritySettings.jsx
-// - REDESIGN: Giao diện "Control Center" hiện đại.
-// - ADDED: Custom Toggle Switches (Nút gạt) thay vì Checkbox.
-// - ADDED: Pulse Animation cho trạng thái Session.
-// - RETAINED: Logic API cũ, ID và Token được ẩn (Masked).
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";

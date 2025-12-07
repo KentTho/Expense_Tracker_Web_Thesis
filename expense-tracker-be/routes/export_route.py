@@ -25,8 +25,8 @@ def export_income(current_user=Depends(get_current_user_db), db: Session = Depen
             "Category": i.category_name or "",
             "Amount": float(i.amount or 0),
             "Date": i.date.isoformat(),
-            # ✅ FIX LỖI EMOJI: Ưu tiên lấy icon của Category, nếu không có mới lấy emoji của giao dịch
-            "Emoji": (i.category.icon if i.category else "") or i.emoji or "",
+            "Note": i.note or "",
+            "Emoji": (i.category.icon if i.category else "") or i.emoji or ""
         }
         for i in incomes
     ])
@@ -62,7 +62,7 @@ def export_expense(current_user=Depends(get_current_user_db), db: Session = Depe
             "Category": e.category_name or "",
             "Amount": float(e.amount or 0),
             "Date": e.date.isoformat(),
-            # ✅ FIX LỖI EMOJI: Ưu tiên lấy icon của Category
+            "Note": e.note or "",
             "Emoji": (e.category.icon if e.category else "") or e.emoji or "",
         }
         for e in expenses

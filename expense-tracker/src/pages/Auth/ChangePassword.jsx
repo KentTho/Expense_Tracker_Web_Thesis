@@ -1,5 +1,4 @@
 // ChangePassword.jsx
-// - ✅ FIXED: Sửa lỗi 'handleChange is not defined' bằng cách truyền prop 'onChange' vào Input.
 
 import React, { useState, useEffect } from "react";
 import { getAuth, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";

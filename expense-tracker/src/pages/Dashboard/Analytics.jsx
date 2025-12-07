@@ -1,7 +1,4 @@
 // Analytics.jsx
-// - ✅ LANGUAGE: Reverted to English (Removed i18n).
-// - ✅ FIXED: Variable naming and logic.
-// - ✅ RETAINED: Smart Grid Layout, Charts, Filters.
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
