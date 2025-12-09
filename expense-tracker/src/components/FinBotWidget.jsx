@@ -209,7 +209,7 @@ export default function FinBotWidget() {
   const handleKeyPress = (e) => { if (e.key === "Enter") handleSend(); };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end pointer-events-none">
+    <div id="tour-finbot" className="fixed bottom-6 right-6 z-[100] flex flex-col items-end pointer-events-none">
       {isOpen && (
         <div className="pointer-events-auto w-[380px] h-[600px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col mb-4 overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
           
@@ -219,66 +219,66 @@ export default function FinBotWidget() {
               <div className="bg-white/20 p-1.5 rounded-full"><Bot size={20} /></div>
               <div><h3 className="font-bold text-sm">FinBot AI</h3><p className="text-[10px] opacity-80">Financial Assistant</p></div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded"><X size={18} /></button>
-          </div>
+    <button id="tour-finbot" onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded"><X size={18} /></button>
+            </div>
 
-          {/* Chat Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-50 dark:bg-[#0B1120]">
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
-                
-                {/* Text Bubble */}
-                {msg.content && (
-                    <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === "user" ? "bg-blue-600 text-white rounded-tr-none" : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-tl-none border border-gray-100 dark:border-gray-700"}`}>
-                       <ReactMarkdown>{msg.content}</ReactMarkdown>
+                {/* Chat Body */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-50 dark:bg-[#0B1120]">
+                    {messages.map((msg, idx) => (
+                    <div key={idx} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                        
+                        {/* Text Bubble */}
+                        {msg.content && (
+                            <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === "user" ? "bg-blue-600 text-white rounded-tr-none" : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-tl-none border border-gray-100 dark:border-gray-700"}`}>
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            </div>
+                        )}
+
+                        {/* 🎨 RENDER WIDGETS */}
+                        
+                        {/* Biểu đồ Pie */}
+                        {msg.special?.type === 'chart' && (
+                            <div className="mt-2 w-full max-w-[95%] bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-md">
+                                <p className="text-xs font-bold text-gray-500 mb-2 text-center uppercase">{msg.special.payload.title}</p>
+                                <div className="h-40 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie data={msg.special.payload.data} innerRadius={35} outerRadius={55} paddingAngle={2} dataKey="value">
+                                                {msg.special.payload.data.map((e, i) => <Cell key={i} fill={CHART_COLORS[i % 5]} />)}
+                                            </Pie>
+                                            <Tooltip formatter={(val) => new Intl.NumberFormat('en-US').format(val)} />
+                                            <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '10px'}} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <button onClick={() => {setIsOpen(false); navigate("/analytics")}} className="w-full mt-2 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-xs font-bold rounded-lg hover:bg-blue-100 transition flex items-center justify-center gap-1">
+                                    <PieIcon size={12} /> View Analytics
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Admin KPI Widget */}
+                        {msg.special?.type === 'admin_kpi' && <AdminKpiWidget data={msg.special.payload} />}
+
+                        {/* Admin User Card */}
+                        {msg.special?.type === 'admin_user' && <AdminUserCard data={msg.special.payload} onManage={handleManageUser} />}
+
+                        {/* Admin Logs List */}
+                        {msg.special?.type === 'admin_logs' && <AdminLogsList logs={msg.special.payload} />}
+
                     </div>
-                )}
+                    ))}
+                    {isLoading && <div className="flex justify-start"><div className="bg-white dark:bg-gray-800 p-2.5 rounded-2xl rounded-tl-none border dark:border-gray-700"><Loader2 size={16} className="animate-spin text-blue-500" /></div></div>}
+                    <div ref={messagesEndRef} />
+                </div>
 
-                {/* 🎨 RENDER WIDGETS */}
-                
-                {/* Biểu đồ Pie */}
-                {msg.special?.type === 'chart' && (
-                    <div className="mt-2 w-full max-w-[95%] bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-md">
-                        <p className="text-xs font-bold text-gray-500 mb-2 text-center uppercase">{msg.special.payload.title}</p>
-                        <div className="h-40 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie data={msg.special.payload.data} innerRadius={35} outerRadius={55} paddingAngle={2} dataKey="value">
-                                        {msg.special.payload.data.map((e, i) => <Cell key={i} fill={CHART_COLORS[i % 5]} />)}
-                                    </Pie>
-                                    <Tooltip formatter={(val) => new Intl.NumberFormat('en-US').format(val)} />
-                                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '10px'}} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <button onClick={() => {setIsOpen(false); navigate("/analytics")}} className="w-full mt-2 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-xs font-bold rounded-lg hover:bg-blue-100 transition flex items-center justify-center gap-1">
-                            <PieIcon size={12} /> View Analytics
-                        </button>
-                    </div>
-                )}
-
-                {/* Admin KPI Widget */}
-                {msg.special?.type === 'admin_kpi' && <AdminKpiWidget data={msg.special.payload} />}
-
-                {/* Admin User Card */}
-                {msg.special?.type === 'admin_user' && <AdminUserCard data={msg.special.payload} onManage={handleManageUser} />}
-
-                {/* Admin Logs List */}
-                {msg.special?.type === 'admin_logs' && <AdminLogsList logs={msg.special.payload} />}
-
-              </div>
-            ))}
-            {isLoading && <div className="flex justify-start"><div className="bg-white dark:bg-gray-800 p-2.5 rounded-2xl rounded-tl-none border dark:border-gray-700"><Loader2 size={16} className="animate-spin text-blue-500" /></div></div>}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <div className="p-3 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex gap-2">
-             <input type="text" value={input} onChange={(e)=>setInput(e.target.value)} onKeyDown={handleKeyPress} className="flex-1 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-gray-400" placeholder="Nhập tin nhắn..." />
-             <button onClick={handleSend} disabled={!input.trim()} className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-md transition disabled:opacity-50"><Send size={16} /></button>
-           </div>
-        </div>
-      )}
+                {/* Input */}
+                <div className="p-3 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex gap-2">
+                    <input type="text" value={input} onChange={(e)=>setInput(e.target.value)} onKeyDown={handleKeyPress} className="flex-1 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-gray-400" placeholder="Nhập tin nhắn..." />
+                    <button onClick={handleSend} disabled={!input.trim()} className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-md transition disabled:opacity-50"><Send size={16} /></button>
+                </div>
+            </div>
+        )}
       <button onClick={() => setIsOpen(!isOpen)} className="pointer-events-auto p-4 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 text-white shadow-2xl hover:scale-105 transition-transform active:scale-95"><Bot size={28} /></button>
     </div>
   );

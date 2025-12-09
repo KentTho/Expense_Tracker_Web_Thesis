@@ -1,4 +1,7 @@
 // Category.jsx
+// - ✅ FIXED: Sửa lỗi handleSave (res.category -> res).
+// - ✅ FIXED: Thêm check an toàn trong filter để tránh lỗi "reading 'type' of undefined".
+// - ✅ UI: Giữ nguyên giao diện.
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
@@ -113,6 +116,7 @@ export default function Category() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
+  // Fetch Categories
   useEffect(() => {
     const token = localStorage.getItem("idToken");
     if (!token) {
@@ -125,10 +129,12 @@ export default function Category() {
       setLoading(true);
       try {
         const data = await getCategories(typeFilter);
-        setCategories(data);
+        // Đảm bảo data luôn là mảng
+        setCategories(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error(err);
         toast.error("Failed to load categories");
+        setCategories([]);
       } finally {
         setLoading(false);
       }
@@ -143,13 +149,13 @@ export default function Category() {
       type: typeFilter,
       icon: isIncome ? "💰" : "💸",
       color: isIncome ? "#22C55E" : "#EF4444",
-      user_id: "temp_user_id", 
+      user_id: "temp_user_id", // Đánh dấu là user category
     });
     setShowModal(true);
   };
 
   const openEditModal = (category) => {
-    if (!category.user_id) return; 
+    if (!category.user_id) return; // Không cho sửa Default
     setEditId(category.id);
     setForm(category);
     setShowModal(true);
@@ -161,9 +167,11 @@ export default function Category() {
     setShowColorPicker(false);
   }
 
+  // ✅ SỬA LỖI HANDLE SAVE TẠI ĐÂY
   const handleSave = async () => {
     if (!form.name) return toast.error("Please enter category name!");
     
+    // Loại bỏ user_id khỏi payload gửi lên (BE tự lấy từ token)
     const { user_id, ...payload } = form; 
 
     try {
@@ -175,7 +183,12 @@ export default function Category() {
         toast.success("Category updated!");
       } else {
         const res = await createCategory(payload);
-        setCategories((prev) => [...prev, res.category]);
+        
+        // 🛠️ FIX: API trả về object category trực tiếp (res), không phải { category: res }
+        // Kiểm tra kỹ cấu trúc trả về để add đúng vào mảng
+        const newCategory = res.category || res; 
+
+        setCategories((prev) => [...prev, newCategory]);
         toast.success("New category created!");
       }
       closeAllModals();
@@ -210,8 +223,9 @@ export default function Category() {
     }
   };
 
+  // ✅ SỬA LỖI FILTER: Thêm check (c && c.type) để tránh crash nếu có item lỗi
   const filteredCategories = useMemo(() => {
-    return categories.filter(c => c.type === typeFilter);
+    return categories.filter(c => c && c.type === typeFilter);
   }, [categories, typeFilter]);
 
   const activeColorClass = typeFilter === 'income' ? "text-green-500" : "text-red-500";
@@ -274,7 +288,7 @@ export default function Category() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredCategories.map((cat) => (
                   <CategoryCard
-                    key={cat.id || cat.name}
+                    key={cat.id || Math.random()} // Fallback key nếu id lỗi
                     category={cat}
                     onEdit={openEditModal}
                     onDelete={initiateDelete}
@@ -285,6 +299,7 @@ export default function Category() {
           </div>
       </main>
 
+      {/* DELETE MODAL */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
             <div className={`w-full max-w-sm p-6 rounded-2xl shadow-2xl transform transition-all ${isDark ? "bg-gray-800" : "bg-white"}`}>
@@ -315,6 +330,7 @@ export default function Category() {
         </div>
       )}
 
+      {/* CREATE/EDIT MODAL */}
       {showModal && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
@@ -340,6 +356,7 @@ export default function Category() {
 
               return (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  {/* CỘT PREVIEW */}
                   <div className="md:col-span-1 flex flex-col items-center">
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
                       Preview
@@ -347,7 +364,6 @@ export default function Category() {
                     <div
                       className="w-48 h-32 p-4 rounded-xl border-2 flex flex-col justify-between transition-all"
                       style={{
-                        // ✅ FIX CRASH: Sử dụng fallback color nếu form.color là null
                         backgroundColor: `${form.color || "#22C55E"}20`,
                         borderColor: form.color || "#22C55E",
                       }}
@@ -372,6 +388,7 @@ export default function Category() {
                     )}
                   </div>
 
+                  {/* CỘT FORM */}
                   <div className="md:col-span-2 space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Category Name</label>
@@ -424,7 +441,6 @@ export default function Category() {
                         >
                           <div 
                             className="w-6 h-6 rounded-full border" 
-                            // ✅ FIX CRASH: Sử dụng fallback color
                             style={{ backgroundColor: form.color || "#22C55E" }} 
                           />
                           <Palette size={18} className="text-gray-500" />
@@ -450,6 +466,7 @@ export default function Category() {
         </div>
       )}
 
+      {/* EMOJI PICKER */}
       {showEmojiPicker && (
         <div 
           className="fixed inset-0 z-[60] flex items-center justify-center"
@@ -468,6 +485,7 @@ export default function Category() {
         </div>
       )}
 
+      {/* COLOR PICKER */}
       {showColorPicker && (
         <div 
           className="fixed inset-0 z-[60] flex items-center justify-center"
@@ -475,7 +493,6 @@ export default function Category() {
         >
           <div onClick={(e) => e.stopPropagation()}>
             <SketchPicker
-              // ✅ FIX CRASH: Sử dụng fallback color cho props color
               color={form.color || "#22C55E"}
               onChange={(color) => setForm({ ...form, color: color.hex })}
             />

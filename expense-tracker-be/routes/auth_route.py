@@ -61,7 +61,6 @@ def update_profile(data: UserUpdate,
         user.birthday = data.birthday
     if data.currency_code is not None:
         user.currency_code = data.currency_code
-        # Tự động gán symbol tương ứng (nếu FE không gửi hoặc để chắc chắn)
     if user.currency_code == "VND":
         user.currency_symbol = "₫"
     elif user.currency_code == "USD":
@@ -72,6 +71,8 @@ def update_profile(data: UserUpdate,
         user.currency_symbol = data.currency_symbol
     if data.monthly_budget is not None:
         user.monthly_budget = data.monthly_budget
+    if data.has_onboard is not None:
+        user.has_onboard = data.has_onboard
 
     db.add(user)
     db.commit()

@@ -14,7 +14,7 @@ from cruds.crud_category import get_user_category_names_string
 def process_chat_message(db: Session, user: user_model.User, user_message: str, history: list = []):
     # 1. Khởi tạo Gemini
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
+        model="gemini-flash-latest",
         temperature=0,
     )
 
@@ -26,6 +26,7 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
     today = date.today()
     weekday_map = ["Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy", "Chủ Nhật"]
     weekday_str = weekday_map[today.weekday()]
+    is_admin_str = "QUẢN TRỊ VIÊN (ADMIN)" if user.is_admin else "NGƯỜI DÙNG (USER)"
 
     # ✅ NÂNG CẤP KHU VỰC ADMIN
     admin_str = ""

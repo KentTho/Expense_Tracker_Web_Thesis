@@ -109,6 +109,10 @@ export async function logout() {
     await signOut(auth);
     localStorage.removeItem("idToken");
     localStorage.removeItem("user");
+    
+    // 🔥 QUAN TRỌNG: Xóa trạng thái đã xem Splash để lần sau đăng nhập lại sẽ hiện lại
+    sessionStorage.removeItem("hasSeenSplash");
+    
     return { success: true };
   } catch (error) {
     console.error("Logout error:", error);

@@ -190,7 +190,7 @@ export default function AdminDefaultCategories() {
       <main className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
         {/* Header & Toggle */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <h1 className="text-4xl font-extrabold text-gray-800 dark:text-white flex items-center gap-3">
+          <h1 className="text-4xl font-extrabold flex items-center gap-3">
             <Shield className="text-purple-500" size={36} />
             Default Categories
           </h1>

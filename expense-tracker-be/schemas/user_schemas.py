@@ -14,6 +14,8 @@ class UserUpdate(BaseModel):
     currency_code: Optional[str] = None
     currency_symbol: Optional[str] = None
     monthly_budget: Optional[Decimal] = None
+    has_onboard: Optional[bool] = None
+
 class UserOut(BaseModel):
     """Schema phản hồi thông tin người dùng"""
     id: UUID
@@ -30,6 +32,7 @@ class UserOut(BaseModel):
     currency_code: str = "USD"
     currency_symbol: str = "$"
     monthly_budget: Optional[Decimal] = None
+    has_onboard: Optional[bool] = None
 
     class Config:
         from_attributes = True

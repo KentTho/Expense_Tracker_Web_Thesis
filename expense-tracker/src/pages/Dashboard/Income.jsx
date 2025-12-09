@@ -302,7 +302,7 @@ export default function Income() {
             <Toaster position="top-center" />
 
             {/* HEADER */}
-            <div className="flex justify-between items-center mb-8">
+            <div id="tour-income-header" className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold flex items-center gap-2">
                     <DollarSign size={32} className="text-green-500" /> Income Transactions
                 </h1>
@@ -333,7 +333,7 @@ export default function Income() {
             </div>
 
             {/* 💡 --- ROW 1: KPI & LIST (Bố cục 1-2-3 giống Expense) --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div id="tour-income-list" className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 
                 {/* 1. TOTAL INCOME CARD (ĐÃ NÂNG CẤP) */}
                 <div className={`lg:col-span-1 relative overflow-hidden p-6 rounded-2xl shadow-xl flex flex-col justify-between ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
@@ -465,7 +465,7 @@ export default function Income() {
             {/* ... (Phần code bên trên giữ nguyên) */}
 
             {/* CHART SECTION - UI/UX UPGRADED */}
-            <div className={`w-full p-6 rounded-2xl shadow-xl mb-8 transition-all duration-300 hover:shadow-2xl ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
+            <div id="tour-income-chart" className={`w-full p-6 rounded-2xl shadow-xl mb-8 transition-all duration-300 hover:shadow-2xl ${isDark ? "bg-gray-800" : "bg-white border border-gray-200"}`}>
                 <div className="flex justify-between items-end mb-6">
                     <div>
                         <h2 className="text-xl font-bold flex items-center gap-2">

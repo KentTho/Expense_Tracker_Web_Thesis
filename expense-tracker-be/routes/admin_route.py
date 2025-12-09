@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status, 
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
+import time
+from sqlalchemy import text
 
 from db.database import get_db
 from services.auth_token_db import get_current_admin_user
@@ -228,3 +230,43 @@ def delete_default_category(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/system/health")
+def check_system_health(db: Session = Depends(get_db)):
+    """Đo độ trễ API và kiểm tra kết nối Database thực tế"""
+    status_data = {
+        "db_status": "Disconnected",
+        "latency": 0,
+        "color": "red"
+    }
+
+    try:
+        # Bắt đầu bấm giờ
+        start_time = time.time()
+
+        # Thực hiện một truy vấn siêu nhẹ vào DB để test kết nối
+        db.execute(text("SELECT 1"))
+
+        # Kết thúc bấm giờ
+        end_time = time.time()
+
+        # Tính độ trễ (ms)
+        latency_ms = (end_time - start_time) * 1000
+
+        status_data["db_status"] = "Active"
+        status_data["latency"] = round(latency_ms, 2)
+
+        # Đánh giá màu sắc dựa trên tốc độ
+        if latency_ms < 100:
+            status_data["color"] = "green"
+        elif latency_ms < 500:
+            status_data["color"] = "yellow"
+        else:
+            status_data["color"] = "orange"
+
+    except Exception as e:
+        print(f"❌ Database Health Check Error: {e}")
+        status_data["db_status"] = "Error"
+
+    return status_data

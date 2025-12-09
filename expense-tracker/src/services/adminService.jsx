@@ -59,7 +59,6 @@ export async function adminGetDefaultCategories(type = null) {
 
 // (Tạm thời chúng ta chưa tạo API, nên các hàm này sẽ báo lỗi 404
 // cho đến khi chúng ta cập nhật Backend ở bước 4)
-
 export async function adminCreateDefaultCategory(payload) {
     return adminRequest("/categories", {
         method: "POST",
@@ -87,9 +86,6 @@ export async function getSystemSettings() {
     // Hoặc bạn có thể tạo hàm request riêng. Ở đây tôi dùng tạm adminRequest và sửa URL.
 }
 
-// services/adminService.jsx
-
-// ...
 
 // Helper riêng cho System (vì nó không nằm trong /admin)
 async function systemRequest(endpoint, method, body = null) {
@@ -115,12 +111,10 @@ export async function updateSystemSettings(data) {
     return systemRequest("/settings", "PUT", data);
 }
 
-// services/adminService.jsx
-
-// ... (các hàm khác)
-
-// ✅ PHẢI CÓ HÀM NÀY:
 export async function adminGetAuditLogs(limit = 50) {
     // Gọi đến /admin/logs (vì adminRequest đã có prefix /admin)
     return adminRequest(`/logs?limit=${limit}`, { method: "GET" });
+}
+export async function adminGetSystemHealth() {
+    return adminRequest("/system/health", { method: "GET" });
 }

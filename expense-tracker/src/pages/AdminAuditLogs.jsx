@@ -51,7 +51,7 @@ export default function AdminAuditLogs() {
   );
 
   return (
-    <div className={`min-h-screen ${isDark ? "text-gray-100" : "text-gray-900"}`}>
+    <div className={`min-h-screen ${isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
       
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
@@ -64,7 +64,7 @@ export default function AdminAuditLogs() {
         </div>
         <button 
             onClick={fetchLogs} 
-            className="px-4 py-2 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 rounded-lg transition flex items-center gap-2"
+            className="px-4 py-2 text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-700 dark:hover:bg-gray-700 rounded-lg transition flex items-center gap-2"
         >
             <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> Refresh
         </button>

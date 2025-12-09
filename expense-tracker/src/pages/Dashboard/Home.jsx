@@ -282,7 +282,7 @@ export default function Home() {
                 {renderBudgetCard()}
 
                 {/* 1. KPI CARDS */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div id="tour-kpi" className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-xl shadow-green-500/20 transition-transform hover:scale-[1.02]">
                         <div className="absolute right-0 top-0 p-4 opacity-10"><Wallet size={100} /></div>
                         <div className="relative z-10">
@@ -331,7 +331,7 @@ export default function Home() {
 
                 {/* 2. CHARTS */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className={`lg:col-span-2 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
+                    <div id="tour-chart-trend" className={`lg:col-span-2 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold flex items-center gap-2">
                                 <BarChart2 className="text-blue-500" size={24} />
@@ -374,7 +374,7 @@ export default function Home() {
                         </div>
                     </div>
 
-                    <div className={`lg:col-span-1 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
+                    <div id="tour-chart-pie" className={`lg:col-span-1 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold flex items-center gap-2">
                                 <PieIcon className="text-purple-500" size={24} />
@@ -409,7 +409,7 @@ export default function Home() {
                 </div>
 
                 {/* 3. RECENT TRANSACTIONS */}
-                <div className={`p-6 rounded-2xl shadow-lg ${isDark ? "bg-gray-800" : "bg-white"}`}>
+                <div id="tour-recent" className={`p-6 rounded-2xl shadow-lg ${isDark ? "bg-gray-800" : "bg-white"}`}>
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-xl font-bold flex items-center gap-2">
                             <TrendingUp className="text-orange-500" size={24} />
