@@ -89,9 +89,14 @@ export default function SecuritySettings() {
     setLoadingSettings(true);
     try {
       const data = await getSecuritySettings();
-      setSettings(data);
+      // API trả về User object, ta cần map vào state settings của trang này
+      setSettings({
+          is_2fa_enabled: data.is_2fa_enabled,
+          restrict_multi_device: data.restrict_multi_device // ✅ Lấy đúng trường này
+      });
     } catch (error) {
-      toast.error(error.message);
+      console.error(error);
+      // Không cần toast lỗi ở đây để tránh spam nếu user mới chưa có setting
     } finally {
       setLoadingSettings(false);
     }

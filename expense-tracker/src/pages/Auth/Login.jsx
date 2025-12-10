@@ -1,19 +1,24 @@
 // pages/Auth/Login.jsx
 
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useOutletContext } from "react-router-dom"; // Thêm useOutletContext
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import AuthLayout from "../../components/AuthLayout";
 import { loginAndSync, verify2FALogin } from "../../services/authService"; 
 import { 
-  LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle 
-} from "lucide-react";
+  LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle, Eye, EyeOff, Loader2
+} from "lucide-react"; // Thêm Eye, EyeOff, Loader2
 
 export default function Login() {
+  // Lấy theme từ context để chỉnh UI Dark/Light nếu cần (giống code cũ của bạn có thể dùng)
+  const context = useOutletContext(); 
+  const isDark = context?.theme === "dark";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // State ẩn/hiện mật khẩu
   
   // State quản lý bước 2FA
   const [show2FA, setShow2FA] = useState(false);
@@ -22,8 +27,11 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Logic check token cũ (nếu cần)
     const token = localStorage.getItem("idToken");
-    // Logic check token giữ nguyên
+    if (token) {
+        // Có thể redirect nếu muốn, hoặc để nguyên
+    }
   }, [navigate]);
 
   const handleLogin = async (e) => {
@@ -34,23 +42,46 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const { user, idToken } = await loginAndSync(email, password);
+      // 1. Gọi service đăng nhập
+      const res = await loginAndSync(email, password);
       
-      localStorage.setItem("idToken", idToken);
-      localStorage.setItem("user", JSON.stringify(user));
+      // ✅ FIX QUAN TRỌNG: Kiểm tra dữ liệu trả về an toàn
+      // Do Backend mới trả về { user, idToken }, ta cần lấy đúng user object
+      const user = res?.user; 
 
+      if (!user) {
+          throw new Error("Invalid response from server (No User Data).");
+      }
+      
+      // Lưu vào localStorage (đã được xử lý trong loginAndSync nhưng lưu lại cho chắc cũng được)
+      // localStorage.setItem("idToken", res.idToken);
+      // localStorage.setItem("user", JSON.stringify(user));
+
+      // 2. Kiểm tra trạng thái 2FA
       if (user.is_2fa_enabled) {
           setShow2FA(true);
           toast.info("🔐 Security Check Required");
       } else {
           toast.success("✅ Welcome back!");
+          // Chuyển hướng Dashboard (Nơi có Splash Screen)
           setTimeout(() => navigate("/dashboard"), 1000);
       }
     } catch (err) {
-      toast.error("❌ Invalid email or password.");
-      console.error(err);
+      console.error("Login Error:", err);
+      // Xử lý thông báo lỗi thân thiện
+      let msg = "Invalid email or password.";
+      // Check các lỗi phổ biến
+      if (err.message && (err.message.includes("401") || err.message.includes("auth/"))) {
+          msg = "Incorrect email or password.";
+      }
+      if (err.message && err.message.includes("user-not-found")) {
+          msg = "User account not found.";
+      }
+      toast.error(`❌ ${msg}`);
     } finally {
+        // Chỉ tắt loading nếu KHÔNG hiện bảng 2FA (để UI mượt)
         if (!show2FA) setLoading(false);
+        // Nếu show2FA = true, component sẽ render lại view khác nên không cần tắt loading ở đây
     }
   };
 
@@ -66,7 +97,7 @@ export default function Login() {
           toast.success("✅ Verified! Redirecting...");
           setTimeout(() => navigate("/dashboard"), 1000);
       } catch (error) {
-          toast.error("❌ " + error.message);
+          toast.error("❌ " + (error.message || "Invalid Code"));
           setLoading(false);
       }
   };
@@ -135,7 +166,7 @@ export default function Login() {
                             disabled={loading}
                             className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                         >
-                            {loading ? "Verifying..." : <>Verify & Login <CheckCircle size={20}/></>}
+                            {loading ? <Loader2 className="animate-spin" /> : <>Verify & Login <CheckCircle size={20}/></>}
                         </button>
                     </form>
                     <button onClick={() => window.location.reload()} className="w-full mt-6 text-sm text-gray-500 hover:text-blue-600 font-medium transition-colors">
@@ -172,8 +203,9 @@ export default function Login() {
                     <input
                         type="email"
                         placeholder="Enter your email"
-                        // ✅ FIXED: text-gray-900 (Màu đen)
+                        // ✅ UX: Thêm value và onChange chuẩn
                         className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        value={email} 
                         onChange={(e) => setEmail(e.target.value)}
                         required
                     />
@@ -188,13 +220,21 @@ export default function Login() {
                         <Lock size={20} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     </div>
                     <input
-                        type="password"
+                        type={showPassword ? "text" : "password"} // ✅ UX: Ẩn/Hiện pass
                         placeholder="••••••••"
-                        // ✅ FIXED: text-gray-900 (Màu đen)
-                        className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        className="w-full pl-12 pr-12 py-3.5 rounded-xl border border-gray-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                     />
+                    {/* Nút mắt Ẩn/Hiện Pass */}
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-3.5 text-gray-400 hover:text-blue-500 transition-colors"
+                    >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
                 </div>
                 <div className="text-right mt-2">
                     <Link to="/forgot-password" className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors">Forgot Password?</Link>
@@ -207,7 +247,7 @@ export default function Login() {
               disabled={loading}
               className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-lg shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
             >
-              {loading ? "Logging In..." : <>Login <ArrowRight size={20}/></>}
+              {loading ? <Loader2 className="animate-spin" /> : <>Login <ArrowRight size={20}/></>}
             </button>
           </form>
 

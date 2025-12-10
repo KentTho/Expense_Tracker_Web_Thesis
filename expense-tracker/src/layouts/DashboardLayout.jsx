@@ -20,7 +20,7 @@ export default function DashboardLayout() {
   const [currentUser, setCurrentUser] = useState(null);
   
   // State Splash: Lấy từ Session
-  const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("hasSeenSplash"));
+  const [showSplash, setShowSplash] = useState(true);
   
   // State Tour
   const [runTour, setRunTour] = useState(false);
@@ -62,7 +62,7 @@ export default function DashboardLayout() {
         // Lưu ý: Dùng đúng tên biến 'has_onboard' (khớp với DB)
         if (currentUser.has_onboard === false) {
              console.log("✨ User mới -> Bật Tour sau 1s");
-             setTimeout(() => setRunTour(true), 1000);
+             setTimeout(() => setRunTour(true), 2500);
         }
     }
   }, [showSplash, isAuthChecked, currentUser]);
@@ -70,7 +70,6 @@ export default function DashboardLayout() {
   // 4. Xử lý khi Splash xong
   const handleSplashComplete = () => {
       setShowSplash(false);
-      sessionStorage.setItem("hasSeenSplash", "true");
   };
 
   // 5. Xử lý khi Tour xong

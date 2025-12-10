@@ -1,6 +1,7 @@
 # crud_user.py
 from sqlalchemy.orm import Session
 from models import user_model
+from core.security import verify_password
 
 def get_user_by_firebase_uid(db: Session, firebase_uid: str):
     """Tìm người dùng bằng Firebase UID."""
@@ -31,4 +32,17 @@ def create_user(db: Session,
     db.add(user)
     db.commit()
     db.refresh(user)
+    return user
+
+def authenticate_user(db: Session, email: str, password: str):
+    """
+    Kiểm tra email và mật khẩu.
+    Nếu đúng -> Trả về User.
+    Nếu sai -> Trả về False.
+    """
+    user = get_user_by_email(db, email=email)
+    if not user:
+        return False
+    if not verify_password(password, user.password):
+        return False
     return user

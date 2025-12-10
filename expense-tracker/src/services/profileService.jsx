@@ -1,29 +1,42 @@
-// src/services/profileService.js
+// src/services/profileService.jsx
+// - ✅ FIX: Lấy idToken từ LocalStorage (Token Backend) thay vì Firebase.
+// - ✅ LOGIC: Tự động đá (Logout) nếu gặp lỗi 401 (Single Device Mode).
+
 import { auth } from "../components/firebase";
-import { BACKEND_BASE } from "../services/api";
+import { BACKEND_BASE } from "./api";
+import { signOut } from "firebase/auth";
 
 /**
- * 🟢 Helper: Gửi request kèm token Firebase
+ * 🟢 Helper: Gửi request kèm token
  */
 async function authorizedFetch(url, options = {}) {
-  // 1. Kiểm tra user đã đăng nhập chưa
-  const user = auth.currentUser;
-  if (!user) throw new Error("User not authenticated");
+  // 1. Lấy Token Hệ Thống từ LocalStorage (Token này có chứa session_key)
+  const idToken = localStorage.getItem("idToken");
 
-  // 2. Lấy token mới nhất (Force refresh nếu cần)
-  const idToken = await user.getIdToken();
+  // Nếu không có token -> Coi như chưa đăng nhập -> Đá ra
+  if (!idToken) {
+      await handleForceLogout();
+      throw new Error("No access token found. Please login.");
+  }
 
-  // 3. Gửi request với token
+  // 2. Gửi request
   const res = await fetch(url, {
     ...options,
     headers: {
-      "Authorization": `Bearer ${idToken}`,
+      "Authorization": `Bearer ${idToken}`, // Gửi Token hệ thống
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
   });
 
-  // 4. Xử lý kết quả trả về
+  // 3. 🔥 XỬ LÝ LỖI 401 (Bị đá do đăng nhập nơi khác hoặc hết hạn)
+  if (res.status === 401) {
+      console.warn("⚠️ Session expired / Logged in elsewhere (401).");
+      await handleForceLogout();
+      throw new Error("Session expired. You have logged in on another device.");
+  }
+
+  // 4. Xử lý dữ liệu trả về
   let responseData;
   try {
     responseData = await res.json();
@@ -32,12 +45,27 @@ async function authorizedFetch(url, options = {}) {
   }
 
   if (!res.ok) {
-    const message =
-      responseData?.detail || responseData?.error || res.statusText || "Request failed";
+    const message = responseData?.detail || responseData?.error || res.statusText || "Request failed";
     throw new Error(message);
   }
 
   return responseData;
+}
+
+// 🟢 Hàm xử lý đăng xuất cưỡng chế (Xóa sạch dấu vết)
+async function handleForceLogout() {
+    localStorage.removeItem("idToken");
+    localStorage.removeItem("user");
+    sessionStorage.clear(); // Xóa trạng thái Splash
+    try {
+        await signOut(auth); // Đăng xuất Firebase
+    } catch (e) {
+        console.error("Firebase signout error", e);
+    }
+    // Chuyển hướng thô (Force Reload) về Login
+    if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+    }
 }
 
 /**
@@ -53,8 +81,6 @@ export async function getUserProfile() {
  * 🟢 Cập nhật hồ sơ người dùng
  */
 export async function updateUserProfile(profileData) {
-  // ✅ Đã sửa lỗi: Không cần khai báo idToken thủ công nữa
-  // authorizedFetch sẽ tự lo việc đó.
   return authorizedFetch(`${BACKEND_BASE}/auth/user/profile`, {
     method: "PUT",
     body: JSON.stringify(profileData),

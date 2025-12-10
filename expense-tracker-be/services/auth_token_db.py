@@ -1,13 +1,19 @@
 # services/auth_token_db.py (Đã sửa lỗi Import)
-
+from core.config import settings
 from fastapi import Depends, HTTPException, Header
+from fastapi.security import OAuth2PasswordBearer
 from firebase_admin import auth as fb_auth
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+from starlette import status
+
 from cruds.crud_user import create_user, get_user_by_firebase_uid
 from db.database import get_db
+from models import user_model
 # ✅ SỬA LỖI Ở ĐÂY: Import User từ user_model
 from models.user_model import User
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login_sync")
 
 # -------------------------------------------------
 # Auth helpers
@@ -46,34 +52,40 @@ def verify_token_and_get_payload(id_token: str):
 # ----------------------
 # Dependency: get current user
 # ----------------------
-def get_current_user_db(
-    authorization: str = Header(...),
-    db: Session = Depends(get_db)
-):
-    """
-    Dependency: Verify Firebase token, ensure user exists in DB,
-    and return the DB user object.
-    """
-    id_token = extract_token(authorization)
-    payload = verify_token_and_get_payload(id_token)
+def get_current_user_db(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
-    uid = payload.get("uid")
-    if not uid:
-        raise HTTPException(status_code=401, detail="Invalid token payload: uid missing")
+    try:
+        # Giải mã Token
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        token_session_key: str = payload.get("session_key")  # Lấy key từ token
 
-    user = get_user_by_firebase_uid(db, uid)
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
 
-    if not user:
-        email = payload.get("email") or f"user_{uid}@noemail.local"
-        name = payload.get("name") or payload.get("displayName") or "Unnamed User"
-        picture = payload.get("picture")
-        user = create_user(
-            db,
-            firebase_uid=uid,
-            email=email,
-            name=name,
-            profile_image=picture
-        )
+    # Tìm user trong DB
+    user = db.query(user_model.User).filter(user_model.User.email == email).first()
+    if user is None:
+        raise credentials_exception
+
+    # ============================================================
+    # ✅ LOGIC SINGLE DEVICE MODE (CHỈ KÍCH HOẠT NẾU USER BẬT)
+    # ============================================================
+    if user.restrict_multi_device:  # Nếu user đã bật chức năng này
+        # Kiểm tra xem key trong token có khớp với key mới nhất trong DB không
+        if token_session_key != user.last_session_key:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired. You have logged in on another device.",  # Thông báo bị đá
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     return user
 

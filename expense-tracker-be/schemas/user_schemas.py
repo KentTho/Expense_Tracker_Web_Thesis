@@ -15,6 +15,7 @@ class UserUpdate(BaseModel):
     currency_symbol: Optional[str] = None
     monthly_budget: Optional[Decimal] = None
     has_onboard: Optional[bool] = None
+    restrict_multi_device: Optional[bool] = None
 
 class UserOut(BaseModel):
     """Schema phản hồi thông tin người dùng"""
@@ -43,3 +44,8 @@ class UserSyncPayload(BaseModel):
     email: str
     firebase_uid: str
     display_name: Optional[str] = None
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserOut

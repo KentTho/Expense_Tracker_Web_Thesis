@@ -1,187 +1,118 @@
-// ===========================
-// 💰 incomeService.jsx
-// ===========================
-import { auth } from "../components/firebase";
+// services/incomeService.jsx
+// - ✅ FIX: Lấy Token từ LocalStorage (Token Backend) thay vì Firebase.
+// - ✅ LOGIC: Tự động Logout nếu gặp lỗi 401.
+
 import { BACKEND_BASE } from "./api";
-import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../components/firebase";
+import { signOut } from "firebase/auth";
 
 // ----------------------------------------------------
-// 🧩 Helper: Lấy Firebase token hiện tại
+// 🧩 Helper: Lấy Token từ LocalStorage (Backend Token)
 // ----------------------------------------------------
 export const getToken = async () => {
-  const user = auth.currentUser;
-  if (!user) {
-    // Đợi user login nếu chưa có
-    await new Promise((resolve) => {
-      const unsubscribe = onAuthStateChanged(auth, (u) => {
-        if (u) {
-          unsubscribe();
-          resolve(u);
-        }
-      });
-    });
+  const token = localStorage.getItem("idToken");
+  if (!token) {
+      await handleForceLogout();
+      throw new Error("No access token found. Please login.");
   }
-  return await auth.currentUser.getIdToken();
+  return token;
 };
 
 // ----------------------------------------------------
-// 🧩 Helper: Chuẩn hóa payload để gửi cho backend (Đã sửa)
+// 🧩 Helper: Xử lý Đăng xuất cưỡng chế
+// ----------------------------------------------------
+async function handleForceLogout() {
+    localStorage.clear();
+    sessionStorage.clear();
+    try { await signOut(auth); } catch (e) { console.error(e); }
+    if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+    }
+}
+
+// ----------------------------------------------------
+// 🧩 Helper: Fetch Wrapper (Tự động thêm Token & Check 401)
+// ----------------------------------------------------
+async function authorizedFetch(url, options = {}) {
+    const token = await getToken();
+    
+    const res = await fetch(url, {
+        ...options,
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        }
+    });
+
+    // 🔥 KÍCH HOẠT SINGLE DEVICE MODE (Đá văng nếu 401)
+    if (res.status === 401) {
+        console.warn("⚠️ Session expired (401). Logging out...");
+        await handleForceLogout();
+        throw new Error("Session expired. Please login again.");
+    }
+
+    if (!res.ok) {
+        const errText = await res.text();
+        try {
+            const errJson = JSON.parse(errText);
+            throw new Error(errJson.detail || errText);
+        } catch (e) {
+            throw new Error(errText || `Request failed: ${res.status}`);
+        }
+    }
+
+    return res.json();
+}
+
+// ----------------------------------------------------
+// 🧩 Helper: Payload Builder (Giữ nguyên)
 // ----------------------------------------------------
 function buildIncomePayload(form) {
-    const payload = {
+    return {
         category_name: form.category_name || null,
         amount: Number(form.amount),
         date: form.date,
         emoji: form.emoji || null,
-        // ✅ GỬI category_id: Đây là ID UUID thật từ DB (Default hoặc User Category)
         category_id: form.category_id || null, 
         currency_code: form.currency_code || "USD",
         note: form.note || "",
     };
-    
-    // Loại bỏ mọi logic kiểm tra is_user_category
-    
-    return payload;
 }
-// ----------------------------------------------------
-// 📤 POST /incomes — Tạo thu nhập mới
-// ----------------------------------------------------
-export async function createIncome(data) {
-  const token = await getToken();
-  const payload = buildIncomePayload(data);
 
-  const res = await fetch(`${BACKEND_BASE}/incomes`, {
+// ====================================================
+// 📤 CÁC HÀM API (GIỮ NGUYÊN CẤU TRÚC GỌI)
+// ====================================================
+
+export async function createIncome(data) {
+  const payload = buildIncomePayload(data);
+  return authorizedFetch(`${BACKEND_BASE}/incomes`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(payload),
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
-  return await res.json();
 }
 
-// incomeService.jsx
-
-// (Giữ nguyên các hàm khác)
-
 export async function getIncomes() {
-  const token = await getToken();
-
-  const res = await fetch(`${BACKEND_BASE}/incomes`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    // ✅ Có vẻ có lỗi trong logic error handling cũ của bạn, nên tôi sửa lại cho đồng bộ
-    try {
-        const errJson = JSON.parse(err);
-        throw new Error(errJson.detail || "Failed to fetch incomes!");
-    } catch (e) {
-        throw new Error(err || "Failed to fetch incomes!");
-    }
-  }
-  
-  // ✅ ĐÃ SỬA: Trả về trường 'items' chứa danh sách giao dịch
-  const data = await res.json();
+  const data = await authorizedFetch(`${BACKEND_BASE}/incomes`, { method: "GET" });
   return data.items || [];
 }
 
-// (Giữ nguyên các hàm khác)
-
 export async function updateIncome(id, data) {
-  const token = await getToken();
   const payload = buildIncomePayload(data);
-
-  const res = await fetch(`${BACKEND_BASE}/incomes/${id}`, {
+  return authorizedFetch(`${BACKEND_BASE}/incomes/${id}`, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(payload),
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err.detail || "Failed to update incomes!");
-  }
-  return await res.json();
 }
 
 export async function deleteIncome(id) {
-  const token = await getToken();
-
-  const res = await fetch(`${BACKEND_BASE}/incomes/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
-
-  return await res.json();
+  return authorizedFetch(`${BACKEND_BASE}/incomes/${id}`, { method: "DELETE" });
 }
 
-
-// ====================================================
-// 📊 GET Income Summary (Thêm mới)
-// ====================================================
 export async function getIncomeSummary() {
-  const token = await getToken();
-
-  const res = await fetch(`${BACKEND_BASE}/incomes/summary`, { // Backend route: GET /incomes/summary
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    try {
-        const errJson = JSON.parse(errText);
-        throw new Error(errJson.detail || "Failed to fetch income summary!");
-    } catch (e) {
-        throw new Error(errText || "Failed to fetch income summary!");
-    }
-  }
-  return await res.json();
+  return authorizedFetch(`${BACKEND_BASE}/incomes/summary`, { method: "GET" });
 }
 
-// ===========================
-// 💰 incomeService.jsx (Bổ sung/Sửa)
-// ===========================
-
-// ... (các hàm hiện có, đảm bảo getToken() vẫn được định nghĩa)
-
-// 📊 GET Financial KPIs
 export async function getFinancialKpiSummary() {
-    const token = await getToken();
-
-    const res = await fetch(`${BACKEND_BASE}/summary/kpis`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-    });
-
-    // 💡 Xử lý lỗi: Đảm bảo BE đã gửi token hợp lệ và route đã được đăng ký
-    if (!res.ok) {
-        const resText = await res.text();
-        try {
-            // Thử phân tích JSON (nếu BE trả về lỗi dạng JSON, ví dụ: {"detail":"Not Found"})
-            const errJson = JSON.parse(resText);
-            throw new Error(JSON.stringify(errJson));
-        } catch (e) {
-            // Nếu không phải JSON, hoặc lỗi network (Failed to fetch)
-            throw new Error(resText || `Failed to fetch KPIs: Status ${res.status}`);
-        }
-    }
-    return await res.json();
+    return authorizedFetch(`${BACKEND_BASE}/summary/kpis`, { method: "GET" });
 }
