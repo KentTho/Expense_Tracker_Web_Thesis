@@ -1,7 +1,7 @@
 // pages/AdminSystemSettings.jsx
-// - ✅ FIXED: Tách biệt logic Toggle và Input Text.
-// - ✅ FIXED: Hàm handleSave gửi đúng trạng thái hiện tại của nút gạt.
-// - ✅ UX: Thêm nút "Clear" để xóa nhanh thông báo.
+// - ✅ REAL DATA: Hiển thị Ping & DB Status thật từ Server.
+// - ✅ UI FIX: Màu sắc Light Mode tinh tế hơn (Slate/Gray).
+// - ✅ LOGIC FIX: Tách biệt hoàn toàn việc Bật/Tắt chế độ và Nhập nội dung thông báo.
 
 import React, { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
@@ -15,7 +15,7 @@ import {
     adminGetSystemHealth 
 } from "../services/adminService";
 
-// Toggle Switch Component (Giữ nguyên giao diện đẹp)
+// Toggle Switch Component (Giao diện đẹp)
 const PowerSwitch = ({ label, description, checked, onChange, colorClass, isDark }) => (
     <div className={`flex items-center justify-between p-5 rounded-2xl shadow-lg border transition-all hover:shadow-xl ${
         isDark 
@@ -42,7 +42,7 @@ const PowerSwitch = ({ label, description, checked, onChange, colorClass, isDark
             <input 
                 type="checkbox" 
                 className="sr-only peer" 
-                checked={!!checked} // Đảm bảo luôn là boolean
+                checked={!!checked} 
                 onChange={onChange} 
             />
             <div className={`w-14 h-8 rounded-full peer transition-colors duration-300 ease-in-out
@@ -60,33 +60,36 @@ export default function AdminSystemSettings() {
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     
-    // State cấu hình
+    // State cấu hình (Lưu trữ trạng thái của các nút và input)
     const [settings, setSettings] = useState({
         maintenance_mode: false,
         allow_signup: true,
         broadcast_message: ""
     });
 
+    // State sức khỏe hệ thống (Ping, DB)
     const [serverStats, setServerStats] = useState({
         db_status: "Checking...",
         latency: 0,
         color: "gray"
     });
 
+    // Hàm tải dữ liệu ban đầu
     const loadData = async () => {
         try {
             const [configData, healthData] = await Promise.all([
                 fetchSystemSettings(),
                 adminGetSystemHealth()
             ]);
-            // Đảm bảo dữ liệu không bị null
+            
             setSettings({
                 maintenance_mode: configData.maintenance_mode || false,
-                allow_signup: configData.allow_signup ?? true, // allow_signup có thể là false nên dùng ??
+                allow_signup: configData.allow_signup ?? true,
                 broadcast_message: configData.broadcast_message || ""
             });
             setServerStats(healthData);
         } catch (err) {
+            console.error(err);
             toast.error("Failed to load system status");
         } finally {
             setLoading(false);
@@ -95,13 +98,14 @@ export default function AdminSystemSettings() {
 
     useEffect(() => {
         loadData();
+        // Auto-refresh Ping mỗi 10s
         const interval = setInterval(() => {
             adminGetSystemHealth().then(setServerStats).catch(()=>{});
         }, 10000);
         return () => clearInterval(interval);
     }, []);
 
-    // ✅ FIX LOGIC TOGGLE: Cập nhật trực tiếp vào state
+    // Xử lý bật/tắt nút gạt (Chỉ cập nhật State, chưa lưu)
     const handleToggle = (key) => {
         setSettings(prev => ({ 
             ...prev, 
@@ -109,7 +113,7 @@ export default function AdminSystemSettings() {
         }));
     };
 
-    // ✅ FIX LOGIC SAVE: Gửi toàn bộ state hiện tại lên Server
+    // Xử lý Lưu (Gửi tất cả settings hiện tại lên Server)
     const handleSave = async () => {
         setIsSaving(true);
         try {
@@ -119,10 +123,13 @@ export default function AdminSystemSettings() {
                 broadcast_message: settings.broadcast_message
             };
             
+            // Gọi API cập nhật
             const updated = await updateSystemSettings(payload);
-            setSettings(updated); // Cập nhật lại state với phản hồi từ server để chắc chắn đồng bộ
             
-            toast.success("System configuration saved successfully!");
+            // Cập nhật lại state với dữ liệu chính thức từ server trả về
+            setSettings(updated); 
+            
+            toast.success("Configuration saved successfully!");
         } catch (error) {
             console.error(error);
             toast.error("Failed to update settings.");
@@ -131,6 +138,7 @@ export default function AdminSystemSettings() {
         }
     };
 
+    // Xóa nhanh nội dung thông báo
     const handleClearMessage = () => {
         setSettings(prev => ({ ...prev, broadcast_message: "" }));
     };
@@ -152,7 +160,7 @@ export default function AdminSystemSettings() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 
-                {/* Cột 1: Server Status */}
+                {/* Cột 1: Trạng thái Server (Real-time) */}
                 <div className={`p-6 rounded-2xl shadow-xl transition-colors ${
                     isDark ? "bg-gray-800 border border-gray-700" : "bg-white border border-slate-200"
                 }`}>
@@ -166,6 +174,7 @@ export default function AdminSystemSettings() {
                     </div>
 
                     <div className="space-y-8">
+                        {/* Latency */}
                         <div>
                             <div className="flex justify-between items-center mb-2">
                                 <span className={`font-medium flex items-center gap-2 ${isDark ? "text-gray-300" : "text-slate-600"}`}>
@@ -186,6 +195,7 @@ export default function AdminSystemSettings() {
                             </div>
                         </div>
                         
+                        {/* DB Connection */}
                         <div>
                             <div className="flex justify-between items-center mb-2">
                                 <span className={`font-medium flex items-center gap-2 ${isDark ? "text-gray-300" : "text-slate-600"}`}>
@@ -208,11 +218,11 @@ export default function AdminSystemSettings() {
                     </div>
                 </div>
 
-                {/* Cột 2: Toggles */}
+                {/* Cột 2: Cấu hình Toggles */}
                 <div className="space-y-4">
                     <PowerSwitch 
                         label="Maintenance Mode" 
-                        description="Block access for regular users."
+                        description="Block regular user access."
                         checked={settings.maintenance_mode}
                         onChange={() => handleToggle("maintenance_mode")}
                         colorClass={{ bg: "bg-red-500", activeBg: "bg-red-600" }}
@@ -220,7 +230,7 @@ export default function AdminSystemSettings() {
                     />
                     <PowerSwitch 
                         label="Allow New Signups" 
-                        description="Enable/Disable new user registrations."
+                        description="Toggle registration availability."
                         checked={settings.allow_signup}
                         onChange={() => handleToggle("allow_signup")}
                         colorClass={{ bg: "bg-green-500", activeBg: "bg-green-600" }}
@@ -229,7 +239,7 @@ export default function AdminSystemSettings() {
                 </div>
             </div>
 
-            {/* Global Broadcast */}
+            {/* Hàng dưới: Global Broadcast */}
             <div className={`mt-8 p-6 rounded-2xl shadow-xl border ${
                 isDark ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"
             }`}>
@@ -237,7 +247,7 @@ export default function AdminSystemSettings() {
                     <Volume2 className="text-orange-500" /> Global Broadcast
                 </h2>
                 <p className={`text-sm mb-4 ${isDark ? "text-gray-500" : "text-slate-500"}`}>
-                    Message will be displayed on everyone's dashboard.
+                    Message will be displayed on everyone's dashboard. Clear text to disable.
                 </p>
                 <div className="flex gap-4">
                     <div className="relative flex-1">

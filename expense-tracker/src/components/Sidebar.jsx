@@ -36,8 +36,8 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
 
   const personalMenu = [
     { category: "General", items: [
-        { name: "Home", path: "/dashboard", icon: <Home size={20} /> },
-        { name: "Analytics", path: "/analytics", icon: <BarChart2 size={20} /> },
+        { id: "tour-kpi", name: "Home", path: "/dashboard", icon: <Home size={20} /> },
+        { id: "", name: "Analytics", path: "/analytics", icon: <BarChart2 size={20} /> },
     ]},
     { category: "Transactions", items: [
         { name: "Income", path: "/income", icon: <TrendingUp size={20} /> },
