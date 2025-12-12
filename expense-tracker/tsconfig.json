@@ -1,20 +1,24 @@
 {
   "compilerOptions": {
+    /* Cấu hình cơ bản cho React JS */
     "target": "ESNext",
     "useDefineForClassFields": true,
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "allowJs": false,
+    "allowJs": true,            /* ✅ Cho phép file JS */
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "strict": false,            /* ✅ Tắt check lỗi quá khắt khe */
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",         /* ✅ Hỗ trợ React JSX */
+    "checkJs": false            /* ✅ Không báo lỗi đỏ cú pháp JS lặt vặt */
   },
-  "include": ["src"]
+  /* ✅ QUAN TRỌNG: Quét tất cả file trong thư mục src */
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }

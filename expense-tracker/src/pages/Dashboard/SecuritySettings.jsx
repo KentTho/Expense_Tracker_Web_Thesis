@@ -155,7 +155,7 @@ export default function SecuritySettings() {
     // 2. Xử lý logic Single Device Mode
     if (name === "restrict_multi_device") {
         if (checked && !settings.is_2fa_enabled) {
-            toast.warn("🔒 Yêu cầu: Bạn phải bật 2FA trước khi sử dụng tính năng này!");
+            toast.warn("🔒 Requirement: You must enable 2FA before using this feature!");
             return;
         }
     }

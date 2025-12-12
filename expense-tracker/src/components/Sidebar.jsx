@@ -1,6 +1,4 @@
 // components/Sidebar.jsx
-// - ✅ ADDED: Gắn ID tự động cho từng mục menu (id={`tour-menu-${item.path.replace('/', '')}`})
-// - ✅ GOAL: Giúp AppGuide trỏ chính xác vào từng link.
 
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom"; 
@@ -25,14 +23,39 @@ const getInitials = (name) => {
 export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMobile }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("user")) || {};
-  const userInitials = getInitials(user?.name);
+  
+  // ✅ FIX: Chuyển user thành State để có thể cập nhật lại (Re-render)
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem("user")) || {});
   const [viewMode, setViewMode] = useState(location.pathname.startsWith('/admin') ? 'admin' : 'personal');
+
+  // ✅ FIX: Effect để đồng bộ dữ liệu User mới nhất từ LocalStorage
+  useEffect(() => {
+    const syncUserData = () => {
+        const updatedUser = JSON.parse(localStorage.getItem("user")) || {};
+        setUser(updatedUser);
+    };
+
+    // 1. Cập nhật ngay khi mount
+    syncUserData();
+
+    // 2. Lắng nghe sự kiện custom (nếu Profile dispatch sự kiện này)
+    window.addEventListener("user_profile_updated", syncUserData);
+    
+    // 3. Lắng nghe sự kiện storage (khi thay đổi ở tab khác)
+    window.addEventListener("storage", syncUserData);
+
+    return () => {
+        window.removeEventListener("user_profile_updated", syncUserData);
+        window.removeEventListener("storage", syncUserData);
+    };
+  }, [location.pathname]); // ✅ Cập nhật lại mỗi khi chuyển trang (Ví dụ từ Profile về Dashboard)
 
   useEffect(() => {
     if (location.pathname.startsWith('/admin')) setViewMode('admin');
     else setViewMode('personal');
   }, [location.pathname]);
+
+  const userInitials = getInitials(user?.name);
 
   const personalMenu = [
     { category: "General", items: [
@@ -70,7 +93,8 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      localStorage.removeItem("idToken"); localStorage.removeItem("user");
+      localStorage.clear(); // Xóa sạch LocalStorage
+      sessionStorage.clear();
       toast.success("Logged out successfully");
       setTimeout(() => navigate("/login"), 800);
     } catch (error) { console.error(error); toast.error("Logout failed"); }
@@ -78,7 +102,6 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
 
   const renderMenuItem = (item) => {
     const active = location.pathname === item.path;
-    // ✅ TẠO ID DUY NHẤT CHO TOUR: vd 'tour-menu-income'
     const tourId = `tour-menu-${item.path.replace('/', '').replace('/', '-')}`; 
 
     return (
@@ -141,11 +164,24 @@ export default function Sidebar({ collapsed, setCollapsed, theme, setTheme, isMo
                     ))}
                 </nav>
             </div>
+            
+            {/* ✅ USER PROFILE SECTION (ĐÃ CẬP NHẬT) */}
             <div className={`p-3 mt-auto absolute bottom-0 left-0 w-full ${theme === "dark" ? "bg-gray-900/90 backdrop-blur-md" : "bg-white/90 backdrop-blur-md"}`}>
                 <div className={`rounded-2xl p-3 transition-all duration-300 group ${theme === "dark" ? "hover:bg-white/5" : "hover:bg-white hover:shadow-md"}`}>
                     <div onClick={(e) => { e.stopPropagation(); navigate("/profile"); }} className={`flex items-center gap-3 cursor-pointer ${collapsed ? "justify-center" : ""}`}>
                         <div className="relative">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:scale-105 transition-transform duration-300">{userInitials}</div>
+                            {/* Logic hiển thị Avatar: Nếu có ảnh thì hiện ảnh, không thì hiện Initials */}
+                            {user.profile_image ? (
+                                <img 
+                                    src={user.profile_image} 
+                                    alt="User Avatar" 
+                                    className="w-10 h-10 rounded-xl object-cover shadow-lg border-2 border-white/20"
+                                />
+                            ) : (
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:scale-105 transition-transform duration-300">
+                                    {userInitials}
+                                </div>
+                            )}
                             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full"></div>
                         </div>
                         {!collapsed && (

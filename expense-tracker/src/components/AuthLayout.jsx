@@ -1,23 +1,6 @@
 // AuthLayout.jsx
-// - ADDED: Nền Mesh Gradient sáng tạo.
-// - FIXED: Xóa nền 'bg-purple-50' thừa ở cột phải.
-// - UPDATED: Di chuyển logo vào vị trí cân đối.
 
 import logo from "../assets/logo.png";
-
-// Để có nền Mesh Gradient, bạn cần thêm đoạn CSS này vào file index.css
-/*
-body.auth-background {
-  background: linear-gradient(320deg, #0f172a, #2563eb, #4f46e5);
-  background-size: 400% 400%;
-  animation: AuthGradient 15s ease infinite;
-}
-@keyframes AuthGradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-*/
 
 // Thêm class 'auth-background' vào body khi ở trang này
 import React, { useEffect } from 'react';

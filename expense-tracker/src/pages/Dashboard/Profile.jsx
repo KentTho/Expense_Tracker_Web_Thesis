@@ -462,7 +462,7 @@ export default function Profile() {
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${user.is_2fa_enabled ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-500"}`}>
                          {user.is_2fa_enabled ? "Active" : "Disabled"}
                       </span>
-                      <button onClick={() => navigate('/settings/security')} className="text-sm text-blue-500 hover:underline">
+                      <button onClick={() => navigate('/security')} className="text-sm text-blue-500 hover:underline">
                         Manage
                       </button>
                     </div>

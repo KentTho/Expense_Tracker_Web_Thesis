@@ -135,7 +135,7 @@ export default function DashboardLayout() {
                 <div className="mt-10 md:mt-0 transition-all duration-300">
                     <Outlet context={{ theme, setTheme, currentUser, refreshUserProfile, currencyCode: currentUser?.currency_code || "USD" }} />
                 </div>
-                <FinBotWidget />
+                <FinBotWidget theme={theme} />
             </motion.main>
             
             {/* APP GUIDE */}
