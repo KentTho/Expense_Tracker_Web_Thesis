@@ -33,6 +33,13 @@ def update_security_settings(
     """Cập nhật cài đặt bảo mật (2FA, Giới hạn thiết bị)"""
     # LƯU Ý: Tắt 2FA nên yêu cầu mật khẩu hoặc mã 2FA,
     # nhưng để đơn giản, chúng ta cho phép cập nhật trực tiếp
+    if settings.is_2fa_enabled is True:
+        # Nếu đang muốn bật 2FA, kiểm tra xem Email đã verify chưa
+        if not current_user.is_email_verified:
+            raise HTTPException(
+                status_code=400,
+                detail="Email Verification Required: Please verify your email before enabling 2FA."
+            )
     updated_settings = crud_security.update_user_security_settings(db, current_user.id, settings)
     if not updated_settings:
         raise HTTPException(status_code=404, detail="User not found")

@@ -1,5 +1,5 @@
 # cruds/crud_security.py (TẠO MỚI)
-from langgraph_sdk.auth.exceptions import HTTPException
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 from models import user_model  # Giả sử model User của bạn ở đây
@@ -44,18 +44,14 @@ def enable_2fa_generate_secret(db: Session, user_id: UUID):
     if not user:
         raise Exception("User not found")
 
-    # Tạo một secret key mới
     secret = pyotp.random_base32()
-    user.otp_secret = secret  # Tạm thời lưu secret (NÊN MÃ HÓA TRƯỚC KHI LƯU)
+    user.otp_secret = secret
     db.commit()
 
-    # Tạo URL cho mã QR (ví dụ: otpauth://totp/ExpenseApp:user@email.com?secret=SECRETKEY&issuer=ExpenseApp)
-    # Cần lấy email user
     qr_url = pyotp.totp.TOTP(secret).provisioning_uri(
-        name=user.email,  # Giả sử bạn có user.email
+        name=user.email,
         issuer_name="ExpenseTrackerApp"
     )
-
     return {"secret": secret, "qr_url": qr_url}
 
 
@@ -63,17 +59,17 @@ def enable_2fa_verify_code(db: Session, user_id: UUID, code: str):
     """Xác thực mã 2FA và kích hoạt"""
     user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
     if not user or not user.otp_secret:
-        raise Exception("2FA is not being set up or user not found")
+        raise Exception("2FA setup not initiated")
 
     totp = pyotp.TOTP(user.otp_secret)
+    # Đã có valid_window=1 ở đây là TỐT
     if totp.verify(code, valid_window=1):
-        # Xác thực thành công
         user.is_2fa_enabled = True
         db.commit()
         return True
     else:
-        # Xác thực thất bại
         return False
+
 
 def verify_login_2fa(db: Session, user_id: UUID, code: str):
     user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
@@ -81,10 +77,13 @@ def verify_login_2fa(db: Session, user_id: UUID, code: str):
     if not user or not user.is_2fa_enabled:
         return True
     if not user.otp_secret:
-        raise HTTPException(status_code=400, detail="2FA is enabled but no secret found. Please contact admin")
+        raise HTTPException(status_code=400, detail="2FA is enabled but no secret found.")
 
     totp = pyotp.TOTP(user.otp_secret)
-    if totp.verify(code):
+
+    # 🔴 LỖI Ở ĐÂY: Bạn thiếu valid_window=1
+    # ✅ SỬA THÀNH:
+    if totp.verify(code, valid_window=1):
         return True
     else:
-        raise HTTPException(status_code=400, detail="Invalid 2FA COde")
+        raise HTTPException(status_code=400, detail="Invalid 2FA Code")

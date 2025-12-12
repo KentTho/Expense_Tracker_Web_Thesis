@@ -6,19 +6,25 @@ import { useOutletContext, useNavigate } from "react-router-dom";
 import { 
   User, Mail, Calendar, Edit3, X, Save, Upload, Lock, 
   VenusAndMars, Cake, Wallet, ShieldCheck, 
-  AlertTriangle 
-} from "lucide-react";
+  AlertTriangle, CheckCircle, AlertCircle 
+} from "lucide-react"; // ✅ Thêm icon CheckCircle, AlertCircle
 import toast, { Toaster } from "react-hot-toast";
 import {
   getUserProfile,
   updateUserProfile,
 } from "../../services/profileService";
+// ✅ Import hàm gửi mail
+import { requestEmailVerification, changeUserEmail } from "../../services/authService"; 
 
-// Helper Component: Input Field (Giữ nguyên)
+// Helper Component: Input Field (Giữ nguyên logic)
 const InfoInput = ({ isEditing, label, name, value, onChange, type = "text", children }) => {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
+  
+  // Nếu không phải chế độ sửa -> Hiển thị children (View Mode)
   if (!isEditing) return children; 
+  
+  // Nếu là chế độ sửa -> Hiển thị Input
   return (
     <div>
       <label className="text-xs font-semibold uppercase text-gray-500">{label}</label>
@@ -72,6 +78,7 @@ export default function Profile() {
   const [form, setForm] = useState({});
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [verifyingEmail, setVerifyingEmail] = useState(false); // State loading cho nút Verify
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -85,6 +92,8 @@ export default function Profile() {
         const data = await getUserProfile();
         setUser(data);
         setForm(data);
+        
+        // Lưu cache
         const userForStorage = { ...data };
         delete userForStorage.profile_image;
         localStorage.setItem("user", JSON.stringify(userForStorage));
@@ -118,6 +127,19 @@ export default function Profile() {
     }
   };
 
+  // ✅ Xử lý gửi email xác thực
+  const handleVerifyEmail = async () => {
+      setVerifyingEmail(true);
+      try {
+          await requestEmailVerification();
+          toast.success("Verification email sent! Check your inbox.");
+      } catch (error) {
+          toast.error(error.message || "Failed to send verification email.");
+      } finally {
+          setVerifyingEmail(false);
+      }
+  };
+
   const handleSave = async () => {
     try {
       const auth = getAuth();
@@ -127,9 +149,25 @@ export default function Profile() {
         return;
       }
 
+      // 1. KIỂM TRA XEM EMAIL CÓ THAY ĐỔI KHÔNG?
+      if (form.email !== user.email) {
+          try {
+              await changeUserEmail(form.email);
+              toast.success(`Confirmation sent to ${form.email}. Please check inbox to verify update!`, { duration: 5000 });
+              // Lưu ý: Email trên giao diện sẽ chưa đổi ngay lập tức cho đến khi user bấm link trong mail
+          } catch (emailErr) {
+              toast.error(emailErr.message);
+              return; // Dừng lại nếu lỗi email
+          }
+      }
+
+      // 2. Cập nhật các thông tin khác xuống DB
       const payload = {
         name: form.name,
-        email: form.email,
+        // Không gửi email xuống DB Backend cập nhật thủ công, 
+        // hãy để cơ chế Sync của AuthRoute tự xử lý khi user đăng nhập lại bằng email mới.
+        // Tuy nhiên gửi xuống cũng không sao, backend sẽ update.
+        email: form.email, 
         profile_image: form.profile_image,
         gender: form.gender,
         birthday: form.birthday,
@@ -139,9 +177,7 @@ export default function Profile() {
 
       const updated = await updateUserProfile(payload);
 
-      if (refreshUserProfile) {
-          await refreshUserProfile();
-      }
+      if (refreshUserProfile) await refreshUserProfile();
 
       const userForStorage = { ...updated };
       delete userForStorage.profile_image;
@@ -150,6 +186,7 @@ export default function Profile() {
       setUser(updated);
       setIsEditing(false);
       toast.success("Profile updated successfully!");
+      
     } catch (err) {
       console.error("Update error:", err);
       toast.error(err.message || "Failed to update profile.");
@@ -168,10 +205,9 @@ export default function Profile() {
       <Toaster position="top-center" />
       
       <main className="p-6 sm:p-8 max-w-6xl mx-auto">
-        {/* Header & Identity Card (Giữ nguyên) */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-8">
-            {/* ... (Code header giữ nguyên) ... */}
-            <div>
+          <div>
             <h1 className="text-3xl font-extrabold flex items-center gap-3">
               <User className="text-blue-500" size={32} /> My Profile
             </h1>
@@ -226,6 +262,20 @@ export default function Profile() {
               </div>
               <h2 className="text-2xl font-bold">{user.name || "User"}</h2>
               <p className="text-gray-500 dark:text-gray-400">{user.email}</p>
+              
+              {/* STATUS BADGE TRÊN CARD */}
+              <div className="mt-2">
+                 {user.is_email_verified ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-green-500 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full">
+                        <CheckCircle size={12}/> Verified Account
+                    </span>
+                 ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-orange-500 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded-full">
+                        <AlertCircle size={12}/> Unverified
+                    </span>
+                 )}
+              </div>
+
               <div className="mt-6 w-full pt-6 border-t border-gray-100 dark:border-gray-700 grid grid-cols-2 gap-4">
                  <div>
                     <p className="text-xs font-bold text-gray-400 uppercase">Role</p>
@@ -246,14 +296,14 @@ export default function Profile() {
           {/* CỘT 2: CHI TIẾT & CÀI ĐẶT */}
           <div className="lg:col-span-2 space-y-8">
             
-            {/* Personal Details (Giữ nguyên) */}
+            {/* Personal Details */}
             <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
-               {/* ... Phần Personal Details giữ nguyên code cũ ... */}
                <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
                 <User size={20} className="text-blue-500"/> Personal Details
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
                 {/* Full Name */}
                 <InfoInput isEditing={isEditing} label="Full Name" name="name" value={form.name} onChange={handleChange}>
                    <div className="flex items-center gap-3">
@@ -267,18 +317,42 @@ export default function Profile() {
                    </div>
                 </InfoInput>
 
-                {/* Email */}
-                <div className="opacity-80 cursor-not-allowed">
-                   <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? "bg-blue-900/30 text-blue-400" : "bg-blue-100 text-blue-600"}`}>
-                         <Mail size={20} />
-                      </div>
-                      <div>
-                         <p className="text-xs font-semibold uppercase text-gray-500">Email Address</p>
-                         <p className="font-medium">{user.email}</p>
-                      </div>
-                   </div>
-                </div>
+                {/* ✅ EMAIL SECTION (Đã sửa lỗi cú pháp) */}
+                <InfoInput 
+                    isEditing={isEditing} 
+                    label="Email Address" 
+                    name="email" 
+                    value={form.email} 
+                    onChange={handleChange} 
+                    type="email"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? "bg-red-900/30 text-red-400" : "bg-red-100 text-red-600"}`}>
+                            <Mail size={20} />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-xs font-semibold uppercase text-gray-500">Email Address</p>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <p className="font-medium text-lg">{user.email}</p>
+                                
+                                {/* Logic hiển thị Badges */}
+                                {user.is_email_verified ? (
+                                    <span className="flex items-center gap-1 text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400 text-xs font-bold px-2 py-1 rounded border border-green-200 dark:border-green-800">
+                                        <CheckCircle size={12} /> Verified
+                                    </span>
+                                ) : (
+                                    <button 
+                                        onClick={handleVerifyEmail}
+                                        disabled={verifyingEmail || isEditing} // Disable khi đang sửa profile
+                                        className="flex items-center gap-1 text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400 text-xs font-bold px-3 py-1 rounded border border-red-200 dark:border-red-800 hover:bg-red-200 transition disabled:opacity-50"
+                                    >
+                                        {verifyingEmail ? "Sending..." : <>Unverified <span className="underline ml-1">Verify Now</span></>}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </InfoInput>
 
                 {/* Gender */}
                 <InfoSelect 
@@ -319,7 +393,7 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* 2. Financial Settings */}
+            {/* Financial Settings */}
             <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white"}`}>
               <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
                 <Wallet size={20} className="text-green-500"/> Financial Preferences
@@ -327,7 +401,7 @@ export default function Profile() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                {/* ✅ UPDATED: CHỈ CÒN USD VÀ VND */}
+                {/* Default Currency */}
                 <InfoSelect 
                     isEditing={isEditing} 
                     label="Default Currency" 
@@ -398,7 +472,7 @@ export default function Profile() {
               </div>
             </div>
             
-            {/* 3. Danger Zone */}
+            {/* Danger Zone */}
             <div className={`p-6 rounded-2xl shadow-xl border-2 ${isDark ? "bg-red-900/10 border-red-500/30" : "bg-red-50 border-red-200"}`}>
                 <h3 className="text-xl font-semibold text-red-500 mb-4">Danger Zone</h3>
                 <div className="flex justify-between items-center">

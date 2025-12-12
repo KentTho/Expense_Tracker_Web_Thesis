@@ -19,7 +19,7 @@ def export_income(current_user=Depends(get_current_user_db), db: Session = Depen
     # Lấy list items từ object trả về
     incomes = raw_data.get("items", []) if isinstance(raw_data, dict) else getattr(raw_data, "items", [])
 
-    # 1. Tạo DataFrame
+    # 1. Tạo DataFrame (Có 5 Cột: Category, Amount, Date, Note, Emoji)
     df = pd.DataFrame([
         {
             "Category": i.category_name or "",
@@ -34,9 +34,11 @@ def export_income(current_user=Depends(get_current_user_db), db: Session = Depen
     # 2. Tính tổng
     total_amount = df["Amount"].sum() if not df.empty else 0
 
-    # 3. Thêm dòng TOTAL (4 cột)
+    # 3. Thêm dòng TOTAL
     if not df.empty:
-        df.loc[len(df)] = ["TOTAL", total_amount, "", ""]
+        # ✅ SỬA LỖI: Thêm đủ 5 phần tử tương ứng với 5 cột
+        # Category="TOTAL", Amount=total, Date="", Note="", Emoji=""
+        df.loc[len(df)] = ["TOTAL", total_amount, "", "", ""]
 
     # 4. Xuất file
     stream = BytesIO()
@@ -56,7 +58,7 @@ def export_expense(current_user=Depends(get_current_user_db), db: Session = Depe
     raw_data = list_expenses_for_user(db, current_user.id)
     expenses = raw_data.get("items", []) if isinstance(raw_data, dict) else getattr(raw_data, "items", [])
 
-    # 1. Tạo DataFrame
+    # 1. Tạo DataFrame (Có 5 Cột)
     df = pd.DataFrame([
         {
             "Category": e.category_name or "",
@@ -71,9 +73,10 @@ def export_expense(current_user=Depends(get_current_user_db), db: Session = Depe
     # 2. Tính tổng
     total_amount = df["Amount"].sum() if not df.empty else 0
 
-    # 3. Thêm dòng TOTAL (4 cột)
+    # 3. Thêm dòng TOTAL
     if not df.empty:
-        df.loc[len(df)] = ["TOTAL", total_amount, "", ""]
+        # ✅ SỬA LỖI: Thêm đủ 5 phần tử tương ứng với 5 cột
+        df.loc[len(df)] = ["TOTAL", total_amount, "", "", ""]
 
     # 4. Xuất file
     stream = BytesIO()

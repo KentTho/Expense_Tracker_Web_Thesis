@@ -27,6 +27,7 @@ def create_income(
         date_val=payload.date,
         emoji=payload.emoji,
         category_id=payload.category_id,
+        note=payload.note,
     )
     return income
 

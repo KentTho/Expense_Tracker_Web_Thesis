@@ -6,9 +6,6 @@ import { getToken } from "./incomeService";
 // Nó thực chất là update profile user
 export async function updateSecuritySettings(settings) {
   const token = await getToken();
-  
-  // Lưu ý: Backend xử lý update user tại /auth/user/profile
-  // Settings ở đây sẽ là { restrict_multi_device: true/false }
   const res = await fetch(`${BACKEND_BASE}/auth/user/profile`, {
     method: "PUT",
     headers: {
@@ -23,15 +20,20 @@ export async function updateSecuritySettings(settings) {
 }
 
 export async function getSecuritySettings() {
-  const token = await getToken();
-  // Lấy info user hiện tại (trong đó có restrict_multi_device)
-  const res = await fetch(`${BACKEND_BASE}/auth/user/profile`, {
-     method: "GET",
-     headers: { Authorization: `Bearer ${token}` },
-  });
-  
-  if (!res.ok) throw new Error("Failed to fetch settings");
-  return await res.json();
+  try {
+      const token = await getToken();
+      const res = await fetch(`${BACKEND_BASE}/auth/user/profile`, {
+         method: "GET",
+         headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (!res.ok) throw new Error("Failed to fetch settings");
+      return await res.json();
+  } catch (error) {
+      console.error("Connection Error:", error);
+      // Trả về mặc định để không crash trang web
+      return { is_2fa_enabled: false, restrict_multi_device: false };
+  }
 }
 
 // ... (Các hàm 2FA giữ nguyên) ...

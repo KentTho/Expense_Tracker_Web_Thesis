@@ -34,6 +34,7 @@ class UserOut(BaseModel):
     currency_symbol: str = "$"
     monthly_budget: Optional[Decimal] = None
     has_onboard: Optional[bool] = None
+    is_email_verified: bool = False
 
     class Config:
         from_attributes = True

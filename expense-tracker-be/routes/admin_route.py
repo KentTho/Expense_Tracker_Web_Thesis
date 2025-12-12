@@ -9,7 +9,7 @@ from sqlalchemy import text
 from db.database import get_db
 from services.auth_token_db import get_current_admin_user
 from models import user_model
-from cruds import crud_admin, crud_audit  # ✅ Import CRUD Audit
+from cruds import crud_admin, crud_audit
 from schemas import admin_schemas, category_schemas, user_schemas, audit_schemas
 
 router = APIRouter(
@@ -18,14 +18,17 @@ router = APIRouter(
     dependencies=[Depends(get_current_admin_user)]
 )
 
+# =========================================================
+# 1. ADMIN STATS (SỬA URL ĐỂ KHỚP FE)
+# =========================================================
 
-# --- Admin Stats ---
-@router.get("/stats/kpis", response_model=admin_schemas.AdminGlobalKPIs)
+# ✅ SỬA: Đổi từ "/stats/kpis" thành "/kpis"
+@router.get("/kpis", response_model=admin_schemas.AdminGlobalKPIs)
 def get_admin_kpis(db: Session = Depends(get_db)):
     return crud_admin.admin_get_global_kpis(db)
 
-
-@router.get("/stats/user-growth", response_model=List[admin_schemas.AdminUserGrowth])
+# ✅ SỬA: Đổi từ "/stats/user-growth" thành "/charts/user-growth"
+@router.get("/charts/user-growth", response_model=List[admin_schemas.AdminUserGrowth])
 def get_admin_user_growth(days: int = 30, db: Session = Depends(get_db)):
     return crud_admin.admin_get_user_growth(db, days=days)
 
@@ -37,7 +40,7 @@ def get_system_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_d
 
 
 # =========================================================
-# 👥 USER MANAGEMENT (CÓ GHI LOG SỬA/XÓA)
+# 2. USER MANAGEMENT (GIỮ NGUYÊN)
 # =========================================================
 
 @router.get("/users", response_model=List[admin_schemas.AdminUserListOut])
@@ -45,28 +48,24 @@ def get_all_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
     return crud_admin.admin_get_all_users(db, skip=skip, limit=limit)
 
 
-# ✅ HÀM UPDATE USER: ĐÃ BỔ SUNG GHI LOG
 @router.put("/users/{user_id}", response_model=user_schemas.UserOut)
 def update_user_by_admin(
         user_id: UUID,
         update_data: admin_schemas.AdminUserUpdate,
-        request: Request,  # 👈 Lấy IP
-        current_admin=Depends(get_current_admin_user),  # 👈 Lấy người thực hiện
+        request: Request,
+        current_admin=Depends(get_current_admin_user),
         db: Session = Depends(get_db)
 ):
-    """[Admin] Cập nhật User (Cấp quyền, Đổi tên...) và Ghi Log"""
     user = crud_admin.admin_get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Lưu thông tin cũ để so sánh
     old_is_admin = user.is_admin
     target_email = user.email
 
     try:
         updated_user = crud_admin.admin_update_user(db, user, update_data)
 
-        # --- Logic tạo nội dung Log thông minh ---
         log_details = []
         if update_data.is_admin is not None and update_data.is_admin != old_is_admin:
             action_type = "GRANT_ADMIN" if update_data.is_admin else "REVOKE_ADMIN"
@@ -75,21 +74,17 @@ def update_user_by_admin(
             action_type = "UPDATE_USER"
             log_details.append("Updated profile information")
 
-        details_msg = ", ".join(log_details)
-
-        # Ghi Log
         crud_audit.create_audit_log(
             db=db,
-            action=action_type,  # VD: GRANT_ADMIN hoặc UPDATE_USER
+            action=action_type,
             actor_email=current_admin.email,
             target=target_email,
             status="SUCCESS",
-            details=details_msg,
+            details=", ".join(log_details),
             ip_address=request.client.host
         )
         return updated_user
     except Exception as e:
-        # Ghi Log Lỗi
         crud_audit.create_audit_log(
             db=db,
             action="UPDATE_USER",
@@ -109,7 +104,6 @@ def delete_user_by_admin(
         current_admin=Depends(get_current_admin_user),
         db: Session = Depends(get_db)
 ):
-    """[Admin] Xóa User và Ghi Log"""
     user = crud_admin.admin_get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -118,7 +112,6 @@ def delete_user_by_admin(
 
     try:
         success, message = crud_admin.admin_delete_user(db, user)
-
         crud_audit.create_audit_log(
             db=db,
             action="DELETE_USER",
@@ -143,7 +136,7 @@ def delete_user_by_admin(
 
 
 # =========================================================
-# 🛡️ CATEGORY MANAGEMENT (CÓ GHI LOG)
+# 3. CATEGORY MANAGEMENT (GIỮ NGUYÊN)
 # =========================================================
 
 @router.get("/categories", response_model=List[category_schemas.CategoryOut])
@@ -232,41 +225,3 @@ def delete_default_category(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/system/health")
-def check_system_health(db: Session = Depends(get_db)):
-    """Đo độ trễ API và kiểm tra kết nối Database thực tế"""
-    status_data = {
-        "db_status": "Disconnected",
-        "latency": 0,
-        "color": "red"
-    }
-
-    try:
-        # Bắt đầu bấm giờ
-        start_time = time.time()
-
-        # Thực hiện một truy vấn siêu nhẹ vào DB để test kết nối
-        db.execute(text("SELECT 1"))
-
-        # Kết thúc bấm giờ
-        end_time = time.time()
-
-        # Tính độ trễ (ms)
-        latency_ms = (end_time - start_time) * 1000
-
-        status_data["db_status"] = "Active"
-        status_data["latency"] = round(latency_ms, 2)
-
-        # Đánh giá màu sắc dựa trên tốc độ
-        if latency_ms < 100:
-            status_data["color"] = "green"
-        elif latency_ms < 500:
-            status_data["color"] = "yellow"
-        else:
-            status_data["color"] = "orange"
-
-    except Exception as e:
-        print(f"❌ Database Health Check Error: {e}")
-        status_data["db_status"] = "Error"
-
-    return status_data

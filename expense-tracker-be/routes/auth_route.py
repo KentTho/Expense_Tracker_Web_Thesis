@@ -24,6 +24,7 @@ def auth_sync(payload: UserSyncPayload,
               db: Session = Depends(get_db)):
     id_token = extract_token(authorization)
     decoded = verify_token_and_get_payload(id_token)
+    is_verified_firebase = decoded.get("email_verified", False)
 
     uid = decoded.get("uid")
     email = decoded.get("email") or payload.email
@@ -38,6 +39,9 @@ def auth_sync(payload: UserSyncPayload,
         if email and user.email != email: user.email = email; updated = True
         if name and user.name != name: user.name = name; updated = True
         if picture and user.profile_image != picture: user.profile_image = picture; updated = True
+        if user.is_email_verified != is_verified_firebase:
+            user.is_email_verified = is_verified_firebase
+            updated = True
         if updated:
             db.add(user); db.commit(); db.refresh(user)
 
@@ -106,6 +110,20 @@ def update_profile(data: UserUpdate,
 
     if data.monthly_budget is not None: user.monthly_budget = data.monthly_budget
     if data.has_onboard is not None: user.has_onboard = data.has_onboard
+
+    # ✅ LOGIC MỚI: RÀNG BUỘC 2FA KHI BẬT SINGLE DEVICE MODE
+    if data.restrict_multi_device is not None:
+        # Nếu người dùng muốn BẬT (True) tính năng này
+        if data.restrict_multi_device is True:
+            # Kiểm tra xem 2FA đã bật chưa
+            if not user.is_2fa_enabled:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Security Requirement: You must enable 2FA before activating Single Device Mode."
+                )
+
+        # Nếu thỏa mãn (hoặc là tắt đi), thì mới cho cập nhật
+        user.restrict_multi_device = data.restrict_multi_device
 
     db.add(user)
     db.commit()

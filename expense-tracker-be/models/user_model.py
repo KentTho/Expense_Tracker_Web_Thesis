@@ -37,7 +37,7 @@ class User(Base):
     is_admin: sa.Column[bool] = sa.Column(sa.Boolean, default=False, nullable=False)
     monthly_budget = Column(Numeric(14, 2), default=0, nullable=True)
     has_onboard = Column(Boolean, default=False, nullable=False)
-
+    is_email_verified = Column(Boolean, default=False)
 
     # Quan hệ (Relationship)
     incomes = relationship("Income", back_populates="user", cascade="all, delete-orphan")

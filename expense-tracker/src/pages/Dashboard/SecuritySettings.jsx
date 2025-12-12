@@ -1,4 +1,4 @@
-// SecuritySettings.jsx
+// pages/SecuritySettings.jsx
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
@@ -13,9 +13,13 @@ import {
   AlertTriangle,
   Loader2,
   CheckCircle,
-  Key
+  Key,
+  MailWarning
 } from "lucide-react";
-import { toast } from "react-toastify";
+// ✅ IMPORT THÊM ToastContainer và CSS
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
 import { auth } from "../../components/firebase";
 import { onAuthStateChanged, getIdToken, signOut } from "firebase/auth";
 import { getSecuritySettings, updateSecuritySettings, start2FA, verify2FA } from "../../services/securityService"; 
@@ -43,7 +47,7 @@ export default function SecuritySettings() {
   const isDark = theme === "dark";
   const navigate = useNavigate();
 
-  // --- STATES (Giữ nguyên logic) ---
+  // --- STATES ---
   const [sessionInfo, setSessionInfo] = useState({
     token: "Loading...",
     userId: "Loading...",
@@ -62,8 +66,7 @@ export default function SecuritySettings() {
   const [verificationCode, setVerificationCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 
-
-  // --- LOGIC (Giữ nguyên logic cũ) ---
+  // --- LOGIC FETCH DATA ---
   const fetchSessionInfo = useCallback(async () => {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -89,14 +92,12 @@ export default function SecuritySettings() {
     setLoadingSettings(true);
     try {
       const data = await getSecuritySettings();
-      // API trả về User object, ta cần map vào state settings của trang này
       setSettings({
           is_2fa_enabled: data.is_2fa_enabled,
-          restrict_multi_device: data.restrict_multi_device // ✅ Lấy đúng trường này
+          restrict_multi_device: data.restrict_multi_device 
       });
     } catch (error) {
       console.error(error);
-      // Không cần toast lỗi ở đây để tránh spam nếu user mới chưa có setting
     } finally {
       setLoadingSettings(false);
     }
@@ -107,18 +108,68 @@ export default function SecuritySettings() {
     fetchSecuritySettings();
   }, [fetchSessionInfo, fetchSecuritySettings]);
 
+  // --- LOGIC XỬ LÝ BẬT/TẮT ---
   const handleSettingsChange = async (e) => {
     const { name, checked } = e.target;
-    if (name === "is_2fa_enabled" && checked) {
-      handleStart2FA();
-      return;
+    
+    // 1. Xử lý logic 2FA
+    if (name === "is_2fa_enabled") {
+        if (checked) {
+            // ✅ KIỂM TRA EMAIL
+            const user = auth.currentUser;
+            if (user) {
+                await user.reload(); 
+                
+                if (!user.emailVerified) {
+                    // ✅ HIỂN THỊ TOAST (Giờ sẽ hiện vì đã có ToastContainer)
+                    toast.error(
+                        <div>
+                            <p className="font-bold flex items-center gap-2">
+                                <MailWarning size={18}/> Email Verification Required!
+                            </p>
+                            <p className="text-sm mt-1">Please verify your email first.</p>
+                        </div>
+                    );
+                    
+                    setTimeout(() => navigate("/profile"), 2500);
+                    return; 
+                }
+            }
+            handleStart2FA(); 
+        } else {
+             try {
+                await updateSecuritySettings({ is_2fa_enabled: false });
+                if (settings.restrict_multi_device) {
+                    await updateSecuritySettings({ restrict_multi_device: false });
+                    setSettings(prev => ({ ...prev, is_2fa_enabled: false, restrict_multi_device: false }));
+                    toast.info("2FA & Single Device Mode Disabled.");
+                } else {
+                    setSettings(prev => ({ ...prev, is_2fa_enabled: false }));
+                    toast.info("2FA Disabled.");
+                }
+            } catch (err) { toast.error("Failed to update"); }
+        }
+        return;
     }
+
+    // 2. Xử lý logic Single Device Mode
+    if (name === "restrict_multi_device") {
+        if (checked && !settings.is_2fa_enabled) {
+            toast.warn("🔒 Yêu cầu: Bạn phải bật 2FA trước khi sử dụng tính năng này!");
+            return;
+        }
+    }
+
     setSettings(prev => ({ ...prev, [name]: checked }));
     try {
       await updateSecuritySettings({ [name]: checked });
-      toast.success("Security setting updated!");
+      if (name === 'restrict_multi_device') {
+          toast.success(checked ? "Single Device Mode Enabled 🛡️" : "Single Device Mode Disabled");
+      } else {
+          toast.success("Settings updated");
+      }
     } catch (error) {
-      toast.error("Update failed.");
+      toast.error(error.message);
       setSettings(prev => ({ ...prev, [name]: !checked }));
     }
   };
@@ -176,15 +227,12 @@ export default function SecuritySettings() {
     </div>
   );
 
-  // ===========================
-  // 🎨 UI RENDER (NEW DESIGN)
-  // ===========================
   return (
-    <div
-      className={`min-h-screen transition-colors duration-300 ${
-        isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"
-      }`}
-    >
+    <div className={`min-h-screen transition-colors duration-300 ${isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
+      
+      {/* ✅ BỔ SUNG TOAST CONTAINER ĐỂ HIỆN THÔNG BÁO */}
+      <ToastContainer position="top-right" autoClose={3000} theme={isDark ? "dark" : "light"} />
+
       <main className="p-4 sm:p-8 space-y-8 max-w-6xl mx-auto">
         
         {/* HEADER */}
@@ -199,7 +247,6 @@ export default function SecuritySettings() {
             </p>
           </div>
           
-          {/* Status Badge */}
           <div className={`px-5 py-2 rounded-full flex items-center gap-2 text-sm font-bold shadow-lg ${
              sessionActive ? "bg-green-500/10 text-green-500 ring-1 ring-green-500/50" : "bg-red-500/10 text-red-500 ring-1 ring-red-500/50"
           }`}>
@@ -211,7 +258,7 @@ export default function SecuritySettings() {
         {/* MAIN GRID LAYOUT */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* 🔒 COLUMN 1: SESSION CARD (Digital ID Style) */}
+          {/* CỘT 1: SESSION INFO */}
           <div className={`lg:col-span-1 p-6 rounded-2xl shadow-2xl flex flex-col justify-between border-t-4 border-blue-500 ${isDark ? "bg-gray-800" : "bg-white"}`}>
             <div>
                 <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-blue-500">
@@ -219,7 +266,6 @@ export default function SecuritySettings() {
                 </h3>
                 
                 <div className="space-y-6">
-                    {/* User ID (Hidden) */}
                     <div>
                         <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Firebase User ID</p>
                         <div className={`p-3 rounded-lg flex items-center gap-3 ${isDark ? "bg-gray-900" : "bg-gray-100"}`}>
@@ -227,17 +273,6 @@ export default function SecuritySettings() {
                             <span className="font-mono text-lg tracking-widest text-gray-500">••••••••••••••••</span>
                         </div>
                     </div>
-
-                    {/* Token (Hidden) */}
-                    <div>
-                        <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Access Token</p>
-                        <div className={`p-3 rounded-lg flex items-center gap-3 ${isDark ? "bg-gray-900" : "bg-gray-100"}`}>
-                            <Shield size={16} className="text-gray-400" />
-                            <span className="font-mono text-lg tracking-widest text-gray-500">••••••••••••••••</span>
-                        </div>
-                    </div>
-
-                    {/* Expiry */}
                     <div>
                          <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Session Expires At</p>
                          <p className="text-sm font-medium text-gray-400">
@@ -249,31 +284,21 @@ export default function SecuritySettings() {
                 </div>
             </div>
 
-            {/* Actions */}
             <div className="mt-8 pt-6 border-t border-gray-700 flex flex-col gap-3">
-                 <button
-                    onClick={handleRefreshToken}
-                    className={`w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${isDark ? "bg-gray-700 hover:bg-gray-600 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-800"}`}
-                 >
+                 <button onClick={handleRefreshToken} className={`w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${isDark ? "bg-gray-700 hover:bg-gray-600 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-800"}`}>
                     <RefreshCw size={18} className={loadingSettings ? "animate-spin" : ""} /> Refresh Session
                  </button>
-                 <button
-                    onClick={handleLogout}
-                    className="w-full py-2.5 rounded-lg font-medium bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition-all"
-                 >
+                 <button onClick={handleLogout} className="w-full py-2.5 rounded-lg font-medium bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition-all">
                     <LogOut size={18} /> Terminate Session
                  </button>
             </div>
           </div>
 
-
-          {/* 🎛️ COLUMN 2: SECURITY CONTROLS (Switches) */}
+          {/* CỘT 2: CÁC NÚT BẬT TẮT */}
           <div className="lg:col-span-2 space-y-6">
             
             {/* 1. 2FA CARD */}
-            <div className={`p-6 rounded-2xl shadow-xl flex items-center justify-between transition-all ${
-                isDark ? "bg-gray-800 hover:bg-gray-800/80" : "bg-white hover:bg-gray-50"
-            }`}>
+            <div className={`p-6 rounded-2xl shadow-xl flex items-center justify-between transition-all ${isDark ? "bg-gray-800 hover:bg-gray-800/80" : "bg-white hover:bg-gray-50"}`}>
                 <div className="flex items-start gap-4">
                     <div className={`p-3 rounded-xl ${settings.is_2fa_enabled ? "bg-green-500/20 text-green-500" : "bg-gray-500/20 text-gray-500"}`}>
                         <ShieldCheck size={32} />
@@ -281,7 +306,7 @@ export default function SecuritySettings() {
                     <div>
                         <h3 className="text-lg font-bold">Two-Factor Authentication</h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-md">
-                           Add an extra layer of security to your account by requiring a verification code during sign in.
+                           Add an extra layer of security requiring a verification code.
                         </p>
                         {settings.is_2fa_enabled && (
                             <span className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded">
@@ -290,8 +315,6 @@ export default function SecuritySettings() {
                         )}
                     </div>
                 </div>
-                
-                {/* Custom Toggle */}
                 <ToggleSwitch 
                     name="is_2fa_enabled"
                     checked={settings.is_2fa_enabled}
@@ -299,10 +322,8 @@ export default function SecuritySettings() {
                 />
             </div>
 
-            {/* 2. DEVICE LOCK CARD */}
-            <div className={`p-6 rounded-2xl shadow-xl flex items-center justify-between transition-all ${
-                isDark ? "bg-gray-800 hover:bg-gray-800/80" : "bg-white hover:bg-gray-50"
-            }`}>
+            {/* 2. DEVICE LOCK CARD (SINGLE DEVICE MODE) */}
+            <div className={`p-6 rounded-2xl shadow-xl flex items-center justify-between transition-all ${isDark ? "bg-gray-800 hover:bg-gray-800/80" : "bg-white hover:bg-gray-50"}`}>
                 <div className="flex items-start gap-4">
                     <div className={`p-3 rounded-xl ${settings.restrict_multi_device ? "bg-blue-500/20 text-blue-500" : "bg-gray-500/20 text-gray-500"}`}>
                         <Smartphone size={32} />
@@ -312,28 +333,32 @@ export default function SecuritySettings() {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-md">
                            Automatically log out other sessions when you log in on a new device.
                         </p>
+                        
+                        {!settings.is_2fa_enabled && (
+                            <p className="text-xs text-red-500 flex items-center gap-1 mt-2 font-semibold">
+                                <Lock size={12} /> Requires 2FA to be enabled first.
+                            </p>
+                        )}
                     </div>
                 </div>
                 
-                {/* Custom Toggle */}
-                <ToggleSwitch 
-                    name="restrict_multi_device"
-                    checked={settings.restrict_multi_device}
-                    onChange={handleSettingsChange}
-                />
+                {/* Nút gạt sẽ bị mờ đi nếu chưa bật 2FA */}
+                <div className={!settings.is_2fa_enabled ? "opacity-60" : ""}>
+                    <ToggleSwitch 
+                        name="restrict_multi_device"
+                        checked={settings.restrict_multi_device}
+                        onChange={handleSettingsChange}
+                    />
+                </div>
             </div>
 
              {/* 3. ALERT CARD */}
-            <div className={`mt-6 p-4 rounded-xl border-l-4 flex items-start gap-3 ${
-                isDark 
-                    ? "bg-yellow-500/10 border-yellow-500 text-yellow-200" 
-                    : "bg-yellow-50 border-yellow-500 text-yellow-800"
-            }`}>
+            <div className={`mt-6 p-4 rounded-xl border-l-4 flex items-start gap-3 ${isDark ? "bg-yellow-500/10 border-yellow-500 text-yellow-200" : "bg-yellow-50 border-yellow-500 text-yellow-800"}`}>
                 <AlertTriangle className="flex-shrink-0" size={20} />
                 <div>
                     <h4 className="font-bold text-sm">Security Notice</h4>
                     <p className="text-xs mt-1 opacity-90">
-                        Changing these settings may require you to re-authenticate on your other devices. Always ensure your recovery email is up to date.
+                        Enable both features for maximum security. Always ensure your recovery email is up to date.
                     </p>
                 </div>
             </div>
@@ -343,14 +368,11 @@ export default function SecuritySettings() {
 
       </main>
 
-      {/* --- 2FA MODAL (Styled Dark/Light) --- */}
+      {/* --- 2FA MODAL --- */}
       {show2FAModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
           <div className={`p-8 rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden ${isDark ? "bg-gray-800" : "bg-white"}`}>
-            
-            {/* Decor Background */}
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500" />
-
             <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-blue-500/10 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
                     <QrCode size={32} />
@@ -360,15 +382,9 @@ export default function SecuritySettings() {
                    Scan this QR code with Google Authenticator or Authy App.
                 </p>
             </div>
-
             <div className="flex justify-center mb-6">
-                {qrCodeUrl ? (
-                    <QRCodeComponent url={qrCodeUrl} />
-                ) : (
-                    <Loader2 className="animate-spin text-blue-500" size={40} />
-                )}
+                {qrCodeUrl ? <QRCodeComponent url={qrCodeUrl} /> : <Loader2 className="animate-spin text-blue-500" size={40} />}
             </div>
-            
             <form onSubmit={handleVerify2FA} className="space-y-4">
               <div>
                   <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Verification Code</label>
@@ -378,29 +394,12 @@ export default function SecuritySettings() {
                     onChange={(e) => setVerificationCode(e.target.value)}
                     placeholder="000 000"
                     maxLength={6}
-                    className={`w-full px-4 py-3 rounded-xl text-center text-2xl font-mono tracking-[0.5em] border outline-none transition-all ${
-                        isDark
-                            ? "bg-gray-900 border-gray-700 focus:border-blue-500 text-white"
-                            : "bg-gray-50 border-gray-300 focus:border-blue-500 text-gray-900"
-                    }`}
+                    className={`w-full px-4 py-3 rounded-xl text-center text-2xl font-mono tracking-[0.5em] border outline-none transition-all ${isDark ? "bg-gray-900 border-gray-700 text-white" : "bg-gray-50 border-gray-300 text-gray-900"}`}
                   />
               </div>
-
               <div className="grid grid-cols-2 gap-4 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShow2FAModal(false)}
-                  className={`px-4 py-3 rounded-xl font-medium transition ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isVerifying}
-                  className="px-4 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/30 transition flex justify-center items-center"
-                >
-                  {isVerifying ? <Loader2 className="animate-spin" /> : "Activate 2FA"}
-                </button>
+                <button type="button" onClick={() => setShow2FAModal(false)} className={`px-4 py-3 rounded-xl font-medium transition ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}>Cancel</button>
+                <button type="submit" disabled={isVerifying} className="px-4 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg flex justify-center items-center">{isVerifying ? <Loader2 className="animate-spin" /> : "Activate 2FA"}</button>
               </div>
             </form>
           </div>

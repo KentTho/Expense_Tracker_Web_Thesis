@@ -28,6 +28,7 @@ def create_expense(payload: ExpenseCreate, current_user=Depends(get_current_user
         emoji=payload.emoji,
         category_id=payload.category_id,
         category_name=payload.category_name or None,
+        note=payload.note,
     )
     return expense
 

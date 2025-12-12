@@ -66,18 +66,23 @@ async function authorizedFetch(url, options = {}) {
 }
 
 // ----------------------------------------------------
-// 🧩 Helper: Payload Builder (Giữ nguyên)
+// 🧩 Helper: Payload Builder (ĐÃ SỬA: Đảm bảo có note)
 // ----------------------------------------------------
 function buildIncomePayload(form) {
-    return {
-        category_name: form.category_name || null,
-        amount: Number(form.amount),
-        date: form.date,
-        emoji: form.emoji || null,
-        category_id: form.category_id || null, 
-        currency_code: form.currency_code || "USD",
-        note: form.note || "",
-    };
+  return {
+      // Các trường bắt buộc
+      amount: Number(form.amount),
+      date: form.date,
+      
+      // Các trường tùy chọn (dùng || null/"" để tránh undefined)
+      category_name: form.category_name || null,
+      category_id: form.category_id || null, 
+      emoji: form.emoji || null,
+      currency_code: form.currency_code || "USD",
+      
+      // ✅ QUAN TRỌNG: Đảm bảo note được gửi đi
+      note: form.note || "" 
+  };
 }
 
 // ====================================================

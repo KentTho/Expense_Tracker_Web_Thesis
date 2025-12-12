@@ -8,6 +8,8 @@ import {
   sendPasswordResetEmail,
   signOut,
   getAuth,
+  sendEmailVerification, // ✅ Import thêm
+  verifyBeforeUpdateEmail // ✅ Import thêm (nếu muốn đổi email an toàn)
 } from "firebase/auth";
 import { auth } from "../components/firebase"; 
 import { BACKEND_BASE } from "./api";
@@ -138,4 +140,50 @@ export async function verify2FALogin(code) {
       throw new Error(err.detail || "Invalid Code");
   }
   return res.json();
+}
+// ✅ CHỨC NĂNG MỚI: Gửi Email Xác Thực
+export async function requestEmailVerification() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("User not found");
+  
+  // Gửi email từ Firebase
+  await sendEmailVerification(user);
+  return { success: true, message: "Verification email sent! Please check your inbox." };
+}
+
+// ✅ CHỨC NĂNG MỚI (Optional): Đổi Email an toàn
+export async function updateUserEmail(newEmail) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("User not found");
+
+  try {
+      await verifyBeforeUpdateEmail(user, newEmail);
+      return { success: true, message: "Confirmation email sent to new address." };
+  } catch (error) {
+      throw error;
+  }
+}
+
+export async function changeUserEmail(newEmail) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("User not found");
+
+  try {
+      // Hàm này gửi mail xác nhận đến email MỚI
+      await verifyBeforeUpdateEmail(user, newEmail);
+      return { success: true };
+  } catch (error) {
+      console.error("Change email error:", error);
+      // Lỗi phổ biến: Người dùng đăng nhập quá lâu
+      if (error.code === 'auth/requires-recent-login') {
+          throw new Error("Security: Please logout and login again to change your email.");
+      }
+      if (error.code === 'auth/email-already-in-use') {
+          throw new Error("This email is already in use by another account.");
+      }
+      if (error.code === 'auth/invalid-email') {
+          throw new Error("Invalid email address.");
+      }
+      throw error;
+  }
 }

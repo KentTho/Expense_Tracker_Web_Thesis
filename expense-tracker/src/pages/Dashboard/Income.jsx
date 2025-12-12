@@ -181,11 +181,11 @@ export default function Income() {
             if (editId) {
                 const updated = await updateIncome(editId, finalForm);
                 updatedList = incomes.map((i) => (i.id === editId ? updated : i));
-                toast.success(t('income.update_success')); 
+                toast.success("Income updated successfully! 🎉");
             } else {
                 const created = await createIncome(finalForm);
                 updatedList = [...incomes, created];
-                toast.success(t('income.create_success')); 
+                toast.success("New income added successfully! 💰");
             }
             setIncomes(updatedList);
             await fetchData(); 
@@ -222,10 +222,10 @@ export default function Income() {
             await deleteIncome(deleteId);
             setIncomes(incomes.filter((i) => i.id !== deleteId));
             await fetchData(); 
-            toast.success(t('income.delete_success')); 
+            toast.success("Income Deleted successfully! 🎉");
         } catch (err) {
             console.error(err);
-            toast.error(t('common.error'));
+            toast.success("Income Errors‼️");
         } finally {
             setShowDeleteModal(false);
             setDeleteId(null);
