@@ -1,5 +1,5 @@
 // src/services/api.js
-export const BACKEND_BASE = "http://localhost:8000";
+export const BACKEND_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export async function createIncome(idToken, payload) {
   const res = await fetch(`${BACKEND_BASE}/incomes`, {
