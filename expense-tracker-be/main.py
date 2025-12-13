@@ -114,6 +114,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Chỉ cho phép danh sách trên
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,  # Cho phép gửi cookie/token
     allow_methods=["*"],
     allow_headers=["*"],
