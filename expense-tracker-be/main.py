@@ -113,9 +113,14 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Chỉ cho phép danh sách trên
+    # Chấp nhận tất cả domain Vercel (Z6ye, thesis, preview...)
     allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_credentials=True,  # Cho phép gửi cookie/token
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:8000",
+        "https://expensetrackerweb.up.railway.app",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
