@@ -27,37 +27,35 @@ from routes import (
     system_route,
     chat_route
 )
-# main.py
-import firebase_admin_init # 👈 Thêm dòng này lên đầu file main.py
 
-
-# ...
 # -------------------------------------------------
 # 1. Cấu hình môi trường & Firebase
 # -------------------------------------------------
 load_dotenv()
-firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 
 # Khởi tạo Firebase ngay khi file chạy
+# Logic này sẽ đọc chuỗi JSON từ Railway Variable
 if not firebase_admin._apps:
+    firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
     if firebase_key_json:
         try:
+            # Parse chuỗi JSON thành Dict
             firebase_dict = json.loads(firebase_key_json)
             cred = credentials.Certificate(firebase_dict)
             firebase_admin.initialize_app(cred)
             print("✅ Firebase initialized successfully.")
         except Exception as e:
             print(f"❌ Error loading Firebase credentials: {e}")
-            raise RuntimeError("Lỗi cấu hình Firebase.")
+            # Không raise error để app vẫn chạy được, nhưng in log đỏ để biết
+            pass
     else:
-        raise RuntimeError("FIREBASE_SERVICE_ACCOUNT not found in .env")
+        print("⚠️ WARNING: FIREBASE_SERVICE_ACCOUNT not found in ENV.")
 
 # -------------------------------------------------
 # 2. Helper Database
 # -------------------------------------------------
-# Tạo bảng nếu chưa có
+# Tạo bảng nếu chưa có (Rất quan trọng cho lần chạy đầu tiên trên Railway)
 Base.metadata.create_all(bind=engine)
-
 
 @contextmanager
 def get_db_session():
@@ -68,22 +66,20 @@ def get_db_session():
     finally:
         db.close()
 
-
 # -------------------------------------------------
-# 3. Cấu hình Lifespan (Thay thế on_event startup)
+# 3. Cấu hình Lifespan (Startup & Shutdown)
 # -------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Hàm này chạy khi Server bắt đầu (Startup)
     và kết thúc (Shutdown).
-    Thay thế cho @app.on_event("startup") cũ.
     """
     # --- STARTUP LOGIC ---
     print("---------------------------------------")
     print("🚀 Application Starting Up...")
 
-    # Chạy Seeding
+    # Chạy Seeding (Tạo Category mặc định)
     with get_db_session() as db:
         try:
             print("🌱 Seeding default categories...")
@@ -94,11 +90,10 @@ async def lifespan(app: FastAPI):
 
     print("---------------------------------------")
 
-    yield  # Server chạy tại đây
+    yield  # Server chạy tại đây (Lang nghe request)
 
-    # --- SHUTDOWN LOGIC (Nếu cần) ---
+    # --- SHUTDOWN LOGIC ---
     print("🛑 Application Shutting Down...")
-
 
 # -------------------------------------------------
 # 4. Khởi tạo FastAPI
@@ -106,16 +101,17 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Expense Tracker API",
     description="API for managing personal income and expenses.",
-    lifespan=lifespan  # ✅ Sử dụng lifespan mới
+    lifespan=lifespan
 )
 
-# Cấu hình CORS
+# Cấu hình CORS (Cho phép Vercel truy cập)
 origins = [
     "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://expense-tracker-web-thesis.vercel.app",
-    "https://*.railway.app", # Cho phép domain Railway
-    "https://*.vercel.app",  # Nếu bạn host FE trên Vercel
+    "http://localhost:5173",
+    "http://127.0.0.1:8000",
+    "https://expensetrackerweb.up.railway.app", # Link Backend chính nó
+    "https://expense-tracker-web-thesis-z6ye.vercel.app", # 👈 QUAN TRỌNG: Link Vercel của bạn
+    "*" # Mở hết để chắc chắn không bị lỗi CORS lúc demo
 ]
 
 app.add_middleware(
@@ -143,13 +139,11 @@ app.include_router(admin_route.router)
 app.include_router(system_route.router)
 app.include_router(chat_route.router)
 
-
 @app.get("/", tags=["Root"])
 def root():
     return {"message": "Expense Tracker API is running successfully!"}
 
-# Thêm vào cuối file main.py
 if __name__ == "__main__":
     import uvicorn
-    # Chạy server ở port 8000
+    # Chạy server ở port 8000 (Localhost)
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
