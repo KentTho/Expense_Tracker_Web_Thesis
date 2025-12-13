@@ -109,10 +109,8 @@ origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:8000",
-    # 👇 Link Vercel chính thức (Của dự án bạn)
     "https://expense-tracker-web-thesis-z6ye.vercel.app",
-    # 👇 Link Vercel đang bị lỗi (Thêm cứng vào cho chắc ăn)
-    "https://expense-tracker-web-thesis-kents-projects-d0ea1a96.vercel.app",mo
+    "https://expense-tracker-web-thesis-kents-projects-d0ea1a96.vercel.app",
 ]
 
 app.add_middleware(
