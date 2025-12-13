@@ -108,8 +108,7 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",  # Localhost Frontend
     "http://127.0.0.1:8000",  # Localhost Backend
-    "expense-tracker-web-thesis.vercel.app",  # Backend Railway
-
+    "https://expense-tracker-web-thesis.vercel.app",  # Backend Railway
 ]
 
 app.add_middleware(
