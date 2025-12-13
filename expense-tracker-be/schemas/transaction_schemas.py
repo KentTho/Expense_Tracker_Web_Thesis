@@ -39,16 +39,6 @@ class RecentTransactionOut(BaseModel):
     amount: float
     transaction_date: date
     category_name: Optional[str]
-
-class RecentTransactionOut(BaseModel):
-    """Schema cho danh sách giao dịch gần đây"""
-    id: UUID
-    type: str
-    emoji: Optional[str]
-    amount: float
-    transaction_date: date
-    category_name: Optional[str]
-    # ✅ THÊM DÒNG NÀY: Để API trả về cả ghi chú
     note: Optional[str] = None
 
     class Config:

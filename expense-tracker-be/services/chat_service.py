@@ -8,24 +8,20 @@ from sqlalchemy.orm import Session
 from models import user_model
 from services.chat_tools import get_finbot_tools
 from cruds.crud_category import get_user_category_names_string
-# ✅ ROBUST IMPORT FIX
 try:
-    # New versions (0.1.0+)
     from langchain.agents import AgentExecutor, create_tool_calling_agent
 except ImportError:
     try:
-        # Older versions
         from langchain.agents.agent import AgentExecutor
         from langchain.agents import create_tool_calling_agent
     except ImportError:
-        # Fallback for very specific versions
         from langchain.agents import AgentExecutor
         from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
 
 def process_chat_message(db: Session, user: user_model.User, user_message: str, history: list = []):
     # 1. Khởi tạo Gemini
     llm = ChatGoogleGenerativeAI(
-        model="gemini-flash-latest",
+        model="gemini-1.5-flash",
         temperature=0,
     )
 

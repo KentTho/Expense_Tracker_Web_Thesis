@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # 1. Cấu hình cơ bản (Có thể set mặc định ở đây)
-    SECRET_KEY: str = "YOUR_SECRET_KEY"
+    SECRET_KEY: str = "vantho2200006616"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 300
     DATABASE_URL: str = "postgresql://admin:123456@localhost:5432/expense_tracker_app"

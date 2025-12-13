@@ -262,4 +262,8 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str):
 
 
 
+expensetrackerweb.up.railway.app
+
+
+
 

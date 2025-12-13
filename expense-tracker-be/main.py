@@ -113,7 +113,9 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://expense-tracker-web-thesis-z6ye.vercel.app"
+    "https://expense-tracker-web-thesis.vercel.app",
+    "https://*.railway.app", # Cho phép domain Railway
+    "https://*.vercel.app",  # Nếu bạn host FE trên Vercel
 ]
 
 app.add_middleware(
