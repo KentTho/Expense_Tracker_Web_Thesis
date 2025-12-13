@@ -109,14 +109,16 @@ origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:8000",
-    "https://expensetrackerweb.up.railway.app", # Link Backend chính nó
-    "https://expense-tracker-web-thesis-z6ye.vercel.app", # 👈 QUAN TRỌNG: Link Vercel của bạn# Mở hết để chắc chắn không bị lỗi CORS lúc demo
+    # 👇 Link Vercel chính thức (Của dự án bạn)
+    "https://expense-tracker-web-thesis-z6ye.vercel.app",
+    # 👇 Link Vercel đang bị lỗi (Thêm cứng vào cho chắc ăn)
+    "https://expense-tracker-web-thesis-kents-projects-d0ea1a96.vercel.app",mo
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex="https://.*\.vercel\.app",
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
