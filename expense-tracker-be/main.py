@@ -109,14 +109,14 @@ origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:8000",
-    "https://expense-tracker-web-thesis-z6ye.vercel.app",
-    "https://expense-tracker-web-thesis-kents-projects-d0ea1a96.vercel.app",
+    "https://expensetrackerweb.up.railway.app",
+    # KHÔNG CẦN LIỆT KÊ LINK VERCEL CỤ THỂ NỮA
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=r"https://.*\.vercel\.app", # <--- DÒNG NÀY CÂN HẾT MỌI LINK Ở HÌNH 2
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
