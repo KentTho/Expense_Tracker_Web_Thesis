@@ -106,19 +106,20 @@ app = FastAPI(
 
 # Cấu hình CORS (Cho phép Vercel truy cập)
 origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:8000",
-    "https://expensetrackerweb.up.railway.app",
-    # KHÔNG CẦN LIỆT KÊ LINK VERCEL CỤ THỂ NỮA
+    "http://localhost:3000",  # Cho phép chạy React dưới máy
+    "http://localhost:5173",  # Cho phép chạy Vite dưới máy
+    "http://127.0.0.1:8000",  # Cho phép gọi chính nó
+    "https://expensetrackerweb.up.railway.app",  # Link Backend Railway
+    # 👇 ĐÂY LÀ LINK CHÍNH THỨC TRÊN VERCEL (Lấy từ hình ảnh domain z6ye của bạn)
+    "https://expense-tracker-web-thesis-z6ye.vercel.app",
+    # Nếu bạn đổi tên miền sang 'my-super-expense...', hãy thêm dòng đó vào đây
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex=r"https://.*\.vercel\.app", # <--- DÒNG NÀY CÂN HẾT MỌI LINK Ở HÌNH 2
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=origins,  # Chỉ cho phép những ai có tên trong danh sách này
+    allow_credentials=True,  # Cho phép gửi Cookie/Token
+    allow_methods=["*"],  # Cho phép mọi phương thức (GET, POST...)
     allow_headers=["*"],
 )
 
