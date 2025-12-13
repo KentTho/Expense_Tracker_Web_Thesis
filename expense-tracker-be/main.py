@@ -108,10 +108,7 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",  # Localhost Frontend
     "http://127.0.0.1:8000",  # Localhost Backend
-    "https://expensetrackerweb.up.railway.app",  # Backend Railway
-    # 👇 ĐÂY LÀ LINK BẠN MUỐN DÙNG (Lấy từ Hình 1 của bạn)
-    "https://expense-tracker-web-thesis-z6ye.vercel.app",
-    "https://expense-tracker-web-thesis-kents-projects-d0ea1a96.vercel.app",
+    "expense-tracker-web-thesis.vercel.app",  # Backend Railway
 
 ]
 
