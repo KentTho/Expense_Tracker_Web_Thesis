@@ -113,16 +113,10 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    # Chấp nhận tất cả domain Vercel (Z6ye, thesis, preview...)
-    allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:8000",
-        "https://expensetrackerweb.up.railway.app",
-    ],
+    allow_origins=["*"],  # Quan trọng: Dấu * nghĩa là chấp nhận mọi nơi (Local, Vercel, v.v...)
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Cho phép mọi phương thức: GET, POST, PUT, DELETE...
+    allow_headers=["*"],  # Cho phép mọi loại header
 )
 
 # -------------------------------------------------
