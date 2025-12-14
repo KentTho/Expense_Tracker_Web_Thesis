@@ -1,7 +1,4 @@
 // Category.jsx
-// - ✅ FIXED: Sửa lỗi handleSave (res.category -> res).
-// - ✅ FIXED: Thêm check an toàn trong filter để tránh lỗi "reading 'type' of undefined".
-// - ✅ UI: Giữ nguyên giao diện.
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
@@ -13,7 +10,9 @@ import {
     Smile, 
     AlertTriangle, 
     X,
-    Lock 
+    Lock,
+    SearchX,
+    Loader2
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -27,7 +26,7 @@ import emojiData from "@emoji-mart/data";
 import { SketchPicker } from "react-color";
 
 // =======================================================
-// COMPONENT CARD
+// COMPONENT CARD (Responsive & Optimized)
 // =======================================================
 const CategoryCard = ({ category, onEdit, onDelete }) => {
   const isDark = useOutletContext().theme === "dark";
@@ -35,60 +34,62 @@ const CategoryCard = ({ category, onEdit, onDelete }) => {
 
   return (
     <div
-      className={`p-4 rounded-xl shadow-lg border-2 relative overflow-hidden transition-all duration-300 hover:shadow-2xl`}
+      className={`p-4 rounded-2xl border-2 relative overflow-hidden transition-all duration-300 hover:shadow-xl group`}
       style={{
-        backgroundColor: isDark ? `${category.color}15` : `${category.color}20`,
-        borderColor: `${category.color}90`,
-        boxShadow: isDark 
-          ? `0 4px 14px 0 ${category.color}30` 
-          : `0 4px 14px 0 ${category.color}50`,
+        backgroundColor: isDark ? `${category.color}10` : `${category.color}15`,
+        borderColor: `${category.color}60`,
       }}
     >
       <div className="flex justify-between items-start">
         <div
-          className="w-12 h-12 rounded-lg flex items-center justify-center shadow-inner"
+          className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110"
           style={{ backgroundColor: `${category.color}30` }}
         >
-          <span className="text-3xl">{category.icon || "📁"}</span>
+          <span className="text-2xl sm:text-3xl">{category.icon || "📁"}</span>
         </div>
         
         <div className="flex gap-2 z-10">
           {isDefault ? (
             <span 
-              className="text-xs font-semibold py-1 px-2.5 rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 flex items-center gap-1"
-              title="Default Category"
+              className="text-[10px] sm:text-xs font-bold py-1 px-2.5 rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 flex items-center gap-1 opacity-80"
+              title="Default System Category"
             >
-              <Lock size={12} /> Default
+              <Lock size={12} /> <span className="hidden sm:inline">Default</span>
             </span>
           ) : (
             <>
               <button 
                 onClick={() => onEdit(category)}
-                className="p-1.5 rounded-full transition-colors"
+                className="p-2 rounded-full transition-colors hover:brightness-90"
                 style={{ color: category.color, backgroundColor: `${category.color}20` }}
                 title="Edit"
               >
-                <Edit size={18} />
+                <Edit size={16} />
               </button>
               <button 
                 onClick={() => onDelete(category.id)}
-                className="p-1.5 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors"
                 title="Delete"
               >
-                <Trash2 size={18} />
+                <Trash2 size={16} />
               </button>
             </>
           )}
         </div>
       </div>
       
-      <h4 
-        className="text-lg font-bold mt-4 truncate"
-        style={{ color: category.color }}
-      >
-        {category.name}
-      </h4>
-      <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{category.type}</p>
+      <div className="mt-4">
+        <h4 
+            className="text-lg font-bold truncate"
+            style={{ color: category.color }}
+            title={category.name}
+        >
+            {category.name}
+        </h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide opacity-70">
+            {category.type}
+        </p>
+      </div>
     </div>
   );
 };
@@ -103,8 +104,9 @@ export default function Category() {
 
   const [categories, setCategories] = useState([]);
   const [typeFilter, setTypeFilter] = useState("income");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  // Modal & Form States
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ 
@@ -116,31 +118,40 @@ export default function Category() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
-  // Fetch Categories
+  // --- 1. SILENT FETCH CATEGORIES ---
   useEffect(() => {
     const token = localStorage.getItem("idToken");
     if (!token) {
-      toast.error("Session expired!");
+      // Chỉ redirect login, không toast error gây khó chịu
       navigate("/login");
       return;
     }
 
-    (async () => {
+    let isMounted = true;
+
+    const fetchCategoriesSafe = async () => {
       setLoading(true);
       try {
         const data = await getCategories(typeFilter);
-        // Đảm bảo data luôn là mảng
-        setCategories(Array.isArray(data) ? data : []);
+        if (isMounted) {
+            // Luôn đảm bảo là mảng, nếu null/undefined thì là mảng rỗng
+            setCategories(Array.isArray(data) ? data : []);
+        }
       } catch (err) {
-        console.error(err);
-        toast.error("Failed to load categories");
-        setCategories([]);
+        // Silent Fail: Log warning thay vì Toast Error
+        console.warn("Category fetch silent fail:", err);
+        if (isMounted) setCategories([]); 
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
-    })();
+    };
+
+    fetchCategoriesSafe();
+
+    return () => { isMounted = false; };
   }, [typeFilter, navigate]);
 
+  // Modal Handlers
   const openAddModal = () => {
     const isIncome = typeFilter === 'income';
     setEditId(null);
@@ -149,13 +160,13 @@ export default function Category() {
       type: typeFilter,
       icon: isIncome ? "💰" : "💸",
       color: isIncome ? "#22C55E" : "#EF4444",
-      user_id: "temp_user_id", // Đánh dấu là user category
+      user_id: "temp_user_id", 
     });
     setShowModal(true);
   };
 
   const openEditModal = (category) => {
-    if (!category.user_id) return; // Không cho sửa Default
+    if (!category.user_id) return; 
     setEditId(category.id);
     setForm(category);
     setShowModal(true);
@@ -167,11 +178,10 @@ export default function Category() {
     setShowColorPicker(false);
   }
 
-  // ✅ SỬA LỖI HANDLE SAVE TẠI ĐÂY
+  // Save Handler
   const handleSave = async () => {
-    if (!form.name) return toast.error("Please enter category name!");
+    if (!form.name.trim()) return toast.error("Category name is required!");
     
-    // Loại bỏ user_id khỏi payload gửi lên (BE tự lấy từ token)
     const { user_id, ...payload } = form; 
 
     try {
@@ -180,29 +190,29 @@ export default function Category() {
         setCategories((prev) =>
           prev.map((c) => (c.id === editId ? updated : c))
         );
-        toast.success("Category updated!");
+        toast.success("Category updated successfully!");
       } else {
         const res = await createCategory(payload);
-        
-        // 🛠️ FIX: API trả về object category trực tiếp (res), không phải { category: res }
-        // Kiểm tra kỹ cấu trúc trả về để add đúng vào mảng
-        const newCategory = res.category || res; 
-
-        setCategories((prev) => [...prev, newCategory]);
-        toast.success("New category created!");
+        // Kiểm tra an toàn response
+        const newCategory = res?.category || res; 
+        if (newCategory) {
+            setCategories((prev) => [...prev, newCategory]);
+            toast.success("New category created!");
+        }
       }
       closeAllModals();
       setEditId(null);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save category");
+      toast.error("Could not save category. Please try again.");
     }
   };
 
+  // Delete Handlers
   const initiateDelete = (id) => {
     const categoryToDelete = categories.find(c => c.id === id);
     if (categoryToDelete && !categoryToDelete.user_id) {
-      toast.error("Cannot delete default category!");
+      toast.error("Default categories cannot be deleted.");
       return;
     }
     setDeleteId(id);
@@ -214,48 +224,58 @@ export default function Category() {
     try {
       await deleteCategory(deleteId);
       setCategories((prev) => prev.filter((c) => c.id !== deleteId));
-      toast.success("Category deleted!");
+      toast.success("Category deleted.");
     } catch {
-      toast.error("Failed to delete category");
+      toast.error("Failed to delete category.");
     } finally {
       setShowDeleteModal(false);
       setDeleteId(null);
     }
   };
 
-  // ✅ SỬA LỖI FILTER: Thêm check (c && c.type) để tránh crash nếu có item lỗi
+  // Filter Data (Memoized for performance)
   const filteredCategories = useMemo(() => {
     return categories.filter(c => c && c.type === typeFilter);
   }, [categories, typeFilter]);
 
+  // UI Styles Helper
   const activeColorClass = typeFilter === 'income' ? "text-green-500" : "text-red-500";
-  const addBtnColor = typeFilter === 'income' ? "bg-green-600 hover:bg-green-500 shadow-green-500/50" : "bg-red-600 hover:bg-red-500 shadow-red-500/50";
+  const addBtnColor = typeFilter === 'income' 
+    ? "bg-green-600 hover:bg-green-500 shadow-green-500/30" 
+    : "bg-red-600 hover:bg-red-500 shadow-red-500/30";
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
+    <div className={`min-h-screen transition-colors duration-300 ${isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
       <Toaster position="top-center" />
       
-      <main className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <h1 className="text-4xl font-extrabold text-gray-800 dark:text-white flex items-center gap-3">
-            <Palette size={36} className={`transition-colors ${activeColorClass}`} />
-            Category Palette
-          </h1>
+      <main className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
+        
+        {/* --- HEADER RESPONSIVE --- */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold flex items-center gap-3">
+                <Palette size={32} className={`transition-colors ${activeColorClass}`} />
+                Categories
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm sm:text-base">
+                Manage your income and expense categories.
+            </p>
+          </div>
           
-          <div className="flex gap-3 items-center">
-            <div className={`p-1 rounded-xl flex gap-1 ${isDark ? "bg-gray-800" : "bg-gray-200"}`}>
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <div className={`p-1 rounded-xl flex gap-1 w-full sm:w-auto ${isDark ? "bg-gray-800" : "bg-gray-200"}`}>
               <button
                 onClick={() => setTypeFilter("income")}
-                className={`w-32 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
-                  typeFilter === "income" ? "bg-green-500 text-white shadow-md" : "text-gray-500 dark:text-gray-400"
+                className={`flex-1 sm:flex-none w-full sm:w-32 px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                  typeFilter === "income" ? "bg-green-500 text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700"
                 }`}
               >
                 💰 Income
               </button>
               <button
                 onClick={() => setTypeFilter("expense")}
-                className={`w-32 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
-                  typeFilter === "expense" ? "bg-red-500 text-white shadow-md" : "text-gray-500 dark:text-gray-400"
+                className={`flex-1 sm:flex-none w-full sm:w-32 px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                  typeFilter === "expense" ? "bg-red-500 text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700"
                 }`}
               >
                 💸 Expense
@@ -264,31 +284,47 @@ export default function Category() {
             
             <button
               onClick={openAddModal}
-              className={`flex items-center gap-2 px-4 py-2.5 text-white rounded-lg font-medium shadow-lg transition transform hover:scale-105 ${addBtnColor}`}
+              className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95 ${addBtnColor}`}
             >
-              <PlusCircle size={18} /> Add New
+              <PlusCircle size={20} /> <span className="md:hidden lg:inline">Create New</span>
             </button>
           </div>
         </div>
 
-        <div className={`p-6 rounded-2xl shadow-xl ${isDark ? "bg-gray-800" : "bg-white border"}`}>
-            <h3 className="text-xl font-semibold mb-6 capitalize">
-              {typeFilter} Categories
+        {/* --- MAIN CONTENT CARD --- */}
+        <div className={`p-6 rounded-2xl shadow-xl min-h-[400px] ${isDark ? "bg-gray-800" : "bg-white border border-gray-100"}`}>
+            <h3 className="text-xl font-bold mb-6 capitalize flex items-center gap-2">
+               <span className={activeColorClass}>●</span> {typeFilter} Categories
             </h3>
+            
             {loading ? (
-              <p className="text-center text-gray-400 py-10">Loading categories...</p>
+               <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                  <Loader2 className="animate-spin mb-3 text-blue-500" size={40} />
+                  <p>Loading categories...</p>
+               </div>
             ) : filteredCategories.length === 0 ? (
-              <div className="text-center py-10">
-                <p className="text-lg font-semibold text-gray-500">No categories found.</p>
-                <button onClick={openAddModal} className={`text-sm font-medium ${activeColorClass} mt-2`}>
-                  + Create One
+              // --- EMPTY STATE ĐẸP MẮT ---
+              <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed rounded-xl border-gray-200 dark:border-gray-700">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${isDark ? "bg-gray-700/50" : "bg-gray-50"}`}>
+                    <SearchX size={40} className="text-gray-400" />
+                </div>
+                <h4 className="text-lg font-bold text-gray-600 dark:text-gray-300">No Categories Found</h4>
+                <p className="text-gray-500 dark:text-gray-400 mt-1 max-w-xs mx-auto text-sm">
+                  You haven't created any {typeFilter} categories yet.
+                </p>
+                <button 
+                    onClick={openAddModal} 
+                    className={`mt-6 px-6 py-2 rounded-full font-semibold text-sm text-white shadow-md transition-transform hover:scale-105 ${typeFilter === 'income' ? 'bg-green-500' : 'bg-red-500'}`}
+                >
+                  Create First Category
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              // --- GRID LAYOUT ---
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredCategories.map((cat) => (
                   <CategoryCard
-                    key={cat.id || Math.random()} // Fallback key nếu id lỗi
+                    key={cat.id || Math.random()}
                     category={cat}
                     onEdit={openEditModal}
                     onDelete={initiateDelete}
@@ -299,28 +335,28 @@ export default function Category() {
           </div>
       </main>
 
-      {/* DELETE MODAL */}
+      {/* --- DELETE CONFIRM MODAL --- */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60] backdrop-blur-sm animate-fadeIn">
             <div className={`w-full max-w-sm p-6 rounded-2xl shadow-2xl transform transition-all ${isDark ? "bg-gray-800" : "bg-white"}`}>
                 <div className="flex flex-col items-center text-center">
-                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
-                        <AlertTriangle className="text-red-600 dark:text-red-500" size={24} />
+                    <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4 animate-bounce-short">
+                        <AlertTriangle className="text-red-600 dark:text-red-500" size={28} />
                     </div>
                     <h3 className="text-xl font-bold mb-2">Delete Category?</h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
-                      Are you sure? Transactions linked to this category will remain but lose their category tag.
+                    <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm leading-relaxed">
+                      Transactions linked to this category will be marked as "Uncategorized". This action cannot be undone.
                     </p>
                     <div className="flex gap-3 w-full">
                         <button
                             onClick={() => setShowDeleteModal(false)}
-                            className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}
+                            className={`flex-1 py-3 rounded-xl font-semibold transition-colors ${isDark ? "bg-gray-700 hover:bg-gray-600 text-gray-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
                         >
                             Cancel
                         </button>
                         <button
                             onClick={confirmDelete}
-                            className="flex-1 py-2.5 rounded-lg font-medium bg-red-600 hover:bg-red-500 text-white shadow-md shadow-red-500/30"
+                            className="flex-1 py-3 rounded-xl font-semibold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/30"
                         >
                             Delete
                         </button>
@@ -330,25 +366,25 @@ export default function Category() {
         </div>
       )}
 
-      {/* CREATE/EDIT MODAL */}
+      {/* --- CREATE/EDIT MODAL --- */}
       {showModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn"
           onClick={closeAllModals}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-2xl p-6 rounded-2xl shadow-2xl relative ${isDark ? "bg-gray-800" : "bg-white"}`}
+            className={`w-full max-w-2xl p-6 sm:p-8 rounded-3xl shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar ${isDark ? "bg-gray-800" : "bg-white"}`}
           >
             <button
                 onClick={closeAllModals}
-                className={`absolute top-4 right-4 text-gray-400 hover:text-red-500 transition ${isDark ? "hover:text-red-400" : "hover:text-red-600"}`}
+                className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${isDark ? "text-gray-400 hover:bg-gray-700 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-800"}`}
             >
                 <X size={24} />
             </button>
 
-            <h2 className="text-2xl font-bold mb-6">
-              {editId ? "Edit Category" : "Add New Category"}
+            <h2 className="text-2xl sm:text-3xl font-extrabold mb-8 text-center sm:text-left">
+              {editId ? "Edit Category" : "Create New Category"}
             </h2>
 
             {(() => {
@@ -358,92 +394,113 @@ export default function Category() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   {/* CỘT PREVIEW */}
                   <div className="md:col-span-1 flex flex-col items-center">
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                      Preview
+                    <label className="text-xs font-bold uppercase text-gray-400 mb-3 tracking-wider">
+                      Live Preview
                     </label>
                     <div
-                      className="w-48 h-32 p-4 rounded-xl border-2 flex flex-col justify-between transition-all"
+                      className="w-full aspect-square md:w-48 md:h-48 rounded-2xl border-2 flex flex-col items-center justify-center gap-4 transition-all duration-300"
                       style={{
-                        backgroundColor: `${form.color || "#22C55E"}20`,
+                        backgroundColor: `${form.color || "#22C55E"}15`,
                         borderColor: form.color || "#22C55E",
                       }}
                     >
                       <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
+                        className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm"
                         style={{ backgroundColor: `${form.color || "#22C55E"}30` }}
                       >
-                        <span className="text-2xl">{form.icon || "📁"}</span>
+                        <span className="text-4xl">{form.icon || "📁"}</span>
                       </div>
-                      <h4 
-                        className="text-base font-bold truncate"
-                        style={{ color: form.color || "#22C55E" }}
-                      >
-                        {form.name || "Category Name"}
-                      </h4>
+                      <div className="text-center px-4">
+                        <h4 
+                            className="text-lg font-bold truncate max-w-[150px]"
+                            style={{ color: form.color || "#22C55E" }}
+                        >
+                            {form.name || "Category Name"}
+                        </h4>
+                        <span className="text-xs text-gray-400 font-medium uppercase">{form.type}</span>
+                      </div>
                     </div>
                     {isDefaultItem && (
-                      <span className="text-xs font-semibold py-1 px-2.5 rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 mt-2 flex items-center gap-1">
-                        <Lock size={12} /> Default
-                      </span>
+                      <div className="mt-4 px-3 py-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-500 rounded-lg text-xs font-medium flex items-center gap-2">
+                         <Lock size={14} /> System Default
+                      </div>
                     )}
                   </div>
 
                   {/* CỘT FORM */}
-                  <div className="md:col-span-2 space-y-4">
+                  <div className="md:col-span-2 space-y-5">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Category Name</label>
+                      <label className="block text-sm font-semibold mb-2">Category Name</label>
                       <input
                         type="text"
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        className={`w-full px-3 py-2.5 rounded-lg border outline-none ${
-                          isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"
-                        } ${isDefaultItem ? 'opacity-70' : ''}`}
+                        placeholder="e.g. Salary, Groceries..."
+                        className={`w-full px-4 py-3 rounded-xl border outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
+                          isDark ? "bg-gray-700 border-gray-600 text-white placeholder-gray-500" : "bg-gray-50 border-gray-200 text-gray-900"
+                        } ${isDefaultItem ? 'opacity-50 cursor-not-allowed' : ''}`}
                         readOnly={isDefaultItem} 
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-1">Type</label>
-                      <select
-                        value={form.type}
-                        onChange={(e) => setForm({ ...form, type: e.target.value })}
-                        className={`w-full px-3 py-2.5 rounded-lg border ${
-                          isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"
-                        } ${isDefaultItem ? 'opacity-70' : ''}`}
-                        disabled={isDefaultItem || !!editId} 
-                      >
-                        <option value="income">Income</option>
-                        <option value="expense">Expense</option>
-                      </select>
+                      <label className="block text-sm font-semibold mb-2">Category Type</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                            type="button"
+                            onClick={() => !isDefaultItem && !editId && setForm({...form, type: 'income', color: '#22C55E', icon: '💰'})}
+                            disabled={isDefaultItem || !!editId}
+                            className={`py-2.5 rounded-xl font-bold text-sm border-2 transition-all ${
+                                form.type === 'income' 
+                                ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' 
+                                : 'border-transparent bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                            }`}
+                        >
+                            Income
+                        </button>
+                        <button
+                             type="button"
+                             onClick={() => !isDefaultItem && !editId && setForm({...form, type: 'expense', color: '#EF4444', icon: '💸'})}
+                             disabled={isDefaultItem || !!editId}
+                             className={`py-2.5 rounded-xl font-bold text-sm border-2 transition-all ${
+                                 form.type === 'expense' 
+                                 ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400' 
+                                 : 'border-transparent bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                             }`}
+                        >
+                            Expense
+                        </button>
+                      </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Icon</label>
+                        <label className="block text-sm font-semibold mb-2">Icon</label>
                         <button
                           onClick={() => !isDefaultItem && setShowEmojiPicker(true)}
-                          className={`w-full h-11 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border ${
-                            isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"
-                          } ${isDefaultItem ? 'opacity-70 cursor-not-allowed' : ''}`} 
+                          disabled={isDefaultItem}
+                          className={`w-full h-12 flex items-center justify-between px-4 rounded-xl border transition-all ${
+                            isDark ? "bg-gray-700 border-gray-600 hover:bg-gray-600" : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                          } ${isDefaultItem ? 'opacity-50 cursor-not-allowed' : ''}`} 
                         >
                           <span className="text-2xl">{form.icon}</span>
-                          <Smile size={18} className="text-gray-500" />
+                          <Smile size={20} className="text-gray-400" />
                         </button>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Color</label>
+                        <label className="block text-sm font-semibold mb-2">Color Tag</label>
                         <button
                           onClick={() => !isDefaultItem && setShowColorPicker(true)}
-                          className={`w-full h-11 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border ${
-                            isDark ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"
-                          } ${isDefaultItem ? 'opacity-70 cursor-not-allowed' : ''}`} 
+                          disabled={isDefaultItem}
+                          className={`w-full h-12 flex items-center justify-between px-4 rounded-xl border transition-all ${
+                            isDark ? "bg-gray-700 border-gray-600 hover:bg-gray-600" : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                          } ${isDefaultItem ? 'opacity-50 cursor-not-allowed' : ''}`} 
                         >
                           <div 
-                            className="w-6 h-6 rounded-full border" 
+                            className="w-6 h-6 rounded-full border-2 border-white/20 shadow-sm" 
                             style={{ backgroundColor: form.color || "#22C55E" }} 
                           />
-                          <Palette size={18} className="text-gray-500" />
+                          <Palette size={20} className="text-gray-400" />
                         </button>
                       </div>
                     </div>
@@ -451,11 +508,13 @@ export default function Category() {
                     {!isDefaultItem && (
                       <button
                         onClick={handleSave}
-                        className={`w-full mt-4 py-3 rounded-lg text-white font-semibold transition-all ${
-                          form.type === 'income' ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'
+                        className={`w-full mt-6 py-3.5 rounded-xl text-white font-bold text-lg shadow-lg transition-transform hover:scale-[1.02] active:scale-95 ${
+                          form.type === 'income' 
+                            ? 'bg-gradient-to-r from-green-500 to-green-600 shadow-green-500/30' 
+                            : 'bg-gradient-to-r from-red-500 to-red-600 shadow-red-500/30'
                         }`}
                       >
-                        {editId ? "Update Category" : "Save Category"}
+                        {editId ? "Save Changes" : "Create Category"}
                       </button>
                     )}
                   </div>
@@ -466,13 +525,13 @@ export default function Category() {
         </div>
       )}
 
-      {/* EMOJI PICKER */}
+      {/* EMOJI PICKER POPUP */}
       {showEmojiPicker && (
         <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => setShowEmojiPicker(false)}
         >
-          <div onClick={(e) => e.stopPropagation()}>
+          <div onClick={(e) => e.stopPropagation()} className="shadow-2xl rounded-xl overflow-hidden animate-scaleIn">
             <Picker
               data={emojiData}
               theme={isDark ? "dark" : "light"}
@@ -485,16 +544,17 @@ export default function Category() {
         </div>
       )}
 
-      {/* COLOR PICKER */}
+      {/* COLOR PICKER POPUP */}
       {showColorPicker && (
         <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => setShowColorPicker(false)}
         >
-          <div onClick={(e) => e.stopPropagation()}>
+          <div onClick={(e) => e.stopPropagation()} className="bg-white p-4 rounded-2xl shadow-2xl animate-scaleIn">
             <SketchPicker
               color={form.color || "#22C55E"}
               onChange={(color) => setForm({ ...form, color: color.hex })}
+              disableAlpha
             />
           </div>
         </div>

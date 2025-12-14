@@ -1,6 +1,6 @@
 // Home.jsx
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useOutletContext, Link } from "react-router-dom";
 import {
     DollarSign,
@@ -32,6 +32,7 @@ import {
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
 
+// Giữ nguyên các import service
 import { getFinancialKpiSummary } from "../../services/incomeService";
 import { 
     getExpenseDailyTrend, 
@@ -46,9 +47,9 @@ const BREAKDOWN_COLORS = [
     "#6366F1", "#EF4444", "#14B8A6", "#F97316", "#A8A29E"
 ];
 
+// Helper format tiền tệ (An toàn hơn với giá trị null/undefined)
 const formatAmountDisplay = (amount, currencyCode = 'USD', decimals = 0) => {
-    const numberAmount = Number(amount);
-    if (isNaN(numberAmount)) return 'N/A';
+    const numberAmount = Number(amount) || 0; // Fallback về 0 nếu NaN/Null
     try {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -69,87 +70,142 @@ const getGreeting = () => {
 };
 
 export default function Home() {
-    // ✅ SỬA LỖI TẠI ĐÂY: Lấy 'currencyCode' thay vì 'displayCurrency'
+    // Lấy context từ Outlet cha
     const { theme, currencyCode } = useOutletContext();
     const isDark = theme === "dark";
     
+    // State quản lý dữ liệu
     const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, balance: 0 });
     const [expenseBreakdown, setExpenseBreakdown] = useState([]);
     const [recentTransactions, setRecentTransactions] = useState([]);
     const [expenseTrend, setExpenseTrend] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [broadcastMsg, setBroadcastMsg] = useState("");
-    
     const [budget, setBudget] = useState(0); 
 
+    // State quản lý UI menu
     const [showAddMenu, setShowAddMenu] = useState(false);
     const addMenuRef = useRef(null);
 
+    // Hàm fetch dữ liệu an toàn (Safe Fetching)
+    // Giúp User mới không bị báo lỗi đỏ lòm khi chưa có dữ liệu
     const fetchData = useCallback(async () => {
-        setLoading(true);
+        // Không set loading=true ở đây nếu muốn reload ngầm (optional), 
+        // nhưng set ở lần đầu mount là cần thiết.
+        
         try {
-            const [kpiData, breakdownData, recentTx, trendData, systemSettings, userProfile] = await Promise.all([
-                getFinancialKpiSummary(),
-                getExpenseBreakdown(),
-                getRecentTransactions(10),
-                getExpenseDailyTrend(30),
+            // Sử dụng Promise.all để gọi song song, nhưng catch lỗi riêng lẻ từng cái
+            // Để đảm bảo 1 cái lỗi không làm sập cả trang dashboard
+            const [
+                kpiData, 
+                breakdownData, 
+                recentTx, 
+                trendData, 
+                systemSettings, 
+                userProfile
+            ] = await Promise.all([
+                // 1. KPI: Nếu lỗi -> trả về object 0
+                getFinancialKpiSummary().catch(err => {
+                    console.warn("KPI Fetch silent fail:", err);
+                    return { total_income: 0, total_expense: 0 };
+                }),
+
+                // 2. Breakdown: Nếu lỗi -> trả về mảng rỗng
+                getExpenseBreakdown().catch(err => {
+                    console.warn("Breakdown Fetch silent fail:", err);
+                    return [];
+                }),
+
+                // 3. Transactions: Nếu lỗi -> trả về mảng rỗng
+                getRecentTransactions(10).catch(err => {
+                    console.warn("Transactions Fetch silent fail:", err);
+                    return [];
+                }),
+
+                // 4. Trend: Nếu lỗi -> trả về mảng rỗng
+                getExpenseDailyTrend(30).catch(err => {
+                    console.warn("Trend Fetch silent fail:", err);
+                    return [];
+                }),
+
+                // 5. Settings: Lỗi thì bỏ qua
                 fetchSystemSettings().catch(() => ({ broadcast_message: "" })),
+
+                // 6. Profile: Lỗi thì bỏ qua
                 getUserProfile().catch(() => ({}))
             ]);
 
+            // --- Xử lý dữ liệu sau khi fetch an toàn ---
+
+            // Broadcast Message
             if (systemSettings && systemSettings.broadcast_message) {
                 setBroadcastMsg(systemSettings.broadcast_message);
             }
 
-            const totalIncome = Number(kpiData.total_income) || 0;
-            const totalExpense = Number(kpiData.total_expense) || 0;
+            // Summary
+            const totalIncome = Number(kpiData?.total_income) || 0;
+            const totalExpense = Number(kpiData?.total_expense) || 0;
             setSummary({
                 total_income: totalIncome,
                 total_expense: totalExpense,
                 balance: totalIncome - totalExpense,
             });
 
+            // Budget Profile
             if (userProfile) {
                 setBudget(Number(userProfile.monthly_budget || 0));
             }
 
-            const formattedBreakdown = breakdownData.map(item => ({
-                name: item.category_name,
-                value: Number(item.total_amount) || 0,
-            })).filter(item => item.value > 0);
+            // Expense Breakdown Chart
+            const formattedBreakdown = Array.isArray(breakdownData) 
+                ? breakdownData.map(item => ({
+                    name: item.category_name,
+                    value: Number(item.total_amount) || 0,
+                })).filter(item => item.value > 0)
+                : [];
             setExpenseBreakdown(formattedBreakdown);
 
-            const formattedRecentTx = recentTx.map(tx => ({
-                ...tx,
-                date: tx.date ? tx.date.split('T')[0] : 'N/A',
-                category_name: tx.category_name || tx.category?.name || 'General'
-            }));
+            // Recent Transactions
+            const formattedRecentTx = Array.isArray(recentTx) 
+                ? recentTx.map(tx => ({
+                    ...tx,
+                    date: tx.date ? tx.date.split('T')[0] : 'N/A',
+                    category_name: tx.category_name || tx.category?.name || 'General'
+                })) 
+                : [];
             setRecentTransactions(formattedRecentTx);
 
-            const formattedTrend = trendData.map(item => ({
-                date: item.date, 
-                amount: Number(item.total_amount) || 0
-            }));
+            // Expense Trend Chart
+            const formattedTrend = Array.isArray(trendData) 
+                ? trendData.map(item => ({
+                    date: item.date, 
+                    amount: Number(item.total_amount) || 0
+                })) 
+                : [];
             setExpenseTrend(formattedTrend);
 
         } catch (error) {
-            toast.error("Failed to fetch dashboard data.");
-            console.error(error);
+            // Lỗi nghiêm trọng mới log ra console, KHÔNG TOAST để tránh làm phiền user
+            console.error("Critical Dashboard Error:", error);
         } finally {
             setLoading(false);
         }
     }, []); 
 
+    // Effect khởi tạo và lắng nghe sự kiện update
     useEffect(() => {
         fetchData();
+        
         const handleUpdate = () => {
-            console.log("♻️ Home Page: Reloading data...");
+            // Reload ngầm (không hiện loading spinner toàn màn hình) để trải nghiệm mượt hơn
             fetchData();
         };
+        
         window.addEventListener("transactionUpdated", handleUpdate);
         return () => window.removeEventListener("transactionUpdated", handleUpdate);
     }, [fetchData]);
 
+    // Xử lý click outside menu "Add New"
     useEffect(() => {
         function handleClickOutside(event) {
             if (addMenuRef.current && !addMenuRef.current.contains(event.target)) {
@@ -162,6 +218,7 @@ export default function Home() {
         };
     }, [addMenuRef]);
 
+    // Render Component: Thẻ ngân sách
     const renderBudgetCard = () => {
         if (budget <= 0) return null; 
 
@@ -202,7 +259,6 @@ export default function Home() {
                         ></div>
                     </div>
                     <div className="flex justify-between mt-2 text-xs text-gray-400">
-                        {/* ✅ SỬA: Dùng biến currencyCode */}
                         <span>Spent: <b>{formatAmountDisplay(totalExpense, currencyCode)}</b></span>
                         <span>Limit: <b>{formatAmountDisplay(budget, currencyCode)}</b></span>
                     </div>
@@ -211,6 +267,7 @@ export default function Home() {
         );
     };
 
+    // Màn hình Loading
     if (loading) {
         return (
             <div className={`min-h-screen flex justify-center items-center ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
@@ -233,7 +290,7 @@ export default function Home() {
                             <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
                                 {getGreeting()}
                             </span>
-                            <span className="text-2xl">👋</span>
+                            <span className="text-2xl animate-wave">👋</span>
                         </h1>
                         <p className="text-gray-500 dark:text-gray-400 mt-1 font-medium flex items-center gap-2">
                             <Clock size={16} /> Here's your financial overview today.
@@ -291,7 +348,6 @@ export default function Home() {
                                 <span className="text-sm font-bold uppercase tracking-wider">Total Income</span>
                             </div>
                             <p className="text-3xl sm:text-4xl font-extrabold">
-                                {/* ✅ SỬA: Dùng currencyCode */}
                                 {formatAmountDisplay(summary.total_income, currencyCode, 0)}
                             </p>
                         </div>
@@ -305,7 +361,6 @@ export default function Home() {
                                 <span className="text-sm font-bold uppercase tracking-wider">Total Expense</span>
                             </div>
                             <p className="text-3xl sm:text-4xl font-extrabold">
-                                {/* ✅ SỬA: Dùng currencyCode */}
                                 {formatAmountDisplay(summary.total_expense, currencyCode, 0)}
                             </p>
                         </div>
@@ -319,7 +374,6 @@ export default function Home() {
                                 <span className="text-sm font-bold uppercase tracking-wider">Net Balance</span>
                             </div>
                             <p className={`text-3xl sm:text-4xl font-extrabold ${summary.balance >= 0 ? "text-blue-500" : "text-red-500"}`}>
-                                {/* ✅ SỬA: Dùng currencyCode */}
                                 {formatAmountDisplay(summary.balance, currencyCode, 0)}
                             </p>
                             <p className="text-xs text-gray-400 mt-2">
@@ -349,26 +403,31 @@ export default function Home() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
-                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 12}} dy={10} />
+                                        <XAxis 
+                                            dataKey="date" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 12}} 
+                                            dy={10} 
+                                        />
                                         <YAxis 
                                             axisLine={false} 
                                             tickLine={false} 
                                             tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 12}} 
-                                            // ✅ SỬA: tickFormatter dùng currencyCode
-                                            tickFormatter={(val) => formatAmountDisplay(val, currencyCode, 0).replace(currencyCode, "")} 
+                                            tickFormatter={(val) => formatAmountDisplay(val, currencyCode, 0).replace(currencyCode, "").trim()} 
                                         />
                                         <Tooltip 
                                             contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                                            // ✅ SỬA: formatter dùng currencyCode
                                             formatter={(val) => [formatAmountDisplay(val, currencyCode), "Expense"]} 
                                         />
                                         <Area type="monotone" dataKey="amount" stroke="#EF4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
                              ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                                    <BarChart2 size={48} className="mb-2 opacity-20" />
-                                    <p>No trend data yet.</p>
+                                <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
+                                    <BarChart2 size={48} className="mb-2" />
+                                    <p className="text-sm">No trend data available yet.</p>
+                                    <p className="text-xs mt-1">Add expenses to see analytics.</p>
                                 </div>
                              )}
                         </div>
@@ -386,22 +445,27 @@ export default function Home() {
                             {expenseBreakdown.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
-                                        <Pie data={expenseBreakdown} innerRadius={60} outerRadius={90} paddingAngle={5} dataKey="value">
+                                        <Pie 
+                                            data={expenseBreakdown} 
+                                            innerRadius={60} 
+                                            outerRadius={90} 
+                                            paddingAngle={5} 
+                                            dataKey="value"
+                                        >
                                             {expenseBreakdown.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length]} stroke={isDark ? "#1F2937" : "#FFF"} strokeWidth={2} />
                                             ))}
                                         </Pie>
                                         <Tooltip 
                                              contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                                             // ✅ SỬA: formatter dùng currencyCode
                                              formatter={(val) => formatAmountDisplay(val, currencyCode)}
                                         />
                                     </PieChart>
                                 </ResponsiveContainer>
                             ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                                    <PieIcon size={48} className="mb-2 opacity-20" />
-                                    <p>No expense data.</p>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 opacity-60">
+                                    <PieIcon size={48} className="mb-2" />
+                                    <p className="text-sm">No expenses yet.</p>
                                 </div>
                             )}
                         </div>
@@ -440,7 +504,6 @@ export default function Home() {
                                     </div>
                                     <div className="text-right">
                                         <p className={`text-lg font-bold ${tx.type === "income" ? "text-green-500" : "text-red-500"}`}>
-                                            {/* ✅ SỬA: Dùng currencyCode */}
                                             {tx.type === "income" ? "+" : "-"} {formatAmountDisplay(tx.amount, tx.currency_code || currencyCode, 0)}
                                         </p>
                                         <span className={`text-xs font-bold px-2 py-0.5 rounded ${tx.type === "income" ? "bg-green-100 text-green-600 dark:bg-green-900/30" : "bg-red-100 text-red-600 dark:bg-red-900/30"}`}>
@@ -450,8 +513,10 @@ export default function Home() {
                                 </div>
                             ))
                         ) : (
-                            <div className="text-center py-12 text-gray-500">
-                                <p>No recent activity to show.</p>
+                            <div className="text-center py-12 text-gray-500 opacity-70">
+                                <TrendingUp size={40} className="mx-auto mb-3 opacity-30" />
+                                <p className="font-medium">No recent activity.</p>
+                                <p className="text-xs mt-1">Your recent transactions will appear here.</p>
                             </div>
                         )}
                     </div>

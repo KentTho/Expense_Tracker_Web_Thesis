@@ -1,6 +1,6 @@
 // layouts/DashboardLayout.jsx
 import React, { useState, useEffect } from "react";
-import { Outlet, useNavigate } from "react-router-dom"; 
+import { Outlet, useNavigate, useLocation } from "react-router-dom"; 
 import Sidebar from "../components/Sidebar";
 import { Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,20 +12,20 @@ import WelcomeSplash from "../components/WelcomeSplash";
 import AppGuide from "../components/AppGuide"; 
 
 export default function DashboardLayout() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  // State quản lý UI
+  const [isOpen, setIsOpen] = useState(false); // Trạng thái mở menu Mobile
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop: Mặc định mở rộng
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [theme, setTheme] = useState("dark");
   
+  // State Auth & User
   const [isAuthChecked, setIsAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  
-  // State Splash: Lấy từ Session
   const [showSplash, setShowSplash] = useState(true);
-  
-  // State Tour
   const [runTour, setRunTour] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   // 1. Hàm lấy User mới nhất
   const refreshUserProfile = async () => {
@@ -49,55 +49,48 @@ export default function DashboardLayout() {
         navigate("/login");
       } else {
         await refreshUserProfile();
-        setIsAuthChecked(true); // Đã check xong
+        setIsAuthChecked(true); 
       }
     });
     return () => unsubscribe();
   }, [navigate]);
 
-  // 3. Logic Kích hoạt Tour (Chạy khi Splash vừa tắt)
+  // 3. Xử lý Resize & Mobile Detection
   useEffect(() => {
-    if (!showSplash && isAuthChecked && currentUser) {
-        // ✅ KIỂM TRA CHÍNH XÁC: User có has_onboard = false không?
-        // Lưu ý: Dùng đúng tên biến 'has_onboard' (khớp với DB)
-        if (currentUser.has_onboard === false) {
-             console.log("✨ User mới -> Bật Tour sau 1s");
-             setTimeout(() => setRunTour(true), 2500);
-        }
+    const handleResize = () => {
+        const mobile = window.innerWidth < 768;
+        setIsMobile(mobile);
+        if (!mobile) setIsOpen(true); // Desktop luôn hiện
+        else setIsOpen(false); // Mobile mặc định ẩn
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // 4. Tự đóng Menu khi chuyển trang trên Mobile
+  useEffect(() => {
+      if (isMobile) {
+          setIsOpen(false);
+      }
+  }, [location.pathname, isMobile]);
+
+  // Logic Tour & Theme
+  useEffect(() => {
+    if (!showSplash && isAuthChecked && currentUser?.has_onboard === false) {
+         setTimeout(() => setRunTour(true), 2500);
     }
   }, [showSplash, isAuthChecked, currentUser]);
 
-  // 4. Xử lý khi Splash xong
-  const handleSplashComplete = () => {
-      setShowSplash(false);
-  };
-
-  // 5. Xử lý khi Tour xong
-  const handleTourFinish = async () => {
-      setRunTour(false);
-      
-      // Update State ngay lập tức để UI không bị giật
-      if (currentUser) {
-          const updated = { ...currentUser, has_onboard: true };
-          setCurrentUser(updated);
-      }
-
-      // Gọi API lưu DB
-      try {
-          // ✅ SỬA TÊN BIẾN: has_onboard
-          await updateUserProfile({ has_onboard: true });
-      } catch (e) { console.error(e); }
-  };
-
-  // Theme & Responsive
-  useEffect(() => {
-    const handleResize = () => { if (window.innerWidth >= 768) setIsOpen(true); else setIsOpen(false); };
-    handleResize(); window.addEventListener("resize", handleResize); return () => window.removeEventListener("resize", handleResize);
-  }, []);
   useEffect(() => {
     if (theme === "dark") { document.documentElement.className = 'dark'; document.body.classList.add("bg-[#0F172A]", "text-gray-100"); }
     else { document.documentElement.className = 'light'; document.body.classList.add("bg-gray-100", "text-gray-900"); }
   }, [theme]);
+
+  const handleTourFinish = async () => {
+      setRunTour(false);
+      if (currentUser) setCurrentUser({ ...currentUser, has_onboard: true });
+      try { await updateUserProfile({ has_onboard: true }); } catch (e) {}
+  };
 
   if (!isAuthChecked) return null;
 
@@ -106,45 +99,74 @@ export default function DashboardLayout() {
       <AnimatePresence mode="wait">
         {showSplash && (
           <motion.div key="splash">
-            <WelcomeSplash onComplete={handleSplashComplete} />
+            <WelcomeSplash onComplete={() => setShowSplash(false)} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* CHỈ HIỆN DASHBOARD KHI SPLASH ĐÃ TẮT */}
       {!showSplash && (
           <div className={`flex min-h-screen relative overflow-hidden transition-colors duration-300 ${theme === "dark" ? "bg-[#0F172A] text-gray-100" : "bg-gray-100 text-gray-900"}`}>
             
+            {/* SIDEBAR WRAPPER */}
             <AnimatePresence>
-                {(isOpen || window.innerWidth >= 768) && (
-                <motion.div key="sidebar" initial={{ x: -250 }} animate={{ x: 0 }} exit={{ x: -250 }} className={`fixed md:fixed h-full z-40`}>
-                    <Sidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} theme={theme} setTheme={setTheme} isMobile={window.innerWidth < 768}/>
+                {(isOpen || !isMobile) && (
+                <motion.div 
+                    key="sidebar" 
+                    initial={isMobile ? { x: -280 } : { x: 0 }} 
+                    animate={{ x: 0 }} 
+                    exit={isMobile ? { x: -280 } : { x: 0 }} 
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className={`fixed md:fixed h-full z-50`}
+                >
+                    <Sidebar 
+                        collapsed={isMobile ? false : sidebarCollapsed} 
+                        setCollapsed={isMobile ? () => {} : setSidebarCollapsed} 
+                        theme={theme} 
+                        setTheme={setTheme} 
+                        isMobile={isMobile}
+                    />
                 </motion.div>
                 )}
             </AnimatePresence>
             
-            {isOpen && window.innerWidth < 768 && <div className="fixed inset-0 bg-black/50 z-30" onClick={() => setIsOpen(false)} />}
+            {/* OVERLAY CHO MOBILE */}
+            {isOpen && isMobile && (
+                <div 
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" 
+                    onClick={() => setIsOpen(false)} 
+                />
+            )}
 
+            {/* MAIN CONTENT */}
             <motion.main 
                 key="main-content" 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
-                className={`flex-1 min-h-screen p-6 transition-all duration-300 ${theme === "dark" ? "bg-[#111827]" : "bg-white"}`}
-                style={{ marginLeft: window.innerWidth >= 768 ? (sidebarCollapsed ? "6rem" : "18rem") : "0" }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className={`flex-1 min-h-screen transition-all duration-300 ${theme === "dark" ? "bg-[#111827]" : "bg-white"}`}
+                style={{ 
+                    marginLeft: !isMobile ? (sidebarCollapsed ? "6rem" : "18rem") : "0" 
+                }}
             >
-                <button className="md:hidden fixed top-4 left-4 z-50 bg-purple-600 p-2 rounded-lg shadow" onClick={() => setIsOpen(!isOpen)}><Menu size={22} className="text-white" /></button>
-                <div className="mt-10 md:mt-0 transition-all duration-300">
+                {/* 🔥 FIX: Nút Menu Mobile Floating (Trôi nổi & Tự ẩn) */}
+                {!isOpen && (
+                     <button 
+                        onClick={() => setIsOpen(true)}
+                        className="md:hidden fixed top-4 left-4 z-40 p-3 rounded-xl bg-purple-600 text-white shadow-xl shadow-purple-500/30 active:scale-95 transition-all hover:scale-105 animate-fadeIn"
+                     >
+                        <Menu size={24} />
+                     </button>
+                )}
+
+                {/* Nội dung trang (Thêm padding-top trên mobile để ko bị nút che) */}
+                <div className="p-4 md:p-6 pt-16 md:pt-6">
                     <Outlet context={{ theme, setTheme, currentUser, refreshUserProfile, currencyCode: currentUser?.currency_code || "USD" }} />
                 </div>
+
                 <FinBotWidget theme={theme} />
             </motion.main>
             
             {/* APP GUIDE */}
             {runTour && (
-                <AppGuide 
-                    run={true} 
-                    theme={theme}
-                    onFinish={handleTourFinish} 
-                />
+                <AppGuide run={true} theme={theme} onFinish={handleTourFinish} />
             )}
         </div>
       )}

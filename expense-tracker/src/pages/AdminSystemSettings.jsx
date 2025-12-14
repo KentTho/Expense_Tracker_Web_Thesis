@@ -1,12 +1,9 @@
 // pages/AdminSystemSettings.jsx
-// - ✅ REAL DATA: Hiển thị Ping & DB Status thật từ Server.
-// - ✅ UI FIX: Màu sắc Light Mode tinh tế hơn (Slate/Gray).
-// - ✅ LOGIC FIX: Tách biệt hoàn toàn việc Bật/Tắt chế độ và Nhập nội dung thông báo.
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { 
-    Settings, Server, ShieldAlert, Radio, Save, Volume2, Activity, RefreshCw, XCircle
+    Settings, Server, ShieldAlert, Radio, Save, Volume2, Activity, RefreshCw, XCircle, Loader2 
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 import { 
@@ -15,14 +12,14 @@ import {
     adminGetSystemHealth 
 } from "../services/adminService";
 
-// Toggle Switch Component (Giao diện đẹp)
-const PowerSwitch = ({ label, description, checked, onChange, colorClass, isDark }) => (
-    <div className={`flex items-center justify-between p-5 rounded-2xl shadow-lg border transition-all hover:shadow-xl ${
+// Custom Switch Component
+const PowerSwitch = ({ label, description, checked, onChange, colorClass, isDark, disabled }) => (
+    <div className={`flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl shadow-lg border transition-all hover:shadow-xl ${
         isDark 
         ? "bg-gray-800 border-gray-700" 
         : "bg-white border-slate-200"
     }`}>
-        <div className="flex gap-4 items-center">
+        <div className="flex gap-4 items-center mb-4 sm:mb-0">
             <div className={`p-3 rounded-full transition-colors duration-500 ${
                 checked ? colorClass.bg : (isDark ? "bg-gray-700" : "bg-slate-100")
             }`}>
@@ -38,12 +35,13 @@ const PowerSwitch = ({ label, description, checked, onChange, colorClass, isDark
             </div>
         </div>
         
-        <label className="relative inline-flex items-center cursor-pointer">
+        <label className={`relative inline-flex items-center cursor-pointer ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
             <input 
                 type="checkbox" 
                 className="sr-only peer" 
                 checked={!!checked} 
                 onChange={onChange} 
+                disabled={disabled}
             />
             <div className={`w-14 h-8 rounded-full peer transition-colors duration-300 ease-in-out
                 ${checked ? colorClass.activeBg : (isDark ? "bg-gray-600" : "bg-slate-300")}
@@ -60,52 +58,56 @@ export default function AdminSystemSettings() {
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     
-    // State cấu hình (Lưu trữ trạng thái của các nút và input)
+    // State Settings
     const [settings, setSettings] = useState({
         maintenance_mode: false,
         allow_signup: true,
         broadcast_message: ""
     });
 
-    // State sức khỏe hệ thống (Ping, DB)
+    // State System Health
     const [serverStats, setServerStats] = useState({
-        db_status: "Checking...",
+        db_status: "Connecting...",
         latency: 0,
         color: "gray"
     });
 
-    // Hàm tải dữ liệu ban đầu
-    const loadData = async () => {
+    // --- FETCH DATA (SILENT FAIL) ---
+    const loadData = useCallback(async () => {
+        // setLoading(true); // Chỉ set loading lần đầu
         try {
             const [configData, healthData] = await Promise.all([
-                fetchSystemSettings(),
-                adminGetSystemHealth()
+                fetchSystemSettings().catch(err => { console.warn("Config fetch fail:", err); return {}; }),
+                adminGetSystemHealth().catch(err => { console.warn("Health fetch fail:", err); return { db_status: "Unknown", latency: 0, color: "red" }; })
             ]);
             
-            setSettings({
+            setSettings(prev => ({
                 maintenance_mode: configData.maintenance_mode || false,
-                allow_signup: configData.allow_signup ?? true,
+                allow_signup: configData.allow_signup !== undefined ? configData.allow_signup : true,
                 broadcast_message: configData.broadcast_message || ""
-            });
+            }));
+            
             setServerStats(healthData);
         } catch (err) {
-            console.error(err);
-            toast.error("Failed to load system status");
+            console.error("System load error:", err);
+            // Không toast error để tránh spam
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         loadData();
-        // Auto-refresh Ping mỗi 10s
+        // Auto-refresh Health Check mỗi 15s (Silent)
         const interval = setInterval(() => {
-            adminGetSystemHealth().then(setServerStats).catch(()=>{});
-        }, 10000);
+            adminGetSystemHealth()
+                .then(setServerStats)
+                .catch(() => setServerStats(prev => ({...prev, color: 'red', db_status: 'Lost Connection'})));
+        }, 15000);
         return () => clearInterval(interval);
-    }, []);
+    }, [loadData]);
 
-    // Xử lý bật/tắt nút gạt (Chỉ cập nhật State, chưa lưu)
+    // Handle Toggle (Local State Update)
     const handleToggle = (key) => {
         setSettings(prev => ({ 
             ...prev, 
@@ -113,9 +115,11 @@ export default function AdminSystemSettings() {
         }));
     };
 
-    // Xử lý Lưu (Gửi tất cả settings hiện tại lên Server)
+    // Handle Save (Optimistic UI)
     const handleSave = async () => {
         setIsSaving(true);
+        const toastId = toast.loading("Updating configuration...");
+        
         try {
             const payload = {
                 maintenance_mode: settings.maintenance_mode,
@@ -123,22 +127,18 @@ export default function AdminSystemSettings() {
                 broadcast_message: settings.broadcast_message
             };
             
-            // Gọi API cập nhật
             const updated = await updateSystemSettings(payload);
-            
-            // Cập nhật lại state với dữ liệu chính thức từ server trả về
             setSettings(updated); 
             
-            toast.success("Configuration saved successfully!");
+            toast.success("System configuration updated!", { id: toastId });
         } catch (error) {
             console.error(error);
-            toast.error("Failed to update settings.");
+            toast.error("Failed to save settings.", { id: toastId });
         } finally {
             setIsSaving(false);
         }
     };
 
-    // Xóa nhanh nội dung thông báo
     const handleClearMessage = () => {
         setSettings(prev => ({ ...prev, broadcast_message: "" }));
     };
@@ -149,39 +149,51 @@ export default function AdminSystemSettings() {
         return "text-red-500";
     };
 
-    return (
-        <div className={`min-h-screen ${isDark ? "text-gray-100" : "text-slate-900"}`}>
-            <Toaster position="top-center" />
+    if (loading) {
+        return (
+            <div className={`min-h-screen flex justify-center items-center ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
+                <Loader2 className="animate-spin text-blue-500" size={48} />
+            </div>
+        );
+    }
 
-            <h1 className="text-4xl font-extrabold mb-8 flex items-center gap-3">
-                <Settings className="text-blue-500" size={36} />
+    return (
+        <div className={`min-h-screen pb-10 ${isDark ? "text-gray-100" : "text-slate-900"}`}>
+            <Toaster position="top-right" />
+
+            <h1 className="text-3xl sm:text-4xl font-extrabold mb-8 flex items-center gap-3">
+                <Settings className="text-blue-500" size={32} />
                 System Configuration
             </h1>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 
-                {/* Cột 1: Trạng thái Server (Real-time) */}
-                <div className={`p-6 rounded-2xl shadow-xl transition-colors ${
+                {/* Cột 1: Server Status */}
+                <div className={`p-6 rounded-2xl shadow-xl transition-all ${
                     isDark ? "bg-gray-800 border border-gray-700" : "bg-white border border-slate-200"
                 }`}>
                     <div className="flex justify-between items-center mb-6">
                         <h2 className={`text-xl font-bold flex items-center gap-2 ${isDark ? "text-white" : "text-slate-800"}`}>
                             <Server className="text-purple-500" /> Server Status
                         </h2>
-                        <button onClick={loadData} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                            <RefreshCw size={18} className={isDark ? "text-gray-400" : "text-slate-500"} />
+                        <button 
+                            onClick={loadData} 
+                            disabled={loading}
+                            className={`p-2 rounded-full transition ${isDark ? "hover:bg-gray-700 text-gray-400" : "hover:bg-slate-100 text-slate-500"}`}
+                        >
+                            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
                         </button>
                     </div>
 
                     <div className="space-y-8">
-                        {/* Latency */}
+                        {/* API Latency */}
                         <div>
                             <div className="flex justify-between items-center mb-2">
                                 <span className={`font-medium flex items-center gap-2 ${isDark ? "text-gray-300" : "text-slate-600"}`}>
                                     <Activity size={18} /> API Latency
                                 </span>
                                 <span className={`font-bold font-mono text-lg ${getPingColor()}`}>
-                                    {serverStats.latency}ms
+                                    {serverStats.latency > 0 ? `${serverStats.latency}ms` : "Offline"}
                                 </span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
@@ -190,7 +202,7 @@ export default function AdminSystemSettings() {
                                         serverStats.color === "green" ? "bg-green-500" : 
                                         serverStats.color === "yellow" ? "bg-yellow-500" : "bg-red-500"
                                     }`} 
-                                    style={{ width: `${Math.min(serverStats.latency, 100)}%` }} 
+                                    style={{ width: `${serverStats.latency > 0 ? Math.min(serverStats.latency, 100) : 100}%` }} 
                                 ></div>
                             </div>
                         </div>
@@ -199,18 +211,18 @@ export default function AdminSystemSettings() {
                         <div>
                             <div className="flex justify-between items-center mb-2">
                                 <span className={`font-medium flex items-center gap-2 ${isDark ? "text-gray-300" : "text-slate-600"}`}>
-                                    <Radio size={18} /> Database Connection
+                                    <Radio size={18} /> Database
                                 </span>
-                                <span className={`font-bold uppercase tracking-wider ${
+                                <span className={`font-bold uppercase tracking-wider text-sm ${
                                     serverStats.db_status === "Active" ? "text-blue-500 animate-pulse" : "text-red-500"
                                 }`}>
-                                    {serverStats.db_status}
+                                    {serverStats.db_status || "Unknown"}
                                 </span>
                             </div>
                              <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
                                 <div 
                                     className={`h-2.5 rounded-full transition-all duration-500 ${
-                                        serverStats.db_status === "Active" ? "bg-blue-500 w-full" : "bg-red-500 w-[5%]"
+                                        serverStats.db_status === "Active" ? "bg-blue-500 w-full" : "bg-red-500 w-full opacity-50"
                                     }`}
                                 ></div>
                             </div>
@@ -218,28 +230,30 @@ export default function AdminSystemSettings() {
                     </div>
                 </div>
 
-                {/* Cột 2: Cấu hình Toggles */}
+                {/* Cột 2: Control Toggles */}
                 <div className="space-y-4">
                     <PowerSwitch 
                         label="Maintenance Mode" 
-                        description="Block regular user access."
+                        description="Block access for regular users."
                         checked={settings.maintenance_mode}
                         onChange={() => handleToggle("maintenance_mode")}
                         colorClass={{ bg: "bg-red-500", activeBg: "bg-red-600" }}
                         isDark={isDark}
+                        disabled={isSaving}
                     />
                     <PowerSwitch 
                         label="Allow New Signups" 
-                        description="Toggle registration availability."
+                        description="Toggle user registration availability."
                         checked={settings.allow_signup}
                         onChange={() => handleToggle("allow_signup")}
                         colorClass={{ bg: "bg-green-500", activeBg: "bg-green-600" }}
                         isDark={isDark}
+                        disabled={isSaving}
                     />
                 </div>
             </div>
 
-            {/* Hàng dưới: Global Broadcast */}
+            {/* Broadcast Section */}
             <div className={`mt-8 p-6 rounded-2xl shadow-xl border ${
                 isDark ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"
             }`}>
@@ -247,22 +261,21 @@ export default function AdminSystemSettings() {
                     <Volume2 className="text-orange-500" /> Global Broadcast
                 </h2>
                 <p className={`text-sm mb-4 ${isDark ? "text-gray-500" : "text-slate-500"}`}>
-                    Message will be displayed on everyone's dashboard. Clear text to disable.
+                    Display a system-wide banner message to all users. Leave empty to disable.
                 </p>
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
                     <div className="relative flex-1">
                         <input 
                             type="text" 
                             value={settings.broadcast_message}
                             onChange={(e) => setSettings(prev => ({...prev, broadcast_message: e.target.value}))}
-                            placeholder="e.g., System maintenance at 10 PM..."
+                            placeholder="e.g., System maintenance scheduled at 10 PM..."
                             className={`w-full p-3 pr-10 rounded-xl border outline-none transition-all focus:ring-2 focus:ring-blue-500 ${
                                 isDark 
                                 ? "bg-gray-900 border-gray-600 text-white placeholder-gray-600" 
                                 : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
                             }`}
                         />
-                        {/* Nút Xóa nhanh */}
                         {settings.broadcast_message && (
                             <button 
                                 onClick={handleClearMessage}
@@ -276,9 +289,9 @@ export default function AdminSystemSettings() {
                     <button 
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2 disabled:opacity-70"
+                        className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                        <Save size={20} />
+                        {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
                         {isSaving ? "Saving..." : "Save Config"}
                     </button>
                 </div>
