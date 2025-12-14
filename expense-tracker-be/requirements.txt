@@ -1,22 +1,29 @@
 fastapi
 uvicorn
 python-multipart
+# Database
 SQLAlchemy
 psycopg2-binary
 alembic
+# Auth
 python-jose[cryptography]
 passlib[bcrypt]
 bcrypt
 pyotp
+# Pydantic
 pydantic
 pydantic-settings
 email-validator
+# Firebase
 firebase-admin
-langchain
-langchain-community
-langchain-core
-langchain-google-genai
+# --- FIX LỖI LANGCHAIN Ở ĐÂY ---
+# Ép dùng bản 0.1 để tương thích với AgentExecutor cũ
+langchain==0.1.20
+langchain-community==0.0.38
+langchain-core==0.1.52
+langchain-google-genai==1.0.3
 google-generativeai
+# Utils
 python-dotenv
 pandas
 openpyxl
