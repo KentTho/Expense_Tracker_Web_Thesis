@@ -5,9 +5,9 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Cấu hình cơ bản
-    SECRET_KEY: str = "YOUR_SECRET_KEY"
+    SECRET_KEY: str = "vantho2200006616"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 300
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # ⚠️ QUAN TRỌNG: Sửa dòng này để ưu tiên lấy từ ENV (Railway), nếu không có mới dùng localhost
     DATABASE_URL: str = os.getenv(
