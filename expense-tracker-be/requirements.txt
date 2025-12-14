@@ -1,36 +1,23 @@
-# --- Core Framework ---
-fastapi==0.121.3
-uvicorn==0.38.0
-python-multipart==0.0.20
-
-# --- Database ---
-SQLAlchemy==2.0.44
-psycopg2-binary==2.9.11
-alembic==1.17.2
-
-# --- Authentication & Security ---
-python-jose[cryptography]==3.5.0
-passlib[bcrypt]==1.7.4
-bcrypt==5.0.0
-pyotp==2.9.0
-
-# --- Validation ---
-pydantic==2.12.4
-pydantic-settings==2.12.0
-email-validator==2.3.0
-
-# --- Firebase ---
-firebase-admin==7.1.0
-
-# --- AI & LangChain ---
-langchain==0.3.27
-langchain-community==0.3.31
-langchain-core==0.3.80
-langchain-google-genai==2.0.10
-google-generativeai==0.8.5
-
-# --- Utilities & Data ---
-python-dotenv==1.2.1
-pandas==2.3.3
-openpyxl==3.1.5
-requests==2.32.5
+fastapi
+uvicorn
+python-multipart
+SQLAlchemy
+psycopg2-binary
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+pyotp
+pydantic
+pydantic-settings
+email-validator
+firebase-admin
+langchain
+langchain-community
+langchain-core
+langchain-google-genai
+google-generativeai
+python-dotenv
+pandas
+openpyxl
+requests
