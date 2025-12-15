@@ -18,10 +18,10 @@ email-validator
 firebase-admin
 # --- FIX LỖI LANGCHAIN Ở ĐÂY ---
 # Ép dùng bản 0.1 để tương thích với AgentExecutor cũ
-langchain==0.2.0
-langchain-community==0.2.0
-langchain-core==0.2.0
-langchain-google-genai==1.0.6
+langchain
+langchain-community
+langchain-core
+langchain-google-genai
 google-generativeai
 # Utils
 python-dotenv
