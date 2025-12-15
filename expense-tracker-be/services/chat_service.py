@@ -8,15 +8,8 @@ from sqlalchemy.orm import Session
 from models import user_model
 from services.chat_tools import get_finbot_tools
 from cruds.crud_category import get_user_category_names_string
-try:
-    from langchain.agents import AgentExecutor, create_tool_calling_agent
-except ImportError:
-    try:
-        from langchain.agents.agent import AgentExecutor
-        from langchain.agents import create_tool_calling_agent
-    except ImportError:
-        from langchain.agents import AgentExecutor
-        from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
+# 2. ✅ IMPORT CHUẨN CHO LANGCHAIN 0.3 (Không cần try-except nữa)
+from langchain.agents import AgentExecutor, create_tool_calling_agent
 
 def process_chat_message(db: Session, user: user_model.User, user_message: str, history: list = []):
     # 1. Khởi tạo Gemini
