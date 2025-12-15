@@ -9,10 +9,7 @@ from models import user_model
 from services.chat_tools import get_finbot_tools
 from cruds.crud_category import get_user_category_names_string
 
-# 1. Import AgentExecutor từ đúng module gốc
-from langchain.agents.agent import AgentExecutor
-# 2. Import create_tool_calling_agent từ đúng module gốc (thay vì langchain.agents)
-from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
+from langchain.agents import AgentExecutor, create_tool_calling_agent
 
 def process_chat_message(db: Session, user: user_model.User, user_message: str, history: list = []):
     # 1. Khởi tạo Gemini
