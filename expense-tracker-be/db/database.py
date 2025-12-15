@@ -1,36 +1,44 @@
 # db/database.py
 import os
 import sys
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 
-# 1. Load biến môi trường (quan trọng cho local)
+# 1. Cấu hình Logging (Chuyên nghiệp hơn print)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 2. Load biến môi trường
 load_dotenv()
 
-# 2. Lấy URL từ biến môi trường
+# 3. Lấy và Xử lý URL Database
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# --- DEBUG LOG (Rất quan trọng để soi lỗi) ---
 if not DATABASE_URL:
-    print("❌ ERROR: DATABASE_URL variable is NOT set. Backend cannot connect to DB.")
-    # Fallback tạm thời (chỉ dùng cho local, lên Railway sẽ gây lỗi nếu biến ENV chưa set)
-    DATABASE_URL = "postgresql://admin:123456@localhost:5432/expense_tracker_app"
-    print(f"⚠️ Using fallback localhost URL: {DATABASE_URL}")
-else:
-    # Che mật khẩu để in log an toàn
-    safe_url = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else "UNKNOWN"
-    print(f"✅ Found DATABASE_URL environment variable. Connecting to: ...@{safe_url}")
+    logger.error("❌ ERROR: DATABASE_URL is missing! Please check .env or Render Config.")
+    sys.exit(1) # Dừng chương trình ngay nếu không có DB (An toàn hơn fallback bừa bãi)
 
-# 3. Fix lỗi tương thích url bắt đầu bằng 'postgres://' (của Heroku/Railway cũ)
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+# Fix lỗi tương thích 'postgres://' (cho các cloud cũ)
+if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# 4. Tạo Engine
+# 4. Tạo Engine (ĐÃ TỐI ƯU HÓA)
 try:
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(
+        DATABASE_URL,
+        # --- CẤU HÌNH QUAN TRỌNG CHO CLOUD ---
+        pool_pre_ping=True,   # Tự động kiểm tra kết nối trước khi dùng (Tránh lỗi disconnect)
+        pool_size=20,         # Số lượng kết nối duy trì sẵn
+        max_overflow=10,      # Số kết nối được phép tràn ra khi quá tải
+        pool_recycle=1800     # Tái tạo kết nối mỗi 30 phút để tránh timeout
+    )
+    # Log xác nhận (Che mật khẩu)
+    safe_url = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else "UNKNOWN"
+    logger.info(f"✅ Connected to Database at: ...@{safe_url}")
 except Exception as e:
-    print(f"❌ SQLAlchemy Engine Error: {e}")
+    logger.critical(f"❌ SQLAlchemy Engine Error: {e}")
     sys.exit(1)
 
 # 5. Tạo Session
@@ -39,7 +47,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # 6. Base Model
 Base = declarative_base()
 
-# 7. Dependency
+# 7. Dependency (Dùng trong các Router)
 def get_db():
     db = SessionLocal()
     try:
