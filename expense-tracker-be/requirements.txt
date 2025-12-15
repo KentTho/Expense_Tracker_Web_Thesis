@@ -20,9 +20,9 @@ firebase-admin
 # Ép dùng bản 0.1 để tương thích với AgentExecutor cũ
 langchain==0.1.20
 langchain-community==0.0.38
-langchain-core==0.1.52
-langchain-google-genai==1.0.10
-google-generativeai
+#langchain-core==0.1.52
+langchain-google-genai==1.0.3
+google-generativeai==0.5.4
 # Utils
 python-dotenv
 pandas
