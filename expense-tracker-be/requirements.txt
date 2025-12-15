@@ -1,32 +1,37 @@
-fastapi
-uvicorn
-python-multipart
-# Database
-SQLAlchemy
-psycopg2-binary
-alembic
-# Auth
-python-jose[cryptography]
-passlib[bcrypt]
-bcrypt
-pyotp
-# Pydantic
-pydantic
-pydantic-settings
-email-validator
-# Firebase
-firebase-admin
+# --- Core Framework ---
+fastapi==0.121.3
+uvicorn==0.38.0
+python-multipart==0.0.20
 
-# --- LANGCHAIN (AUTO RESOLVE) ---
-# Dùng dấu >= để pip tự tìm bản khớp nhau nhất
-langchain==0.2.10
-langchain-community==0.2.10
-langchain-core==0.2.23
-langchain-google-genai==1.0.7
-google-generativeai==0.7.2
+# --- Database ---
+SQLAlchemy==2.0.44
+psycopg2-binary==2.9.11
+alembic==1.17.2
 
-# Utils
-python-dotenv
-pandas
-openpyxl
-requests
+# --- Authentication & Security ---
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+bcrypt==5.0.0
+pyotp==2.9.0
+
+# --- Validation ---
+pydantic==2.12.4
+pydantic-settings==2.12.0
+email-validator==2.3.0
+
+# --- Firebase ---
+firebase-admin==7.1.0
+
+# --- AI & LangChain () ---
+langchain==0.3.14
+langchain-community==0.3.14
+langchain-core==0.3.29
+langchain-google-genai==2.0.8
+google-generativeai==0.8.4
+langgraph==0.2.60
+
+# --- Utilities & Data ---
+python-dotenv==1.2.1
+pandas==2.2.3
+openpyxl==3.1.5
+requests==2.32.3

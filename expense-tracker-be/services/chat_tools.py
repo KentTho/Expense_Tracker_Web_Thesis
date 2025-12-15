@@ -1,12 +1,10 @@
 # services/chat_tools.py
 from langchain_core.tools import StructuredTool
-# ✅ SỬA LỖI Ở ĐÂY: Dùng pydantic_v1 từ langchain_core để tương thích
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from datetime import date
 from decimal import Decimal
 import json
-# ✅ IMPORT CÁC CRUD CẦN THIẾT
 from cruds import crud_income, crud_expense, crud_summary, crud_transaction, crud_admin, crud_audit, crud_user
 from models import user_model, category_model
 from sqlalchemy import func
