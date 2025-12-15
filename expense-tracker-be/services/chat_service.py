@@ -21,7 +21,7 @@ except ImportError:
 def process_chat_message(db: Session, user: user_model.User, user_message: str, history: list = []):
     # 1. Khởi tạo Gemini
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-pro",
         temperature=0,
     )
 
