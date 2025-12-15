@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
     X, Send, Sparkles, PieChart as PieIcon, Users, Activity, 
-    Shield, Clock, DollarSign, Settings, Zap, ChevronRight, MessageSquare
+    Shield, Clock, DollarSign, Settings, Zap, ChevronRight, CheckCircle, Bell
 } from "lucide-react";
 import { sendChatMessage } from "../services/chatService";
 import ReactMarkdown from "react-markdown";
@@ -26,12 +26,46 @@ const aiOrbStyleLight = {
 };
 
 // ==================================================================================
+// 🔔 NEW: NOTIFICATION TOAST COMPONENT (Nâng cấp hiển thị thông báo)
+// ==================================================================================
+const NotificationToast = ({ message, isVisible, onClose, isDark }) => {
+    if (!isVisible) return null;
+
+    return (
+        <div className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:top-6 z-[120] 
+            animate-in slide-in-from-top-5 fade-in duration-300 pointer-events-none
+        `}>
+            <div className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md max-w-sm ml-auto
+                ${isDark 
+                    ? "bg-[#064e3b]/90 border-green-500/30 text-green-100 shadow-green-900/20" 
+                    : "bg-white/95 border-green-100 text-gray-800 shadow-lg"
+                }
+            `}>
+                <div className={`p-2 rounded-full shrink-0 ${isDark ? "bg-green-500/20" : "bg-green-100"}`}>
+                    <CheckCircle size={20} className="text-green-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h5 className={`text-xs font-bold uppercase tracking-wider mb-0.5 ${isDark ? "text-green-400" : "text-green-600"}`}>
+                        Thành công
+                    </h5>
+                    <p className="text-xs sm:text-sm font-medium truncate leading-tight">
+                        {message}
+                    </p>
+                </div>
+                <button onClick={onClose} className="p-1 hover:opacity-70 transition">
+                    <X size={14} />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// ==================================================================================
 // 🧩 SUB-COMPONENTS (WIDGETS) - SAFE RENDER
 // ==================================================================================
 
 // 1. KPI WIDGET
 const AdminKpiWidget = ({ data, isDark }) => {
-    // Fallback data an toàn
     const safeData = {
         users: data?.users || 0,
         balance: data?.balance || 0,
@@ -151,6 +185,11 @@ export default function FinBotWidget({ theme }) {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
+  // State cho Notification
+  const [notification, setNotification] = useState({ show: false, message: "" });
+  const timerRef = useRef(null); // Để quản lý thời gian tắt thông báo
+
   const messagesEndRef = useRef(null);
   const navigate = useNavigate(); 
   
@@ -159,7 +198,20 @@ export default function FinBotWidget({ theme }) {
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => scrollToBottom(), [messages, isOpen]);
 
-  // --- LOGIC XỬ LÝ TIN NHẮN (SILENT FAIL) ---
+  // --- HÀM KÍCH HOẠT THÔNG BÁO ---
+  const triggerNotification = (msg) => {
+    // Xóa timer cũ nếu có (để reset thời gian)
+    if (timerRef.current) clearTimeout(timerRef.current);
+    
+    setNotification({ show: true, message: msg });
+    
+    // Tự động tắt sau 4 giây
+    timerRef.current = setTimeout(() => {
+        setNotification({ show: false, message: "" });
+    }, 4000);
+  };
+
+  // --- LOGIC XỬ LÝ TIN NHẮN ---
   const handleSend = async () => {
     if (!input.trim()) return;
     const userMsg = { role: "user", content: input };
@@ -172,10 +224,19 @@ export default function FinBotWidget({ theme }) {
       let botReply = res.reply;
       let specialData = { type: null, payload: null };
 
-      // Handle Reload Command
+      // 🔥 NÂNG CẤP: Handle Reload Command & Notification
       if (botReply && botReply.includes("[REFRESH]")) {
-          botReply = botReply.replace("[REFRESH]", "").trim();
+          // Lấy nội dung thông báo (bỏ tag [REFRESH])
+          const cleanMsg = botReply.replace("[REFRESH]", "").trim();
+          
+          // 1. Kích hoạt Reload dữ liệu nền
           window.dispatchEvent(new Event("transactionUpdated"));
+          
+          // 2. Kích hoạt Toast Notification (Giao diện xịn)
+          triggerNotification(cleanMsg);
+
+          // Xóa tag khỏi tin nhắn hiển thị trong chat
+          botReply = cleanMsg;
       }
 
       // Regex Parsers
@@ -204,8 +265,6 @@ export default function FinBotWidget({ theme }) {
 
     } catch (error) {
       console.warn("FinBot Error (Silent):", error);
-      // 🔥 SILENT FAIL: Không thêm tin nhắn lỗi vào chat. 
-      // Người dùng chỉ thấy loading tắt đi, có thể thử lại.
     } finally {
       setIsLoading(false);
     }
@@ -231,6 +290,14 @@ export default function FinBotWidget({ theme }) {
             100% { transform: translateY(0px); }
         }
     `}</style>
+
+    {/* 🔔 RENDER NOTIFICATION TOAST (Global level) */}
+    <NotificationToast 
+        message={notification.message} 
+        isVisible={notification.show} 
+        onClose={() => setNotification({ ...notification, show: false })}
+        isDark={isDark}
+    />
 
     <div className="fixed bottom-0 right-0 sm:bottom-6 sm:right-6 z-[100] flex flex-col items-end pointer-events-none font-sans w-full sm:w-auto">
       

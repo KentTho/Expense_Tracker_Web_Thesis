@@ -1,6 +1,7 @@
 # services/chat_tools.py
 from langchain_core.tools import StructuredTool
-from pydantic import BaseModel, Field
+# ✅ SỬA LỖI Ở ĐÂY: Dùng pydantic_v1 từ langchain_core để tương thích
+from langchain_core.pydantic_v1 import BaseModel, Field
 from sqlalchemy.orm import Session
 from datetime import date
 from decimal import Decimal
@@ -58,9 +59,7 @@ def get_finbot_tools(db: Session, user: user_model.User):
         ).first()
 
     # ... (Giữ nguyên các hàm create_transaction, set_budget, get_balance, get_statistics, analyze_spending, get_history) ...
-    # (Tôi lược bớt code cũ để tập trung vào phần Admin, bạn nhớ giữ nguyên nhé)
     def create_transaction_func(type, amount, category_name, note="", date_str=None):
-        # (Logic cũ...)
         try:
             clean_type = type.lower().strip()
             dec_amount = Decimal(str(amount))
