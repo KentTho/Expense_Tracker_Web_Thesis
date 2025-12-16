@@ -2,6 +2,7 @@
 // - ✅ FIXED: Input text color is now Black (text-gray-900).
 // - 🎨 REDESIGN: Giao diện "Rocket Launch" năng động, Gradient Tím/Hồng.
 // - 🧩 LOGIC: Giữ nguyên logic đăng ký và đồng bộ.
+// - 🆕 UPDATE: Thêm Confirm Password & Validate Email/Password chặt chẽ.
 
 import { Link, useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/AuthLayout";
@@ -10,22 +11,80 @@ import { signupAndSync } from "../../services/authService";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { 
-    User, Mail, Lock, ArrowRight, Rocket, Sparkles 
+    User, Mail, Lock, ArrowRight, Rocket, Sparkles, ShieldCheck 
 } from "lucide-react";
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // 🆕 Thêm state Confirm Pass
   const [fullname, setFullname] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // --- HÀM KIỂM TRA MẬT KHẨU MẠNH ---
+  const isStrongPassword = (pass) => {
+    // Tối thiểu 8 ký tự, ít nhất 1 chữ hoa, 1 chữ thường, 1 số
+    const strongRegex = new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.{8,})");
+    return strongRegex.test(pass);
+  };
+
+  // --- HÀM KIỂM TRA EMAIL CHUẨN ---
+  // --- HÀM KIỂM TRA EMAIL CHUẨN (ĐÃ FIX CHẶT CHẼ) ---
+  const isValidEmail = (email) => {
+    // 1. Regex chuẩn Quốc tế:
+    // - Phần tên: Chữ, số, ký tự đặc biệt (._%+-).
+    // - Phần @: Bắt buộc có.
+    // - Phần domain: Chữ, số, dấu chấm.
+    // - Phần đuôi (TLD): Bắt buộc là chữ cái, TỐI THIỂU 2 KÝ TỰ (Chặn .c, .m)
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    
+    if (!emailRegex.test(email)) return false;
+
+    // 2. Logic chặn lỗi gõ thiếu phổ biến (User Experience)
+    // Nếu user nhập @gmail.co (thiếu chữ m) hoặc @yahoo.c ... -> Báo lỗi ngay
+    // (Vì thực tế ít ai dùng gmail cá nhân mà đuôi .co)
+    const commonTypos = ["@gmail.co", "@yahoo.co", "@hotmail.co"];
+    if (commonTypos.some(typo => email.toLowerCase().endsWith(typo))) {
+        return false;
+    }
+
+    return true;
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password || !fullname) {
-      toast.error("⚠️ Please fill in all fields.");
+
+    // 1. Kiểm tra điền đủ thông tin
+    if (!email || !password || !fullname || !confirmPassword) {
+      toast.error("⚠️ Vui lòng điền đầy đủ các trường.");
       return;
     }
+
+    // 2. 🆕 Validate Email chặt chẽ
+    // Trong hàm onSubmit:
+    if (!isValidEmail(email)) {
+      // Kiểm tra nếu lỗi do đuôi .co thì gợi ý luôn
+      if (email.toLowerCase().endsWith("@gmail.co")) {
+          toast.error("⚠️ Có phải ý bạn là '@gmail.com'?");
+      } else {
+          toast.error("❌ Email không hợp lệ hoặc thiếu tên miền (VD: .com, .vn)");
+      }
+      return;
+    }
+
+    // 3. 🆕 Validate Mật khẩu mạnh
+    if (!isStrongPassword(password)) {
+      toast.error("⚠️ Mật khẩu quá yếu! Cần ít nhất 8 ký tự, gồm chữ Hoa, thường và số.");
+      return;
+    }
+
+    // 4. 🆕 Kiểm tra mật khẩu trùng khớp
+    if (password !== confirmPassword) {
+      toast.error("❌ Mật khẩu nhập lại không khớp.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -33,17 +92,17 @@ export default function SignUp() {
       localStorage.setItem("idToken", idToken);
       localStorage.setItem("user", JSON.stringify(user));
 
-      toast.success("🎉 Signup successful!", {
+      toast.success("🎉 Đăng ký thành công!", {
         position: "top-center",
         autoClose: 2000,
-        onClose: () => navigate("/dashboard"), // Chuyển thẳng vào Dashboard
+        onClose: () => navigate("/dashboard"), 
       });
 
     } catch (err) {
       if (err.code === "auth/email-already-in-use") {
-          toast.error("❌ Email is already in use.");
+          toast.error("❌ Email này đã được sử dụng.");
       } else {
-          toast.error("❌ Registration failed. Try again.");
+          toast.error("❌ Đăng ký thất bại. Vui lòng thử lại.");
           console.error(err);
       }
     } finally {
@@ -52,7 +111,7 @@ export default function SignUp() {
   };
 
   // ===========================================
-  // 🎨 GIAO DIỆN HERO CARD (CREATIVE TWIST)
+  // 🎨 GIAO DIỆN HERO CARD (GIỮ NGUYÊN)
   // ===========================================
   const SignUpHeroCard = (
     <div className="relative w-full h-full flex flex-col justify-center items-center text-center p-8 overflow-hidden">
@@ -101,7 +160,6 @@ export default function SignUp() {
                     <input
                         type="text"
                         placeholder="John Doe"
-                        // ✅ FIXED: text-gray-900
                         className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
                         onChange={(e) => setFullname(e.target.value)}
                         required
@@ -119,7 +177,6 @@ export default function SignUp() {
                     <input
                         type="email"
                         placeholder="name@example.com"
-                        // ✅ FIXED: text-gray-900
                         className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -137,13 +194,33 @@ export default function SignUp() {
                     <input
                         type="password"
                         placeholder="Create a strong password"
-                        // ✅ FIXED: text-gray-900
                         className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
                         onChange={(e) => setPassword(e.target.value)}
                         required
                     />
                 </div>
-                <p className="text-xs text-gray-400 mt-1 ml-1">Must be at least 6 characters.</p>
+                {/* 🆕 Gợi ý mật khẩu mạnh */}
+                <p className="text-[10px] text-gray-400 mt-1 ml-1">
+                    *8+ chars, 1 Uppercase, 1 Number required.
+                </p>
+            </div>
+
+            {/* 🆕 CONFIRM PASSWORD (MỚI THÊM) */}
+            <div className="relative group">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Confirm Password</label>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        {/* Dùng icon ShieldCheck cho khác biệt chút hoặc dùng Lock cũng được */}
+                        <ShieldCheck size={20} className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+                    </div>
+                    <input
+                        type="password"
+                        placeholder="Re-enter your password"
+                        className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                    />
+                </div>
             </div>
 
             {/* SUBMIT BUTTON */}

@@ -17,28 +17,56 @@ export default function ForgotPassword() {
 
   const handleReset = async (e) => {
     e.preventDefault();
+    
+    // Validate cơ bản
     if (!email) {
-        toast.error("⚠️ Please enter your email address.");
+        toast.error("⚠️ Vui lòng nhập địa chỉ email.");
         return;
     }
+
+    // Validate định dạng Email (Regex giống bên SignUp để đồng bộ)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        toast.error("❌ Email không hợp lệ (Ví dụ: name@gmail.com)");
+        return;
+    }
+
     setLoading(true);
     try {
       await sendPasswordResetEmail(auth, email);
-      // ✅ Đổi sang Tiếng Anh
-      toast.success("✅ Reset link sent! Please check your inbox.", {
+      
+      // ✅ Thành công
+      toast.success("✅ Đã gửi link khôi phục! Vui lòng kiểm tra hộp thư.", {
         position: "top-center",
       });
       setEmail("");
+      
     } catch (error) {
       console.error("Reset error:", error);
-      toast.error("❌ " + error.message, { position: "top-center" });
+      
+      // 🆕 LOGIC MỚI: Bắt lỗi Email chưa đăng ký
+      if (error.code === "auth/user-not-found") {
+        toast.error("❌ Email này chưa được đăng ký trong hệ thống.", {
+            position: "top-center"
+        });
+      } 
+      // Bắt lỗi định dạng email sai (từ phía Firebase)
+      else if (error.code === "auth/invalid-email") {
+        toast.error("❌ Định dạng email không đúng.", {
+            position: "top-center"
+        });
+      }
+      // Các lỗi khác
+      else {
+        toast.error("❌ Lỗi: " + error.message, { position: "top-center" });
+      }
     } finally {
       setLoading(false); // Dừng loading
     }
   };
 
   // ===========================================
-  // 💡 "BRAND HERO CARD" (Nội dung mới)
+  // 💡 "BRAND HERO CARD" (Nội dung mới - GIỮ NGUYÊN)
   // ===========================================
   const ForgotPasswordHeroCard = (
     <div className="flex flex-col justify-between h-full bg-gradient-to-br from-purple-600 to-blue-700 rounded-3xl p-10 shadow-2xl text-white overflow-hidden">

@@ -435,34 +435,61 @@ export default function FinBotWidget({ theme }) {
           </div>
 
           {/* --- INPUT AREA --- */}
+          {/* --- INPUT AREA (ĐÃ FIX: DÙNG TEXTAREA ĐỂ TỰ GIÃN DÒNG) --- */}
           <div className={`p-3 sm:p-4 border-t backdrop-blur-xl transition-colors duration-300
                 ${isDark ? "bg-black/40 border-white/5" : "bg-white/80 border-gray-100"}
           `}>
-            <div className={`relative flex items-center rounded-full border transition-all shadow-inner
+            <div className={`relative flex items-end gap-2 rounded-[24px] border transition-all shadow-inner p-2
                 ${isDark 
                     ? "bg-[#1a1f2e] border-white/10 focus-within:border-blue-500/50 focus-within:ring-blue-500/20" 
                     : "bg-gray-100 border-transparent focus-within:bg-white focus-within:border-blue-200 focus-within:ring-blue-100"}
                 focus-within:ring-2 sm:focus-within:ring-4
             `}>
-              <input 
-                type="text" 
+              {/* ✅ FIX: Thay input bằng textarea 
+                  - resize-none: Không cho user tự kéo
+                  - max-h-32: Giới hạn chiều cao tối đa (tránh che hết màn hình)
+                  - overflow-y-auto: Hiện thanh cuộn nếu quá dài
+              */}
+              <textarea
+                rows={1}
                 value={input} 
-                onChange={(e)=>setInput(e.target.value)} 
-                onKeyDown={handleKeyPress} 
-                className={`flex-1 bg-transparent px-4 sm:px-5 py-3 sm:py-3.5 text-sm focus:outline-none 
+                onChange={(e) => {
+                    setInput(e.target.value);
+                    // Logic tự động giãn chiều cao theo nội dung
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; 
+                }} 
+                onKeyDown={(e) => {
+                    // Enter để gửi, Shift + Enter để xuống dòng
+                    if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                        // Reset chiều cao về ban đầu sau khi gửi
+                        e.target.style.height = 'auto';
+                    }
+                }}
+                className={`flex-1 bg-transparent px-3 py-2 text-sm focus:outline-none resize-none max-h-32 overflow-y-auto custom-scrollbar
                     ${isDark ? "text-gray-100 placeholder:text-gray-500" : "text-gray-800 placeholder:text-gray-400"}
                 `}
                 placeholder="Ask me anything..." 
+                style={{ minHeight: '40px' }} // Chiều cao tối thiểu
               />
+              
               <button 
-                onClick={handleSend} 
+                onClick={() => {
+                    handleSend();
+                    // Reset chiều cao textarea nếu click nút gửi
+                    const textarea = document.querySelector('textarea');
+                    if(textarea) textarea.style.height = 'auto';
+                }} 
                 disabled={!input.trim()} 
-                className="absolute right-1.5 p-2 sm:p-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-full shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
+                className="mb-1 p-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-full shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 shrink-0"
               >
-                <Send size={16} />
+                <Send size={18} />
               </button>
             </div>
           </div>
+
         </div>
       )}
 
