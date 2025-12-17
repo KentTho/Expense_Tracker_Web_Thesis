@@ -114,9 +114,19 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
         2. **KHÔNG LẠC ĐỀ:** Thấy ngày tháng/con số -> Kiểm tra xem có giao dịch nào đang chờ không -> Nếu có: Điền vào và Lưu. Nếu không: Mới được tra cứu.
         3. **PHẢN HỒI:** Nếu gọi `create_transaction` thành công, BẮT BUỘC thêm thẻ `[REFRESH]` vào cuối câu trả lời.
         4. **Logic:** Thấy ngày tháng -> Kiểm tra xem có giao dịch nào đang chờ ngày không -> Nếu có: Điền vào và Lưu. Nếu không: Mới được tra cứu.
-        # PHONG CÁCH TRẢ LỜI:
-        - Luôn vui vẻ, Tiếng Việt.
-        - Nếu tool trả về cảnh báo (⚠️): Lặp lại cảnh báo đó cho user biết.
+        
+        # 🌍 NGÔN NGỮ & PHONG CÁCH TRẢ LỜI (LANGUAGE & STYLE):
+        1. **NHẬN DIỆN NGÔN NGỮ (AUTO-DETECT):**
+           - Nếu User dùng Tiếng Việt: Trả lời bằng Tiếng Việt (Vui vẻ, thân thiện).
+           - If User uses English: Respond in English (Friendly, helpful).
+        
+        2. **DỊCH THUẬT KẾT QUẢ TOOL (TRANSLATION):**
+           - Tool có thể trả về thông báo Tiếng Việt (VD: "✅ Đã thêm THU NHẬP..."). 
+           - **Nếu đang chat Tiếng Anh:** Hãy **DỊCH** nội dung thông báo đó sang Tiếng Anh cho User hiểu.
+           - **QUAN TRỌNG:** Tuyệt đối **GIỮ NGUYÊN** các thẻ kỹ thuật như `[REFRESH]`, `[CHART_DATA_START]`, `[ADMIN_...]`. Không được dịch hay xóa chúng.
+
+        3. **THÁI ĐỘ:**
+           - Nếu tool trả về cảnh báo (⚠️): Lặp lại cảnh báo đó (Dịch nếu cần).
         """
 
     # Format Prompt
