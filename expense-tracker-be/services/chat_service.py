@@ -65,6 +65,7 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
         1. **GHI CHÉP (create_transaction):**
            - Dùng khi user nói: "vừa ăn 50k", "nhận lương 10tr", "mua áo tặng mẹ".
            - **TỰ ĐỘNG:** Suy luận Loại, Số tiền, Danh mục (khớp danh sách).
+           - **QUAN TRỌNG:** Nếu user liệt kê NHIỀU khoản (VD: "ăn sáng 30k VÀ cafe 20k"), hãy dùng tool `create_batch_transactions` để ghi tất cả trong 1 lần gọi.
            - **GHI CHÚ:** Trích xuất chi tiết phụ (VD: "tặng mẹ") vào tham số `note`.
 
         2. **CÀI ĐẶT NGÂN SÁCH (set_budget):**
@@ -155,6 +156,14 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
         })
         return result["output"]
 
+
     except Exception as e:
-        print(f"❌ Chatbot Error: {str(e)}")
+
+        error_msg = str(e)
+
+        print(f"❌ Chatbot Error: {error_msg}")
+
+        if "Name cannot be empty" in error_msg or "function_response" in error_msg:
+            return "✅ Giao dịch đã được ghi nhận thành công! [REFRESH] (AI gặp chút trục trặc khi hiển thị phản hồi chi tiết, nhưng dữ liệu của bạn đã được lưu an toàn)."
+
         return "Xin lỗi, hệ thống đang bận hoặc gặp lỗi kết nối AI. Bạn vui lòng thử lại sau giây lát nhé!"

@@ -40,6 +40,9 @@ class SetBudgetInput(BaseModel):
 class AdminSearchInput(BaseModel):
     email: str = Field(description="Email user cần tìm")
 
+class BatchTransactionInput(BaseModel):
+    transactions: List[CreateTransactionInput] = Field(description="Danh sách các giao dịch cần ghi")
+
 # --- HÀM CHÍNH ---
 def get_finbot_tools(db: Session, user: user_model.User):
     # ... (Giữ nguyên logic find_existing_category) ...
@@ -125,6 +128,25 @@ def get_finbot_tools(db: Session, user: user_model.User):
         except Exception as e:
             return f"Lỗi: {str(e)}"
 
+    def create_batch_transactions_func(transactions: List[CreateTransactionInput]):
+        results = []
+        try:
+            for item in transactions:
+                # Gọi lại logic của hàm đơn lẻ để tái sử dụng code
+                res = create_transaction_func(
+                    type=item.type,
+                    amount=item.amount,
+                    category_name=item.category_name,
+                    note=item.note,
+                    date_str=item.date_str
+                )
+                results.append(res)
+
+            # Trả về 1 chuỗi kết quả duy nhất
+            return f"[REFRESH] ✅ Đã ghi nhận {len(results)} giao dịch:\n- " + "\n- ".join(results)
+        except Exception as e:
+            return f"❌ Lỗi ghi hàng loạt: {str(e)}"
+
     # ==========================================
     # 🛡️ ADMIN TOOLS (MỚI & XỊN)
     # ==========================================
@@ -187,6 +209,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
     user_tools = [
         StructuredTool.from_function(func=create_transaction_func, name="create_transaction",
                                      description="Ghi chép thu/chi.", args_schema=CreateTransactionInput),
+        StructuredTool.from_function(func=create_batch_transactions_func, name="create_batch_transactions",
+                                     description="Dùng khi user muốn ghi NHIỀU khoản thu/chi cùng lúc (Ví dụ: 'ăn 50k và uống 20k').",
+                                     args_schema=BatchTransactionInput),
         StructuredTool.from_function(func=set_budget_func, name="set_budget", description="Cài ngân sách.",
                                      args_schema=SetBudgetInput),
         StructuredTool.from_function(func=get_balance_func, name="get_balance", description="Xem số dư."),
