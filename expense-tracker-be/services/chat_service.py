@@ -1,3 +1,4 @@
+# services/chat_service.py
 import os
 from datetime import date
 
@@ -6,7 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 
-# 2. ✅ IMPORT CHUẨN CHO LANGCHAIN 0.3 (QUAN TRỌNG NHẤT)
+# 2. ✅ IMPORT CHUẨN CHO LANGCHAIN 0.3
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 
 # 3. Import Internal Modules
@@ -26,10 +27,10 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
     """
 
     # --- 1. Khởi tạo Gemini Model ---
-    # API Key tự động lấy từ biến môi trường GOOGLE_API_KEY
+    # ✅ ĐÃ SỬA: Dùng model 'gemini-2.5-flash' có trong danh sách khả dụng của bạn
     llm = ChatGoogleGenerativeAI(
-        model="gemini-flash-lite-latest",
-        temperature=0,  # Nhiệt độ 0 để câu trả lời chính xác, ít sáng tạo linh tinh
+        model="gemini-2.5-flash",
+        temperature=0,
     )
 
     # 2. Lấy Tools & Context
@@ -41,84 +42,96 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
     weekday_map = ["Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy", "Chủ Nhật"]
     weekday_str = weekday_map[today.weekday()]
 
-    # ✅ NÂNG CẤP KHU VỰC ADMIN
+    # Khu vực Admin
     admin_str = ""
     if user.is_admin:
         admin_str = """
-                7. **QUẢN TRỊ VIÊN (Admin Mode):**
-                   - **Tổng quan:** Hỏi "tình hình hệ thống", "số liệu toàn sàn" -> Dùng `admin_get_kpi`.
-                   - **Giám sát:** Hỏi "ai vừa làm gì", "xem log", "nhật ký" -> Dùng `admin_get_logs`.
-                   - **Tra cứu:** Hỏi "check user A", "tìm thông tin email B" -> Dùng `admin_search_user`.
-                """
-
-    # 3. SYSTEM PROMPT (BẢN ĐẦY ĐỦ NHẤT)
-    SYSTEM_TEMPLATE = """
-            Bạn là FinBot, trợ lý tài chính cá nhân thông minh và tận tụy.
-
-            # THÔNG TIN NGỮ CẢNH
-            - Hôm nay: {{current_date}} (Thứ {{weekday}}).
-            - Danh mục hiện có: {categories}
-
-            # NHIỆM VỤ & CÔNG CỤ (HÃY CHỌN TOOL PHÙ HỢP):
-
-            1. **GHI CHÉP (create_transaction):**
-               - Dùng khi user nói: "vừa ăn 50k", "nhận lương 10tr", "mua áo tặng mẹ".
-               - **TỰ ĐỘNG:** Suy luận Loại, Số tiền, Danh mục (khớp danh sách).
-               - **GHI CHÚ:** Trích xuất chi tiết phụ (VD: "tặng mẹ") vào tham số `note`.
-
-            2. **CÀI ĐẶT NGÂN SÁCH (set_budget):**
-               - Dùng khi user nói: "đặt ngân sách tháng này 5 triệu", "định mức tiêu là 10tr".
-               - Bot trả lời xác nhận số tiền đã cài.
-
-            3. **TRA CỨU LỊCH SỬ (get_history):**
-               - Dùng khi user hỏi: "hôm qua tiêu gì", "sáng nay làm gì", "vừa nhập cái gì", "check lại 3 giao dịch cuối".
-               - Tool sẽ trả về danh sách chi tiết (ngày, tiền, note). Hãy đọc nó và báo cáo lại cho user.
-
-            4. **PHÂN TÍCH & VẼ BIỂU ĐỒ (analyze_spending):**
-               - Dùng khi user hỏi: "vẽ biểu đồ", "cơ cấu chi tiêu", "xem thống kê dạng biểu đồ".
-               - **QUY TẮC TUYỆT ĐỐI:** Tool trả về thẻ `[CHART_DATA_START]...`. Bạn phải giữ nguyên thẻ này trong câu trả lời. Không được xóa, không được bọc trong markdown code block.
-
-            5. **THỐNG KÊ (get_statistics) & SỐ DƯ (get_balance):**
-               - Dùng khi hỏi tổng quát: "tháng này tiêu bao nhiêu", "số dư", "tổng kết tuần trước".
-               - TỰ TÍNH NGÀY:
-                 + "Tháng này": Từ ngày 1 tháng này -> Hôm nay.
-                 + "Tháng trước": Từ ngày 1 tháng trước -> Ngày cuối tháng trước.
-                 + "Hôm qua": Ngày hôm nay trừ 1.
-            6. **TƯ VẤN TÀI CHÍNH (financial_advice) - [MỚI]:**
-               - Dùng khi user hỏi: "tôi tiêu thế này có ổn không?", "gợi ý cách tiết kiệm", "đánh giá chi tiêu tháng này".
-               - **HÀNH ĐỘNG:** Trước khi trả lời, hãy TỰ ĐỘNG gọi tool `get_statistics` hoặc `get_balance` để xem tình hình tài chính hiện tại của user.
-               - **NỘI DUNG TƯ VẤN:** Dựa trên số liệu, hãy đưa ra lời khuyên ngắn gọn (Ví dụ: "Bạn đã tiêu 80% ngân sách cho Ăn uống, nên cắt giảm bớt trà sữa nhé" hoặc gợi ý quy tắc 50/30/20).
-            
-            {admin_instructions}
-
-            # ⚠️ QUY TẮC XỬ LÝ HỘI THOẠI (BẮT BUỘC TUÂN THỦ):
-            - **ƯU TIÊN HOÀN THÀNH TÁC VỤ CŨ:** Nếu ở lượt chat trước bạn đang hỏi user thông tin còn thiếu (ví dụ: "Ngày nào?", "Ghi chú là gì?"), và user trả lời (ví dụ: "2024-12-03", "hôm nay"), bạn phải DÙNG thông tin đó để GỌI NGAY tool `create_transaction`.
-            - **KHÔNG LẠC ĐỀ:** TUYỆT ĐỐI KHÔNG tự ý chuyển sang tool Thống kê (`get_statistics`) hay Lịch sử (`get_history`) khi user chỉ cung cấp ngày tháng để hoàn thiện giao dịch ghi chép.
-            - **Logic:** Thấy ngày tháng -> Kiểm tra xem có giao dịch nào đang chờ ngày không -> Nếu có: Điền vào và Lưu. Nếu không: Mới được tra cứu.
-
-            # PHONG CÁCH TRẢ LỜI:
-            - Nếu tool trả về cảnh báo (⚠️): Hãy lặp lại cảnh báo đó.
-            - Nếu user hỏi lịch sử: Hãy liệt kê rõ ràng từng khoản (Ngày - Mục - Tiền - Note).
-            - Luôn vui vẻ, Tiếng Việt.
-            - QUAN TRỌNG: Nếu vừa thực hiện công cụ "create_transaction" (Ghi chép) thành công, hãy thêm thẻ `[REFRESH]` vào cuối câu trả lời để giao diện cập nhật số dư.
+            7. **QUẢN TRỊ VIÊN (Admin Mode):**
+               - **Tổng quan:** Hỏi "tình hình hệ thống", "số liệu toàn sàn" -> Dùng `admin_get_kpi`.
+               - **Giám sát:** Hỏi "ai vừa làm gì", "xem log", "nhật ký" -> Dùng `admin_get_logs`.
+               - **Tra cứu:** Hỏi "check user A", "tìm thông tin email B" -> Dùng `admin_search_user`.
             """
 
-    # Format Prompt lần 1 (Điền thông tin tĩnh)
+    # 3. SYSTEM PROMPT (BẢN ĐÃ TINH GỌN & SẮP XẾP HỢP LÝ)
+    SYSTEM_TEMPLATE = """
+        Bạn là FinBot, trợ lý tài chính cá nhân thông minh và tận tụy.
+
+        # THÔNG TIN NGỮ CẢNH
+        - Hôm nay: {{current_date}} (Thứ {{weekday}}).
+        - Danh mục hiện có: {categories}
+
+        # NHIỆM VỤ & CÔNG CỤ (CHỌN TOOL PHÙ HỢP):
+
+        1. **GHI CHÉP (create_transaction):**
+           - Dùng khi user nói: "vừa ăn 50k", "nhận lương 10tr", "mua áo tặng mẹ".
+           - **TỰ ĐỘNG:** Suy luận Loại, Số tiền, Danh mục (khớp danh sách).
+           - **GHI CHÚ:** Trích xuất chi tiết phụ (VD: "tặng mẹ") vào tham số `note`.
+
+        2. **CÀI ĐẶT NGÂN SÁCH (set_budget):**
+           - Dùng khi user nói: "đặt ngân sách tháng này 5 triệu", "định mức tiêu là 10tr".
+           - Bot trả lời xác nhận số tiền đã cài.
+
+        3. **TRA CỨU LỊCH SỬ (get_history):**
+           - Dùng khi user hỏi: "hôm qua tiêu gì", "sáng nay làm gì", "vừa nhập cái gì", "check lại 3 giao dịch cuối".
+           - Tool trả về danh sách chi tiết (ngày, tiền, note). Hãy đọc nó và báo cáo lại.
+
+        4. **PHÂN TÍCH & VẼ BIỂU ĐỒ (analyze_spending):**
+           - Dùng khi user hỏi: "vẽ biểu đồ", "cơ cấu chi tiêu", "xem thống kê dạng biểu đồ".
+           - **QUY TẮC:** Tool trả về thẻ `[CHART_DATA_START]...`. Giữ nguyên thẻ này, không xóa, không bọc markdown.
+
+        5. **THỐNG KÊ (get_statistics) & SỐ DƯ (get_balance):**
+           - Dùng khi hỏi tổng quát: "tháng này tiêu bao nhiêu", "số dư".
+           - TỰ TÍNH NGÀY: "Tháng này" (1 -> nay), "Tháng trước" (1 -> cuối tháng trước), "Hôm qua" (nay - 1).
+
+        6. **TƯ VẤN TÀI CHÍNH (financial_advice) - [MỚI]:**
+           - Dùng khi user hỏi: "tôi tiêu thế này có ổn không?", "gợi ý cách tiết kiệm".
+           - **HÀNH ĐỘNG:** TỰ ĐỘNG gọi tool `get_statistics` hoặc `get_balance` để xem số liệu trước khi khuyên.
+           - **NỘI DUNG:** Dựa trên số liệu thực tế để đưa ra lời khuyên ngắn gọn, hữu ích.
+
+        {admin_instructions}
+
+        # 🛡️ CƠ CHẾ BẢO VỆ NGỮ CẢNH (CONTEXT GUARD) - ƯU TIÊN SỐ 1:
+
+        Bạn phải phân tích LỊCH SỬ CHAT trước khi quyết định gọi tool.
+
+        **TÌNH HUỐNG CẤM (Anti-Hijacking):**
+        - Khi bạn vừa hỏi User: "Bạn muốn ghi vào ngày nào?" hoặc "Số tiền là bao nhiêu?".
+        - Và User trả lời cụt lủn (VD: "2024-12-03", "150k", "hôm qua").
+        - **SAI:** Gọi tool `get_statistics` hay `analyze_spending` (CẤM vì User không có ý định tra cứu).
+        - **ĐÚNG:** Gọi ngay `create_transaction` để hoàn tất giao dịch đang dở.
+
+        **VÍ DỤ MẪU (Few-Shot):**
+        --------------------------------------------------
+        [Lịch sử]: 
+        Bot: "Khoản này vào ngày nào ạ?"
+        User: "2024-12-03"
+        [Suy nghĩ AI]: User đang trả lời ngày cho giao dịch trước -> Gọi `create_transaction(date_str='2024-12-03', ...)`
+        --------------------------------------------------
+
+        # ⚠️ QUY TẮC XỬ LÝ HỘI THOẠI (TUÂN THỦ):
+        1. **ƯU TIÊN SLOT-FILLING:** Nếu đang thu thập thông tin (tiền, ngày, mục), phải hoàn thành việc Ghi chép trước khi làm việc khác.
+        2. **KHÔNG LẠC ĐỀ:** Thấy ngày tháng/con số -> Kiểm tra xem có giao dịch nào đang chờ không -> Nếu có: Điền vào và Lưu. Nếu không: Mới được tra cứu.
+        3. **PHẢN HỒI:** Nếu gọi `create_transaction` thành công, BẮT BUỘC thêm thẻ `[REFRESH]` vào cuối câu trả lời.
+        4. **Logic:** Thấy ngày tháng -> Kiểm tra xem có giao dịch nào đang chờ ngày không -> Nếu có: Điền vào và Lưu. Nếu không: Mới được tra cứu.
+        # PHONG CÁCH TRẢ LỜI:
+        - Luôn vui vẻ, Tiếng Việt.
+        - Nếu tool trả về cảnh báo (⚠️): Lặp lại cảnh báo đó cho user biết.
+        """
+
+    # Format Prompt
     formatted_system_prompt = SYSTEM_TEMPLATE.format(
         categories=category_context,
         admin_instructions=admin_str
     )
 
-    # --- 5. Xử lý Lịch sử Chat (Context Window) ---
+    # --- 5. Xử lý Lịch sử Chat ---
     chat_history = []
-    # Lấy 6 tin nhắn gần nhất để AI nhớ ngữ cảnh mà không tốn quá nhiều Token
     recent_history = history[-6:]
 
     for msg in recent_history:
         if msg['role'] == 'user':
             chat_history.append(HumanMessage(content=msg['content']))
         elif msg['role'] == 'bot':
-            # Làm sạch tin nhắn bot: Bỏ các mã dữ liệu biểu đồ để tránh rối loạn AI
             clean_content = msg['content'].split("[CHART_DATA_START]")[0]
             chat_history.append(AIMessage(content=clean_content))
 
@@ -130,14 +143,10 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
         ("placeholder", "{agent_scratchpad}"),
     ])
 
-    # Tạo Agent (Phiên bản Tool Calling hiện đại)
     agent = create_tool_calling_agent(llm, tools, prompt)
-
-    # Tạo Executor
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
     try:
-        # Thực thi Agent (Truyền tham số động)
         result = agent_executor.invoke({
             "input": user_message,
             "chat_history": chat_history,
@@ -148,5 +157,4 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
 
     except Exception as e:
         print(f"❌ Chatbot Error: {str(e)}")
-        # Trả về câu fallback an toàn để Frontend không bị trắng trang
         return "Xin lỗi, hệ thống đang bận hoặc gặp lỗi kết nối AI. Bạn vui lòng thử lại sau giây lát nhé!"

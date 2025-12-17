@@ -1,0 +1,21 @@
+stages:
+  - sync
+
+sync_to_github:
+  stage: sync
+  image: bitnami/git:latest
+  script:
+    # 1. Cài đặt git (nếu image chưa có) & cấu hình user ảo
+    - git config --global user.email "gitlab_ci@bot.com"
+    - git config --global user.name "GitLab CI Bot"
+    
+    # 2. Thêm remote GitHub vào (Dùng biến ẩn GITHUB_TOKEN)
+    # ⚠️ THAY 'Tên-GitHub-Của-Bạn' và 'Tên-Repo' bên dưới cho đúng link GitHub của bạn
+    - git remote add github https://oauth2:${GITHUB_TOKEN}@https://github.com/KentTho/Expense_Tracker_Web_Thesis.git
+    
+    # 3. Đồng bộ code: Kéo nhánh main hiện tại và Đẩy sang GitHub
+    - git checkout main
+    - git fetch --unshallow || true
+    - git push --force github main
+  only:
+    - main
