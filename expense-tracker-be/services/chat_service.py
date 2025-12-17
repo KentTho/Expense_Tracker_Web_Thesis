@@ -29,7 +29,7 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
     # --- 1. Khởi tạo Gemini Model ---
     # ✅ ĐÃ SỬA: Dùng model 'gemini-2.5-flash' có trong danh sách khả dụng của bạn
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash-lite",
         temperature=0,
     )
 
