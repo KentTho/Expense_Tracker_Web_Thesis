@@ -8,7 +8,7 @@ import json
 from cruds import crud_income, crud_expense, crud_summary, crud_transaction, crud_admin, crud_audit, crud_user
 from models import user_model, category_model
 from sqlalchemy import func
-
+from typing import List
 
 # --- SCHEMAS (Giữ nguyên các schema cũ của User) ---
 class CreateTransactionInput(BaseModel):
