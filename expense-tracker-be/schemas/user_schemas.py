@@ -46,6 +46,11 @@ class UserSyncPayload(BaseModel):
     firebase_uid: str
     display_name: Optional[str] = None
 
+class SupportRequest(BaseModel):
+    email: str
+    issue_type: str  # Ví dụ: "LOST_2FA", "HACKED", "LOCKED"
+    message: str
+
 class Token(BaseModel):
     access_token: str
     token_type: str

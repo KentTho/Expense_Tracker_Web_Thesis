@@ -1,14 +1,16 @@
 # routes/auth_route.py
 import uuid  # ✅ Đã thêm thư viện này
 from datetime import timedelta
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from starlette.responses import JSONResponse
 
+from cruds import crud_user, crud_audit
 from db.database import get_db
 # ✅ Thêm Token vào import
 from schemas import UserOut, UserSyncPayload, UserUpdate
-from schemas.user_schemas import Token
+from schemas.user_schemas import Token, SupportRequest
 from services.auth_token_db import extract_token, verify_token_and_get_payload, get_current_user_db
 from cruds.crud_user import get_user_by_email, create_user, get_user_by_firebase_uid, authenticate_user
 from core.security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
@@ -130,6 +132,48 @@ def update_profile(data: UserUpdate,
     db.refresh(user)
     return user
 
+
+@router.post("/api/public/support-request")
+async def submit_support_request(
+        req: SupportRequest,
+        request: Request,  # 👈 Thêm biến request để lấy IP
+        db: Session = Depends(get_db)
+):
+    try:
+        # Kiểm tra user
+        user = crud_user.get_user_by_email(db, req.email)
+        if not user:
+            return JSONResponse(
+                status_code=404,
+                content={"message": "Email này chưa được đăng ký trong hệ thống."}
+            )
+
+        # Lấy IP người dùng (nếu chạy local có thể là 127.0.0.1)
+        client_ip = request.client.host if request.client else "Unknown"
+
+        # Ghi Log
+        # Lưu ý: Nếu hàm log_action của bạn không nhận ip_address, hãy xóa dòng ip_address=... đi
+        crud_audit.log_action(
+            db=db,
+            actor_email=req.email,
+            action="SOS_REQUEST",
+            target="ADMIN_CENTER",
+            details=f"[{req.issue_type}] {req.message}",
+            status="PENDING",
+            ip_address=client_ip  # 👈 Bổ sung IP để tránh lỗi thiếu trường trong DB
+        )
+
+        return {"message": "Đã gửi yêu cầu thành công! Admin sẽ xử lý sớm."}
+
+    except Exception as e:
+        # In lỗi chi tiết ra Terminal để bạn nhìn thấy (Quan trọng)
+        print(f"❌ LỖI API SUPPORT: {str(e)}")
+
+        # Trả về lỗi cho Frontend
+        return JSONResponse(
+            status_code=500,
+            content={"message": f"Lỗi hệ thống: {str(e)}"}
+        )
 @router.get("/me", response_model=UserOut)
 def get_me(current_user=Depends(get_current_user_db)):
     return current_user

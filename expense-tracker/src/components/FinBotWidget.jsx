@@ -385,7 +385,7 @@ export default function FinBotWidget({ theme }) {
                     <p className={`text-xs font-bold mb-4 text-center uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>
                         {msg.special.payload.title}
                     </p>
-                    <div className="h-40 w-full">
+                    <div className="h-40 w-full min-h-[160px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={msg.special.payload.data} innerRadius={40} outerRadius={60} paddingAngle={4} dataKey="value" stroke="none">

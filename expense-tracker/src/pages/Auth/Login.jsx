@@ -1,24 +1,23 @@
 // pages/Auth/Login.jsx
 
 import { useState, useEffect } from "react";
-import { useNavigate, Link, useOutletContext } from "react-router-dom"; // Thêm useOutletContext
+import { useNavigate, Link, useOutletContext } from "react-router-dom"; 
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import AuthLayout from "../../components/AuthLayout";
 import { loginAndSync, verify2FALogin } from "../../services/authService"; 
 import { 
-  LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle, Eye, EyeOff, Loader2
-} from "lucide-react"; // Thêm Eye, EyeOff, Loader2
+  LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle, Eye, EyeOff, Loader2, LifeBuoy
+} from "lucide-react"; // ✅ Đã thêm LifeBuoy
 
 export default function Login() {
-  // Lấy theme từ context để chỉnh UI Dark/Light nếu cần (giống code cũ của bạn có thể dùng)
   const context = useOutletContext(); 
   const isDark = context?.theme === "dark";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // State ẩn/hiện mật khẩu
+  const [showPassword, setShowPassword] = useState(false); 
   
   // State quản lý bước 2FA
   const [show2FA, setShow2FA] = useState(false);
@@ -27,10 +26,9 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Logic check token cũ (nếu cần)
     const token = localStorage.getItem("idToken");
     if (token) {
-        // Có thể redirect nếu muốn, hoặc để nguyên
+        // Có thể redirect nếu muốn
     }
   }, [navigate]);
 
@@ -42,35 +40,23 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      // 1. Gọi service đăng nhập
       const res = await loginAndSync(email, password);
-      
-      // ✅ FIX QUAN TRỌNG: Kiểm tra dữ liệu trả về an toàn
-      // Do Backend mới trả về { user, idToken }, ta cần lấy đúng user object
       const user = res?.user; 
 
       if (!user) {
           throw new Error("Invalid response from server (No User Data).");
       }
       
-      // Lưu vào localStorage (đã được xử lý trong loginAndSync nhưng lưu lại cho chắc cũng được)
-      // localStorage.setItem("idToken", res.idToken);
-      // localStorage.setItem("user", JSON.stringify(user));
-
-      // 2. Kiểm tra trạng thái 2FA
       if (user.is_2fa_enabled) {
           setShow2FA(true);
           toast.info("🔐 Security Check Required");
       } else {
           toast.success("✅ Welcome back!");
-          // Chuyển hướng Dashboard (Nơi có Splash Screen)
           setTimeout(() => navigate("/dashboard"), 1000);
       }
     } catch (err) {
       console.error("Login Error:", err);
-      // Xử lý thông báo lỗi thân thiện
       let msg = "Invalid email or password.";
-      // Check các lỗi phổ biến
       if (err.message && (err.message.includes("401") || err.message.includes("auth/"))) {
           msg = "Incorrect email or password.";
       }
@@ -79,9 +65,7 @@ export default function Login() {
       }
       toast.error(`❌ ${msg}`);
     } finally {
-        // Chỉ tắt loading nếu KHÔNG hiện bảng 2FA (để UI mượt)
         if (!show2FA) setLoading(false);
-        // Nếu show2FA = true, component sẽ render lại view khác nên không cần tắt loading ở đây
     }
   };
 
@@ -103,11 +87,10 @@ export default function Login() {
   };
 
   // ===========================================
-  // 🎨 GIAO DIỆN HERO CARD (BÊN PHẢI)
+  // 🎨 HERO CARD
   // ===========================================
   const LoginHeroCard = (
     <div className="relative w-full h-full flex flex-col justify-center items-center text-center p-8">
-        {/* Background mờ trang trí */}
         <div className="absolute top-10 right-10 w-32 h-32 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
         <div className="absolute bottom-10 left-10 w-32 h-32 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
         
@@ -129,7 +112,7 @@ export default function Login() {
   );
 
   // ===========================================
-  // 🎨 GIAO DIỆN 2FA FORM (BƯỚC 2)
+  // 🎨 2FA UI
   // ===========================================
   if (show2FA) {
       return (
@@ -179,7 +162,7 @@ export default function Login() {
   }
 
   // ===========================================
-  // 🎨 GIAO DIỆN LOGIN FORM (BƯỚC 1 - UPDATE)
+  // 🎨 LOGIN UI (MAIN)
   // ===========================================
   return (
     <AuthLayout rightContent={LoginHeroCard}>
@@ -203,7 +186,6 @@ export default function Login() {
                     <input
                         type="email"
                         placeholder="Enter your email"
-                        // ✅ UX: Thêm value và onChange chuẩn
                         className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
                         value={email} 
                         onChange={(e) => setEmail(e.target.value)}
@@ -220,14 +202,13 @@ export default function Login() {
                         <Lock size={20} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     </div>
                     <input
-                        type={showPassword ? "text" : "password"} // ✅ UX: Ẩn/Hiện pass
+                        type={showPassword ? "text" : "password"}
                         placeholder="••••••••"
                         className="w-full pl-12 pr-12 py-3.5 rounded-xl border border-gray-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200 text-gray-900 font-medium placeholder:text-gray-400 bg-gray-50 hover:bg-white focus:bg-white"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                     />
-                    {/* Nút mắt Ẩn/Hiện Pass */}
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
@@ -251,9 +232,26 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-600 mt-8">
+          <p className="text-center text-sm text-gray-600 mt-6">
             Don’t have an account? <Link to="/signup" className="text-blue-600 font-bold hover:underline">Create account</Link>
           </p>
+
+          {/* 🔥 PHẦN MỚI: SUPPORT SECTION 🔥 */}
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <div className="flex flex-col items-center gap-2">
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+                    Lost access or 2FA Device?
+                </p>
+                <Link 
+                    to="/forgot-password" 
+                    className="flex items-center gap-2 text-sm font-bold text-red-500 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl transition-all active:scale-95 border border-red-100"
+                >
+                    <LifeBuoy size={16} /> Contact Admin Support
+                </Link>
+            </div>
+          </div>
+          {/* 👆 KẾT THÚC PHẦN BỔ SUNG */}
+
         </div>
       </div>
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar theme="colored" />
