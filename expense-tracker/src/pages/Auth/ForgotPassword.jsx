@@ -148,6 +148,42 @@ export default function ForgotPassword() {
             </button>
           </form>
 
+          {/* 👇 BỔ SUNG KHỐI NÀY: THÔNG TIN LIÊN HỆ KHẨN CẤP */}
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <div className="flex items-center justify-center gap-2 mb-3">
+                <HelpCircle size={16} className="text-gray-400" />
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                    Hỗ trợ khẩn cấp (24/7)
+                </span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+                <a href="mailto:support@finbot.com" className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 hover:bg-blue-100 transition group cursor-pointer border border-blue-100">
+                    <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm group-hover:scale-110 transition">
+                        <MailCheck size={18} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] text-gray-500 font-semibold uppercase">Gửi Email</p>
+                        <p className="text-xs font-bold text-gray-700">support@finbot.vn</p>
+                    </div>
+                </a>
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50 hover:bg-red-100 transition group cursor-pointer border border-red-100">
+                    <div className="p-2 bg-white rounded-full text-red-600 shadow-sm group-hover:scale-110 transition">
+                        <Phone size={18} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] text-gray-500 font-semibold uppercase">Hotline</p>
+                        <p className="text-xs font-bold text-gray-700">1900 1234</p>
+                    </div>
+                </div>
+            </div>
+            
+            <p className="text-center text-[10px] text-gray-400 mt-3 italic">
+                *Liên hệ ngay nếu bạn bị mất thiết bị 2FA hoặc nghi ngờ tài khoản bị xâm nhập.
+            </p>
+          </div>
+
           {/* Quay lại login */}
           <p className="text-center text-sm text-gray-600 mt-6">
             Remember your password?{" "}

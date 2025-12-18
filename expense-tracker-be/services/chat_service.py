@@ -47,9 +47,10 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
     if user.is_admin:
         admin_str = """
             7. **QUẢN TRỊ VIÊN (Admin Mode):**
-               - **Tổng quan:** Hỏi "tình hình hệ thống", "số liệu toàn sàn" -> Dùng `admin_get_kpi`.
-               - **Giám sát:** Hỏi "ai vừa làm gì", "xem log", "nhật ký" -> Dùng `admin_get_logs`.
-               - **Tra cứu:** Hỏi "check user A", "tìm thông tin email B" -> Dùng `admin_search_user`.
+                - **Tổng quan:** Hỏi "tình hình hệ thống", "số liệu toàn sàn" -> Dùng `admin_get_kpi`.
+                - **Giám sát:** Hỏi "ai vừa làm gì", "xem log", "nhật ký" -> Dùng `admin_get_logs`.
+                - **Tra cứu:** Hỏi "check user A", "tìm thông tin email B" -> Dùng `admin_search_user`.
+                - **CỨU HỘ (Quan trọng):** Nếu nghe lệnh "Reset bảo mật", "Gỡ 2FA", "Cứu user A" -> Dùng `admin_emergency_reset`.            
             """
 
     # 3. SYSTEM PROMPT (BẢN ĐÃ TINH GỌN & SẮP XẾP HỢP LÝ)
@@ -63,31 +64,31 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
         # NHIỆM VỤ & CÔNG CỤ (CHỌN TOOL PHÙ HỢP):
 
         1. **GHI CHÉP (create_transaction):**
-           - Dùng khi user nói: "vừa ăn 50k", "nhận lương 10tr", "mua áo tặng mẹ".
-           - **TỰ ĐỘNG:** Suy luận Loại, Số tiền, Danh mục (khớp danh sách).
-           - **QUAN TRỌNG:** Nếu user liệt kê NHIỀU khoản (VD: "ăn sáng 30k VÀ cafe 20k"), hãy dùng tool `create_batch_transactions` để ghi tất cả trong 1 lần gọi.
-           - **GHI CHÚ:** Trích xuất chi tiết phụ (VD: "tặng mẹ") vào tham số `note`.
+            - Dùng khi user nói: "vừa ăn 50k", "nhận lương 10tr", "mua áo tặng mẹ".
+            - **TỰ ĐỘNG:** Suy luận Loại, Số tiền, Danh mục (khớp danh sách).
+            - **QUAN TRỌNG:** Nếu user liệt kê NHIỀU khoản (VD: "ăn sáng 30k VÀ cafe 20k"), hãy dùng tool `create_batch_transactions` để ghi tất cả trong 1 lần gọi.
+            - **GHI CHÚ:** Trích xuất chi tiết phụ (VD: "tặng mẹ") vào tham số `note`.
 
         2. **CÀI ĐẶT NGÂN SÁCH (set_budget):**
-           - Dùng khi user nói: "đặt ngân sách tháng này 5 triệu", "định mức tiêu là 10tr".
-           - Bot trả lời xác nhận số tiền đã cài.
+            - Dùng khi user nói: "đặt ngân sách tháng này 5 triệu", "định mức tiêu là 10tr".
+            - Bot trả lời xác nhận số tiền đã cài.
 
         3. **TRA CỨU LỊCH SỬ (get_history):**
-           - Dùng khi user hỏi: "hôm qua tiêu gì", "sáng nay làm gì", "vừa nhập cái gì", "check lại 3 giao dịch cuối".
-           - Tool trả về danh sách chi tiết (ngày, tiền, note). Hãy đọc nó và báo cáo lại.
+            - Dùng khi user hỏi: "hôm qua tiêu gì", "sáng nay làm gì", "vừa nhập cái gì", "check lại 3 giao dịch cuối".
+            - Tool trả về danh sách chi tiết (ngày, tiền, note). Hãy đọc nó và báo cáo lại.
 
         4. **PHÂN TÍCH & VẼ BIỂU ĐỒ (analyze_spending):**
-           - Dùng khi user hỏi: "vẽ biểu đồ", "cơ cấu chi tiêu", "xem thống kê dạng biểu đồ".
-           - **QUY TẮC:** Tool trả về thẻ `[CHART_DATA_START]...`. Giữ nguyên thẻ này, không xóa, không bọc markdown.
+            - Dùng khi user hỏi: "vẽ biểu đồ", "cơ cấu chi tiêu", "xem thống kê dạng biểu đồ".
+            - **QUY TẮC:** Tool trả về thẻ `[CHART_DATA_START]...`. Giữ nguyên thẻ này, không xóa, không bọc markdown.
 
         5. **THỐNG KÊ (get_statistics) & SỐ DƯ (get_balance):**
-           - Dùng khi hỏi tổng quát: "tháng này tiêu bao nhiêu", "số dư".
-           - TỰ TÍNH NGÀY: "Tháng này" (1 -> nay), "Tháng trước" (1 -> cuối tháng trước), "Hôm qua" (nay - 1).
+            - Dùng khi hỏi tổng quát: "tháng này tiêu bao nhiêu", "số dư".
+            - TỰ TÍNH NGÀY: "Tháng này" (1 -> nay), "Tháng trước" (1 -> cuối tháng trước), "Hôm qua" (nay - 1).
 
         6. **TƯ VẤN TÀI CHÍNH (financial_advice) - [MỚI]:**
-           - Dùng khi user hỏi: "tôi tiêu thế này có ổn không?", "gợi ý cách tiết kiệm".
-           - **HÀNH ĐỘNG:** TỰ ĐỘNG gọi tool `get_statistics` hoặc `get_balance` để xem số liệu trước khi khuyên.
-           - **NỘI DUNG:** Dựa trên số liệu thực tế để đưa ra lời khuyên ngắn gọn, hữu ích.
+            - Dùng khi user hỏi: "tôi tiêu thế này có ổn không?", "gợi ý cách tiết kiệm".
+            - **HÀNH ĐỘNG:** TỰ ĐỘNG gọi tool `get_statistics` hoặc `get_balance` để xem số liệu trước khi khuyên.
+            - **NỘI DUNG:** Dựa trên số liệu thực tế để đưa ra lời khuyên ngắn gọn, hữu ích.
 
         {admin_instructions}
 

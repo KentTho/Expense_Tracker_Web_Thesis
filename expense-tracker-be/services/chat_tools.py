@@ -205,6 +205,31 @@ def get_finbot_tools(db: Session, user: user_model.User):
         except Exception as e:
             return f"Lỗi: {e}"
 
+    def admin_reset_security_func(email: str):
+        """
+        Admin Tool: Cứu hộ khẩn cấp user bị hack hoặc mất 2FA.
+        """
+        try:
+            # Tìm user
+            target_user = crud_user.get_user_by_email(db, email)
+            if not target_user:
+                return f"❌ Không tìm thấy user: {email}"
+
+            # CƯỠNG CHẾ RESET
+            target_user.is_2fa_enabled = False  # Tắt 2FA
+            target_user.otp_secret = None  # Xóa mã bí mật
+            target_user.last_session_key = "RESET_BY_ADMIN"  # Đổi key -> Session cũ sẽ bị vô hiệu hóa ngay lập tức
+
+            db.commit()
+
+            # Ghi log
+            crud_audit.log_action(db, actor_email=user.email, action="EMERGENCY_RESET", target=email,
+                                  details="Admin reset bảo mật", status="SUCCESS")
+
+            return f"✅ Đã CỨU HỘ user {email} thành công!\n- 2FA: Đã TẮT.\n- Hacker: Đã bị ĐÁ VĂNG (Kick Session).\n👉 Hãy báo user đăng nhập lại ngay."
+        except Exception as e:
+            return f"❌ Lỗi: {str(e)}"
+
     # --- DANH SÁCH TOOLS CHUNG ---
     user_tools = [
         StructuredTool.from_function(func=create_transaction_func, name="create_transaction",
@@ -232,7 +257,10 @@ def get_finbot_tools(db: Session, user: user_model.User):
             StructuredTool.from_function(func=get_admin_logs_func, name="get_system_logs",
                                          description="Admin: Xem nhật ký hoạt động."),
             StructuredTool.from_function(func=admin_search_user_func, name="check_user_info",
-                                         description="Admin: Tra cứu user theo email.", args_schema=AdminSearchInput)
+                                         description="Admin: Tra cứu user theo email.", args_schema=AdminSearchInput),
+            StructuredTool.from_function(func=admin_reset_security_func, name="admin_emergency_reset",
+                                         description="Admin: Cứu hộ khẩn cấp (Tắt 2FA + Đá session cũ) cho email cụ thể.",
+                                         args_schema=AdminSearchInput)
         ]
 
     return user_tools + admin_tools
