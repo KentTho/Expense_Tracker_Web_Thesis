@@ -1,6 +1,8 @@
 # services/chat_service.py
-import os
+import json
+import hashlib
 from datetime import date
+from typing import List, Dict
 
 # 1. Import AI Core
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -12,12 +14,42 @@ from langchain.agents import AgentExecutor, create_tool_calling_agent
 
 # 3. Import Internal Modules
 from sqlalchemy.orm import Session
+
+from core.cache import set_cached, get_cached
+from core.config import settings
 from models import user_model
 from services.chat_tools import get_finbot_tools
 from cruds.crud_category import get_user_category_names_string
 
+# =========================================================
+# ✅ CACHE HELPERS
+# =========================================================
+def generate_cache_key(user_id: int, message: str, history: List[Dict]) -> str:
+    """
+    Tạo cache key có context (tránh cache sai)
+    """
+    recent_history = history[-3:] if history else []
+    raw = f"{user_id}:{message}:{recent_history}"
+    return "chat:" + hashlib.md5(raw.encode()).hexdigest()
 
-def process_chat_message(db: Session, user: user_model.User, user_message: str, history: list = []):
+
+def is_cacheable_query(message: str) -> bool:
+    """
+    Chỉ cache các câu hỏi read-only (tránh sai dữ liệu)
+    """
+    keywords = [
+        "bao nhiêu", "thống kê", "số dư", "biểu đồ",
+        "how much", "statistics", "balance", "report"
+    ]
+    message_lower = message.lower()
+    return any(k in message_lower for k in keywords)
+
+
+def process_chat_message(
+        db: Session,
+        user: user_model.User,
+        user_message: str,
+        history: List[Dict] = []):
     """
     Hàm xử lý tin nhắn Chatbot chính:
     1. Khởi tạo LLM (Gemini)
@@ -26,12 +58,24 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
     4. Gọi Agent thực thi
     """
 
-    # --- 1. Khởi tạo Gemini Model ---
-    # ✅ ĐÃ SỬA: Dùng model 'gemini-2.5-flash' có trong danh sách khả dụng của bạn
+    # --- 1. Khởi tạo Gemini Model (Singleton-like behavior) ---
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
+        model="gemini-2.5-flash-lite", # ✅ Đã sửa: dùng model 1.5-flash chuẩn
         temperature=0,
+        google_api_key=settings.GOOGLE_API_KEY
     )
+    # =====================================================
+    # ✅ CACHE CHECK
+    # =====================================================
+    cache_key = generate_cache_key(user.id, user_message, history)
+
+    if is_cacheable_query(user_message):
+        cached = get_cached(cache_key)
+        if cached:
+            try:
+                return json.loads(cached)
+            except Exception:
+                pass  # tránh crash nếu cache lỗi
 
     # 2. Lấy Tools & Context
     tools = get_finbot_tools(db, user)
@@ -132,6 +176,8 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
 
     # Format Prompt
     formatted_system_prompt = SYSTEM_TEMPLATE.format(
+        current_date=today.strftime("%Y-%m-%d"),
+        weekday=weekday_str,
         categories=category_context,
         admin_instructions=admin_str
     )
@@ -156,7 +202,7 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
     ])
 
     agent = create_tool_calling_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
 
     try:
         result = agent_executor.invoke({
@@ -165,7 +211,18 @@ def process_chat_message(db: Session, user: user_model.User, user_message: str, 
             "current_date": today.strftime("%Y-%m-%d"),
             "weekday": weekday_str
         })
-        return result["output"]
+        output = result["output"]
+
+        # =================================================
+        # ✅ SAVE CACHE (chỉ khi safe)
+        # =================================================
+        if is_cacheable_query(user_message):
+            try:
+                set_cached(cache_key, json.dumps(output), ex=600)
+            except Exception:
+                pass
+
+        return output
 
 
     except Exception as e:

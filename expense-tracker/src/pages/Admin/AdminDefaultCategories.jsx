@@ -11,7 +11,7 @@ import {
   adminCreateDefaultCategory,
   adminUpdateDefaultCategory,
   adminDeleteDefaultCategory
-} from "../services/adminService";
+} from "../../services/adminService";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
 import { SketchPicker } from "react-color";

@@ -18,6 +18,7 @@ import {
 import toast, { Toaster } from "react-hot-toast"; 
 import { BACKEND_BASE } from "../../services/api";
 import { getToken } from "../../services/incomeService"; 
+import ExportStatusModal from "../../components/ExportStatusModal";
 
 export default function ExportData() {
   const { theme, currencyCode } = useOutletContext();
@@ -29,6 +30,12 @@ export default function ExportData() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   const [previewFilter, setPreviewFilter] = useState("all");
+
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportTaskId, setExportTaskId] = useState(null);
+  const [exportStatus, setExportStatus] = useState(null); // pending | processing | completed | failed
+  const [exportType, setExportType] = useState(null);     // 'income' | 'expense'
+  const [exportFileUrl, setExportFileUrl] = useState(null);
 
   // ===========================
   // 🧩 HELPER: CURRENCY FORMATTING
@@ -167,6 +174,86 @@ export default function ExportData() {
       netBalance: income - expense
     };
   }, [filteredData]); 
+
+
+  // Hàm poll task status (thêm hàm này)
+  const pollExportStatus = useCallback(async (taskId) => {
+    if (!taskId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${BACKEND_BASE}/export/status/${taskId}`, {
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+          },
+        });
+        const data = await res.json();
+
+        setExportStatus(data.status);
+
+        if (data.status === 'completed') {
+          clearInterval(interval);
+          setExportFileUrl(data.file_url);
+          toast.success(`Xuất ${exportType} hoàn tất!`);
+        } else if (data.status === 'failed') {
+          clearInterval(interval);
+          toast.error('Xuất file thất bại. Vui lòng thử lại.');
+        }
+      } catch (err) {
+        console.error(err);
+        clearInterval(interval);
+        toast.error('Lỗi khi kiểm tra trạng thái export.');
+      }
+    }, 3000); // poll mỗi 3 giây
+
+    // Cleanup khi component unmount hoặc task hoàn tất
+    return () => clearInterval(interval);
+  }, [exportType]);
+
+  // Effect theo dõi khi taskId thay đổi
+  useEffect(() => {
+    if (exportTaskId) {
+      const cleanup = pollExportStatus(exportTaskId);
+      return cleanup;
+    }
+  }, [exportTaskId, pollExportStatus]);
+
+  // ────────────────────────────────────────────────
+  // Thay thế / bổ sung vào hai nút export hiện có
+  // Ví dụ: thay vì gọi download trực tiếp, gọi hàm mới
+
+  const handleExport = async (type) => {   // type: 'income' hoặc 'expense'
+    try {
+      setIsDownloading(true);
+      setExportType(type);
+      setExportStatus('pending');
+      setExportFileUrl(null);
+
+      const res = await fetch(`${BACKEND_BASE}/export/${type}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+
+      if (!res.ok) throw new Error('Export request failed');
+
+      const data = await res.json();
+
+      if (data.task_id) {
+        setExportTaskId(data.task_id);
+        setShowExportModal(true);
+        toast.loading(`Đang xử lý xuất ${type}...`);
+      } else {
+        toast.error('Không nhận được task export');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Lỗi khi khởi tạo export');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   // ===========================
   // 💄 UI RENDER
@@ -455,7 +542,72 @@ export default function ExportData() {
             </div>
           </div>
         </div>
+
       </main>
+      {showExportModal && (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className={`w-full max-w-md rounded-2xl p-6 shadow-2xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <FileSpreadsheet size={20} />
+            Đang xuất dữ liệu {exportType === 'income' ? 'thu nhập' : 'chi tiêu'}
+          </h3>
+
+          <div className="space-y-4">
+            <p className="text-sm opacity-80">
+              Task ID: <span className="font-mono text-xs">{exportTaskId}</span>
+            </p>
+
+            <div className="flex items-center gap-3">
+              {exportStatus === 'completed' ? (
+                <>
+                  <CheckCircle2 className="text-green-500" size={28} />
+                  <span className="font-medium text-green-600 dark:text-green-400">Hoàn tất!</span>
+                </>
+              ) : exportStatus === 'failed' ? (
+                <>
+                  <AlertTriangle className="text-red-500" size={28} />
+                  <span className="font-medium text-red-600 dark:text-red-400">Thất bại</span>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="animate-spin text-blue-500" size={28} />
+                  <span className="font-medium">Đang xử lý...</span>
+                </>
+              )}
+            </div>
+
+            {exportStatus === 'completed' && exportFileUrl && (
+              <a
+                href={exportFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl text-center transition mt-4"
+              >
+                Tải file ngay
+              </a>
+            )}
+
+            <button
+              onClick={() => {
+                setShowExportModal(false);
+                setExportTaskId(null);
+                setExportStatus(null);
+              }}
+              className={`w-full py-3 px-4 rounded-xl font-medium transition ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </div>
+      )}
+      <ExportStatusModal
+        isOpen={showExportModal}
+        taskId={exportTaskId}
+        status={exportStatus}
+        onClose={() => setShowExportModal(false)}
+      />
     </div>
+
   );
 }

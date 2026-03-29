@@ -41,3 +41,20 @@ class AdminUserGrowth(BaseModel):
     """Schema cho biểu đồ tăng trưởng user"""
     date: str # Định dạng 'YYYY-MM-DD'
     count: int
+
+# --- Schemas cho System Settings ---
+
+class SystemSettingsOut(BaseModel):
+    id: int
+    maintenance_mode: bool
+    allow_signup: bool
+    broadcast_message: Optional[str]
+    updated_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class SystemSettingsUpdate(BaseModel):
+    maintenance_mode: Optional[bool] = None
+    allow_signup: Optional[bool] = None
+    broadcast_message: Optional[str] = None

@@ -1,0 +1,30 @@
+/* Ẩn thanh Toolbar Google Translate trên cùng */
+.goog-te-banner-frame.skiptranslate {
+    display: none !important;
+}
+
+/* Đẩy body lên lại vị trí cũ (do Google mặc định đẩy body xuống 40px) */
+body {
+    top: 0px !important;
+}
+
+/* Ẩn các tooltip khi hover vào văn bản đã dịch */
+.goog-tooltip {
+    display: none !important;
+}
+
+.goog-tooltip:hover {
+    display: none !important;
+}
+
+.goog-text-highlight {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Ẩn logo google trong widget ẩn */
+font {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}

@@ -123,7 +123,7 @@ def get_finbot_tools(db: Session, user: user_model.User):
             txs = crud_transaction.get_recent_transactions(db, user.id, limit)
             if not txs: return "Không có giao dịch nào."
             res = ""
-            for t in txs: res += f"- {t.transaction_date}: {t.type} {t.amount:,.0f} ({t.category_name}) Note: {t.note}\n"
+            for t in txs: res += f"- {t.date}: {t.type} {t.amount:,.0f} ({t.category_name}) Note: {t.note}\n"
             return res
         except Exception as e:
             return f"Lỗi: {str(e)}"

@@ -13,11 +13,11 @@ import SecuritySettings from "./pages/Dashboard/SecuritySettings";
 import Category from "./pages/Dashboard/Category";
 import Analytics from "./pages/Dashboard/Analytics";
 import DashboardLayout from "./layouts/DashboardLayout"; // ✅ layout chứa Sidebar
-import AdminUserManagement from "./pages/AdminUserManagement";
-import AdminDefaultCategories from "./pages/AdminDefaultCategories";
-import AdminDashboard from "./pages/AdminDashboard"; // 👈 IMPORT TRANG MỚI
-import AdminSystemSettings from "./pages/AdminSystemSettings";
-import AdminAuditLogs from "./pages/AdminAuditLogs";
+import AdminUserManagement from "./pages/Admin/AdminUserManagement";
+import AdminDefaultCategories from "./pages/Admin/AdminDefaultCategories";
+import AdminDashboard from "./pages/Admin/AdminDashboard"; // 👈 IMPORT TRANG MỚI
+import AdminSystemSettings from "./pages/Admin/AdminSystemSettings";
+import AdminAuditLogs from "./pages/Admin/AdminAuditLogs";
 // ✅ Hàm kiểm tra đăng nhập
 const Root = () => {
   const isAuthenticated = !!localStorage.getItem("idToken");

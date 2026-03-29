@@ -19,21 +19,60 @@ from firebase_admin.auth import UserNotFoundError
 # 1. ADMIN STATS (Thống kê)
 # =========================================================
 
+from models import user_model, transaction_model, category_model, system_model
+# ... (imports)
+
+# =========================================================
+# 4. SYSTEM SETTINGS (Cấu hình hệ thống)
+# =========================================================
+
+def admin_get_system_settings(db: Session):
+    """Lấy cấu hình hệ thống duy nhất (ID=1)"""
+    settings = db.query(system_model.SystemSetting).filter(system_model.SystemSetting.id == 1).first()
+    if not settings:
+        # Nếu chưa có thì tạo mới bản ghi mặc định
+        settings = system_model.SystemSetting(id=1, maintenance_mode=False, allow_signup=True)
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+def admin_update_system_settings(db: Session, update_data: dict):
+    """Cập nhật cấu hình hệ thống"""
+    settings = admin_get_system_settings(db)
+    for key, value in update_data.items():
+        if value is not None:
+            setattr(settings, key, value)
+    db.commit()
+    db.refresh(settings)
+    return settings
+
 def admin_get_global_kpis(db: Session):
-    """Lấy KPI thống kê toàn hệ thống (Đã nâng cấp)"""
+    """Lấy KPI thống kê toàn hệ thống từ bảng Transaction duy nhất"""
 
-    # 1. Các chỉ số tài chính (Cũ)
-    total_users = db.query(func.count(user_model.User.id)).scalar()
-    total_income = db.query(func.sum(income_model.Income.amount)).scalar() or Decimal(0)
-    total_expense = db.query(func.sum(expense_model.Expense.amount)).scalar() or Decimal(0)
+    # 1. Đếm tổng User
+    total_users = db.query(func.count(user_model.User.id)).scalar() or 0
 
-    # 2. ✅ TÍNH TOÁN CHỈ SỐ MỚI
-    # Đếm user đã bật 2FA
+    # 2. Tính toán tài chính từ bảng Transaction
+    # Chúng ta dùng 1 query duy nhất để lấy cả Thu và Chi
+    totals = db.query(
+        transaction_model.Transaction.type,
+        func.sum(transaction_model.Transaction.amount).label("total")
+    ).group_by(transaction_model.Transaction.type).all()
+
+    total_income = 0
+    total_expense = 0
+    for t_type, t_amount in totals:
+        if t_type == 'income':
+            total_income = float(t_amount)
+        elif t_type == 'expense':
+            total_expense = float(t_amount)
+
+    # 3. Các chỉ số bảo mật và tăng trưởng
     total_2fa = db.query(func.count(user_model.User.id)).filter(
         user_model.User.is_2fa_enabled == True
     ).scalar() or 0
 
-    # Đếm user mới trong 24h qua
     one_day_ago = datetime.utcnow() - timedelta(hours=24)
     new_users = db.query(func.count(user_model.User.id)).filter(
         user_model.User.created_at >= one_day_ago
@@ -41,10 +80,9 @@ def admin_get_global_kpis(db: Session):
 
     return {
         "total_users": total_users,
-        "total_income": float(total_income),
-        "total_expense": float(total_expense),
-        "net_balance": float(total_income - total_expense),
-        # ✅ Trả về dữ liệu mới
+        "total_income": total_income,
+        "total_expense": total_expense,
+        "net_balance": total_income - total_expense,
         "total_2fa_users": total_2fa,
         "new_users_24h": new_users
     }

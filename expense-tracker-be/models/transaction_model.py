@@ -25,9 +25,11 @@ class Transaction(Base):
 
     type = Column(String(10), nullable=False)  # 'income' hoặc 'expense'
     amount = Column(Numeric(14, 2), nullable=False)
-    source_or_category = Column(String(255))
-    note = Column(Text)
-    transaction_date = Column(Date, nullable=False)
+    currency_code = Column(String(3), default="USD", nullable=False)
+    category_name = Column(String(255)) # Lưu tên để hiển thị nhanh
+    emoji = Column(String(64), nullable=True)
+    note = Column(Text, nullable=True)
+    date = Column(Date, nullable=False, default=func.current_date())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Quan hệ

@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
+import LanguageSwitcher from "./LanguageSwitcher";
 import {
   Home, TrendingUp, Wallet, Settings, LogOut, Sun, Moon,
   BarChart2, Download, Lock, Tag, Users, Shield,
@@ -184,7 +185,7 @@ export default function Sidebar({
 
             {/* ---------- MENU ITEMS ---------- */}
             {/* 🔥 FIX 2: Tăng pb-32 để nội dung cuối không bị Footer che mất */}
-            <nav className="flex flex-col gap-1 px-3 flex-1 pb-32">
+            <nav className="flex flex-col gap-1 px-3 flex-1 pb-44">
             {menus.map((section, index) => (
                 <div key={index} className="mb-4">
                 {!collapsed && (
@@ -255,6 +256,12 @@ export default function Sidebar({
                     </div>
                 )}
             </div>
+
+            {!collapsed && (
+                <div className="mt-3 flex justify-center animate-fadeIn">
+                    <LanguageSwitcher />
+                </div>
+            )}
 
             {!collapsed && (
                 <div className="grid grid-cols-2 gap-2 mt-3 animate-fadeIn">

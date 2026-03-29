@@ -55,3 +55,5 @@ class ExpenseTrendItem(BaseModel):
     class Config:
         from_attributes = True
         # Allow population by field name (e.g., 'total_amount')
+
+

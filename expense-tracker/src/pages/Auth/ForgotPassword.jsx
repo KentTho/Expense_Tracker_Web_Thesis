@@ -7,6 +7,7 @@ import { auth } from "../../components/firebase";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import axios from "axios"; 
+import { BACKEND_BASE } from "../../services/api";
 
 // 💡 Imports UI + Icons
 import AuthLayout from "../../components/AuthLayout";
@@ -30,7 +31,7 @@ export default function ForgotPassword() {
     setIsSendingSupport(true);
     try {
         // Gọi API Backend
-        await axios.post("http://localhost:8000/auth/api/public/support-request", {
+        await axios.post(`${BACKEND_BASE}/auth/api/public/support-request`, {
             email: supportData.email,
             issue_type: supportData.issue,
             message: supportData.message

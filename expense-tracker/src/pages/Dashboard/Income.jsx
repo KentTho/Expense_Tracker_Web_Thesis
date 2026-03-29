@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { useTranslation } from "react-i18next"; 
 import {
     PlusCircle,
     Trash2,
@@ -61,7 +60,7 @@ const formatAmountDisplay = (amount, currencyCode = 'USD') => {
 };
 
 // CustomTooltip
-const CustomTooltip = ({ active, payload, label, currencyCode, t }) => {
+const CustomTooltip = ({ active, payload, label, currencyCode }) => {
     if (active && payload && payload.length) {
         return (
             <div className="p-3 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl backdrop-blur-sm z-50">
@@ -76,7 +75,6 @@ const CustomTooltip = ({ active, payload, label, currencyCode, t }) => {
 };
 
 export default function Income() {
-    const { t } = useTranslation(); 
     
     // Lấy context
     const { theme, currencyCode } = useOutletContext(); 
@@ -169,7 +167,7 @@ export default function Income() {
 
     const handleFormSubmit = async () => {
         if (!form.amount || !form.date) {
-            toast.error(t ? t('common.fill_required') : "Please fill required fields."); 
+            toast.error("Please fill required fields.");
             return;
         }
         

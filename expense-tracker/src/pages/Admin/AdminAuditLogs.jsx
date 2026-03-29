@@ -6,7 +6,7 @@ import {
     FileText, AlertCircle, CheckCircle2, RefreshCw, Search, Terminal, SearchX, Loader2,
     User, Target, Clock, ShieldAlert, Zap, LifeBuoy
 } from "lucide-react";
-import { adminGetAuditLogs } from "../services/adminService";
+import { adminGetAuditLogs } from "../../services/adminService";
 import { toast, Toaster } from "react-hot-toast";
 
 // Helper format thời gian

@@ -41,7 +41,6 @@ import {
 import { getRecentTransactions } from "../../services/transactionService";
 import { fetchSystemSettings } from "../../services/adminService";
 import { getUserProfile } from "../../services/profileService"; 
-
 const BREAKDOWN_COLORS = [
     "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", 
     "#6366F1", "#EF4444", "#14B8A6", "#F97316", "#A8A29E"
@@ -297,7 +296,8 @@ export default function Home() {
                         </p>
                     </div>
                     
-                    <div className="relative hidden sm:block" ref={addMenuRef}>
+                    <div className="relative hidden sm:block flex items-center gap-3" ref={addMenuRef}>
+                        
                         <button 
                             onClick={() => setShowAddMenu(prev => !prev)} 
                             className="px-5 py-2.5 rounded-full bg-blue-600 text-white font-semibold shadow-lg hover:bg-blue-500 hover:shadow-blue-500/30 transition-all transform hover:-translate-y-0.5 flex items-center gap-2"

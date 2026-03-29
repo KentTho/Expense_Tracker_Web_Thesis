@@ -52,7 +52,10 @@ def verify_token_and_get_payload(id_token: str):
 # ----------------------
 # Dependency: get current user
 # ----------------------
-def get_current_user_db(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user_db(
+        token: str = Depends(oauth2_scheme),
+        db: Session = Depends(get_db)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",

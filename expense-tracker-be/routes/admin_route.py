@@ -136,6 +136,37 @@ def delete_user_by_admin(
 
 
 # =========================================================
+# 4. SYSTEM SETTINGS (MỚI)
+# =========================================================
+
+@router.get("/settings", response_model=admin_schemas.SystemSettingsOut)
+def get_admin_settings(db: Session = Depends(get_db)):
+    """Lấy cấu hình hệ thống hiện tại"""
+    return crud_admin.admin_get_system_settings(db)
+
+@router.put("/settings", response_model=admin_schemas.SystemSettingsOut)
+def update_admin_settings(
+    payload: admin_schemas.SystemSettingsUpdate,
+    request: Request,
+    current_admin=Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Cập nhật cấu hình hệ thống và ghi Log"""
+    updated_settings = crud_admin.admin_update_system_settings(db, payload.model_dump(exclude_unset=True))
+    
+    # Ghi log hoạt động
+    crud_audit.create_audit_log(
+        db=db,
+        action="UPDATE_SYSTEM_SETTINGS",
+        actor_email=current_admin.email,
+        target="SYSTEM_CONFIG",
+        status="SUCCESS",
+        details=f"Updated settings: {payload.model_dump(exclude_unset=True)}",
+        ip_address=request.client.host
+    )
+    return updated_settings
+
+# =========================================================
 # 3. CATEGORY MANAGEMENT (GIỮ NGUYÊN)
 # =========================================================
 

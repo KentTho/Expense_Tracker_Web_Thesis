@@ -13,12 +13,19 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from db.database import Base
+from sqlalchemy import Index
+
 
 # ======================================================
 # 💸 EXPENSE MODEL
 # ======================================================
 class Expense(Base):
     __tablename__ = "expenses"
+    __table_args__ = (
+        Index('ix_expense_user_date', 'user_id', 'date'),  # Query báo cáo tháng siêu nhanh
+        Index('ix_expense_category_date', 'category_id', 'date'),
+    )
+
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -33,5 +40,5 @@ class Expense(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Quan hệ
-    user = relationship("User", back_populates="expenses")
-    category = relationship("Category", back_populates="expenses")
+    user = relationship("User", foreign_keys=[user_id], viewonly=True, overlaps="expenses,transactions")
+    category = relationship("Category", foreign_keys=[category_id], viewonly=True, overlaps="expenses,transactions")

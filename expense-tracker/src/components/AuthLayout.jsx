@@ -17,7 +17,7 @@ export default function AuthLayout({ children, rightContent }) {
 
   return (
     // Sử dụng min-h-screen và flex để căn giữa
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="relative min-h-screen flex items-center justify-center p-4">
       
       {/* Container chính với 2 cột */}
       <div className="w-full max-w-7xl grid md:grid-cols-2 gap-8 items-center">

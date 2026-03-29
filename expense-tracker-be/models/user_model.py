@@ -28,7 +28,7 @@ class User(Base):
     birthday = Column(Date, nullable=True)
     profile_image = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    currency_code = Column(String(5), nullable=False, default="USD")
+    currency_code = Column(String(3), nullable=False, default="USD")
     currency_symbol = Column(String(5), nullable=False, default="$")
     is_2fa_enabled: sa.Column[bool] = sa.Column(sa.Boolean, default=False, nullable=False)
     otp_secret: sa.Column[str] = sa.Column(sa.String, nullable=True)
@@ -39,8 +39,16 @@ class User(Base):
     has_onboard = Column(Boolean, default=False, nullable=False)
     is_email_verified = Column(Boolean, default=False)
 
-    # Quan hệ (Relationship)
-    incomes = relationship("Income", back_populates="user", cascade="all, delete-orphan")
-    expenses = relationship("Expense", back_populates="user", cascade="all, delete-orphan")
-    categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")
+    # Quan hệ (Hợp nhất về bảng Transaction)
     transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
+    incomes = relationship(
+        "Transaction",
+        primaryjoin="and_(User.id==Transaction.user_id, Transaction.type=='income')",
+        viewonly=True
+    )
+    expenses = relationship(
+        "Transaction",
+        primaryjoin="and_(User.id==Transaction.user_id, Transaction.type=='expense')",
+        viewonly=True
+    )
+    categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")

@@ -13,6 +13,7 @@ from cruds.crud_income import get_income_summary # Lấy hàm summary từ Incom
 from cruds.crud_expense import get_expense_summary # Lấy hàm summary từ Expense CRUD
 
 from db.database import get_db
+from cruds.crud_summary import get_financial_kpi_summary
 from schemas import SummaryOut, DashboardResponse # Giả sử các Schema này tồn tại
 from services.auth_token_db import get_current_user_db # Giả sử hàm xác thực này tồn tại
 
@@ -25,8 +26,9 @@ router = APIRouter(tags=["Dashboard & Analytics"])
 def get_dashboard_summary(current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
     """Lấy tổng thu nhập, chi tiêu và số dư sử dụng bảng Income/Expense."""
     # Sử dụng các hàm summary đã được import từ các file CRUD nhỏ
-    total_income = float(get_income_summary(db, current_user.id) or 0)
-    total_expense = float(get_expense_summary(db, current_user.id) or 0)
+    summary = get_financial_kpi_summary(db, current_user.id)
+    total_income = float(summary["total_income"] or 0)
+    total_expense = float(summary["total_expense"] or 0)
     return {
         "total_income": total_income,
         "total_expense": total_expense,

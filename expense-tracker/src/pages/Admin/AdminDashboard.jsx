@@ -15,7 +15,7 @@ import {
     adminGetGlobalKPIs, 
     adminGetGlobalUserGrowth,
     adminGetAllUsers 
-} from "../services/adminService";
+} from "../../services/adminService";
 
 // Helper format tiền tệ an toàn
 const formatAmountDisplay = (amount) => {

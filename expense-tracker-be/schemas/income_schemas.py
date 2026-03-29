@@ -8,16 +8,13 @@ from decimal import Decimal
 
 class IncomeBase(BaseModel):
     """Schema cơ bản cho bảng thu nhập"""
-    # ✅ TRƯỜNG BỊ THIẾU: BẮT BUỘC PHẢI THÊM VÀO ĐÂY
     category_name: Optional[str] = None
-
     amount: Decimal
     currency_code: str = "USD"  # 💡 Bổ sung
     date: date
     emoji: Optional[str] = None
     note: Optional[str] = None
     category_id: Optional[UUID] = None  # Liên kết Category (nếu có)
-
 
 class IncomeCreate(IncomeBase):
     """Schema tạo mới thu nhập"""
@@ -34,7 +31,6 @@ class IncomeOut(IncomeBase):
     class Config:
         from_attributes = True
 
-# ✅ THÊM: Schema mới cho API list
 class IncomeListOut(BaseModel):
     """Schema phản hồi cho danh sách thu nhập kèm cài đặt tiền tệ."""
     items: List[IncomeOut]
@@ -59,3 +55,4 @@ class IncomeSummaryOut(BaseModel):
         json_encoders = {
             Decimal: lambda v: str(v),
         }
+

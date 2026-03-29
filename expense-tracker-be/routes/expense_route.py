@@ -39,8 +39,8 @@ def list_expenses(current_user=Depends(get_current_user_db), db: Session = Depen
     # CRUD đã trả về dict có items, currency_code, currency_symbol, khớp với ExpenseListOut
     return list_expenses_for_user(db, current_user.id)
 @router.put("/{expense_id}", response_model=ExpenseOut)
-def update_expense(expense_id: UUID, update_data: dict, current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
-    updated = crud_update_expense(db, expense_id, current_user.id, update_data)
+def update_expense(expense_id: UUID, update_data: ExpenseCreate, current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
+    updated = crud_update_expense(db, expense_id, current_user.id, update_data.model_dump())
     if not updated:
         raise HTTPException(status_code=404, detail="Expense not found")
     return updated

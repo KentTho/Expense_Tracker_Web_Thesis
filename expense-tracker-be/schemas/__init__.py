@@ -1,4 +1,10 @@
-from .user_schemas import UserUpdate, UserOut, UserSyncPayload
+from .user_schemas import (
+    UserUpdate,
+    UserOut,
+    UserSyncPayload,
+    SupportRequest,
+    Token,
+)
 from .category_schemas import (
     CategoryBase, CategoryCreate, CategoryOut,
     DefaultCategoryOut, DefaultCategoryItem, DefaultCategoryResponse

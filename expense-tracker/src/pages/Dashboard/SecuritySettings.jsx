@@ -60,13 +60,16 @@ export default function SecuritySettings() {
   });
   const [loadingSettings, setLoadingSettings] = useState(true);
 
-  // 2FA Modal States
-  const [show2FAModal, setShow2FAModal] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
+  // 2FA Modal
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrData, setQrData] = useState({ qr_url: "", secret: "" });
+  const [verifyCode, setVerifyCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // --- LOGIC FETCH DATA ---
+
+  // ===========================
+  // 🧩 LOGIC: FETCH DATA
+  // ===========================
   const fetchSessionInfo = useCallback(async () => {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -108,92 +111,9 @@ export default function SecuritySettings() {
     fetchSecuritySettings();
   }, [fetchSessionInfo, fetchSecuritySettings]);
 
-  // --- LOGIC HANDLERS ---
-  const handleSettingsChange = async (e) => {
-    const { name, checked } = e.target;
-    
-    if (name === "is_2fa_enabled") {
-        if (checked) {
-            const user = auth.currentUser;
-            if (user) {
-                await user.reload(); 
-                if (!user.emailVerified) {
-                    toast.error("Please verify your email first.");
-                    setTimeout(() => navigate("/profile"), 2000);
-                    return; 
-                }
-            }
-            handleStart2FA(); 
-        } else {
-             try {
-                await updateSecuritySettings({ is_2fa_enabled: false });
-                if (settings.restrict_multi_device) {
-                    await updateSecuritySettings({ restrict_multi_device: false });
-                    setSettings(prev => ({ ...prev, is_2fa_enabled: false, restrict_multi_device: false }));
-                    toast.info("2FA & Single Device Mode Disabled.");
-                } else {
-                    setSettings(prev => ({ ...prev, is_2fa_enabled: false }));
-                    toast.info("2FA Disabled.");
-                }
-            } catch (err) { 
-                toast.error("Failed to update settings."); 
-            }
-        }
-        return;
-    }
-
-    if (name === "restrict_multi_device") {
-        if (checked && !settings.is_2fa_enabled) {
-            toast.warn("Requirement: Please enable 2FA first!");
-            return;
-        }
-    }
-
-    setSettings(prev => ({ ...prev, [name]: checked }));
-    
-    try {
-      await updateSecuritySettings({ [name]: checked });
-      if (name === 'restrict_multi_device') {
-          toast.success(checked ? "Single Device Mode Enabled 🛡️" : "Single Device Mode Disabled");
-      } else {
-          toast.success("Settings updated");
-      }
-    } catch (error) {
-      toast.error("Update failed. Please try again.");
-      setSettings(prev => ({ ...prev, [name]: !checked }));
-    }
-  };
-
-  const handleStart2FA = async () => {
-    const toastId = toast.loading("Initializing 2FA setup...");
-    try {
-      const data = await start2FA();
-      setQrCodeUrl(data.qr_url); 
-      setShow2FAModal(true);
-      toast.dismiss(toastId);
-    } catch (error) {
-      toast.update(toastId, { render: "Failed to start 2FA.", type: "error", isLoading: false, autoClose: 3000 });
-    }
-  };
-
-  const handleVerify2FA = async (e) => {
-    e.preventDefault();
-    if (!verificationCode) return;
-    
-    setIsVerifying(true);
-    try {
-      await verify2FA(verificationCode);
-      toast.success("2FA Enabled Successfully! 🎉");
-      setSettings(prev => ({ ...prev, is_2fa_enabled: true }));
-      setShow2FAModal(false);
-      setVerificationCode("");
-    } catch (error) {
-      toast.error(error.message || "Invalid code. Please try again.");
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
+  // ===========================
+  // 🧩 HANDLE REFRESH TOKEN (ĐÃ BỔ SUNG)
+  // ===========================
   const handleRefreshToken = async () => {
     const toastId = toast.loading("Refreshing session...");
     try {
@@ -208,6 +128,128 @@ export default function SecuritySettings() {
     }
   };
 
+  const handleStart2FA = async () => {
+    const toastId = toast.loading("Initializing 2FA setup...");
+  
+    try {
+      const data = await start2FA();
+  
+      setQrData({
+        qr_url: data.qr_url,
+        secret: data.secret
+      });
+  
+      setShowQRModal(true);
+  
+      toast.dismiss(toastId);
+      toast.success("Scan QR with Authenticator");
+    } catch (error) {
+      toast.update(toastId, {
+        render: "Failed to start 2FA",
+        type: "error",
+        isLoading: false,
+        autoClose: 3000
+      });
+    }
+  };
+
+  const handleVerify2FA = async () => {
+    if (!verifyCode || verifyCode.length !== 6) {
+      toast.error('Please enter a 6-digit code.');
+      return;
+    }
+  
+    setIsVerifying(true);
+  
+    try {
+      await verify2FA({ code: verifyCode }); // ✅ FIX
+  
+      toast.success("2FA Enabled Successfully! 🎉");
+  
+      setSettings(prev => ({
+        ...prev,
+        is_2fa_enabled: true
+      }));
+  
+      setShowQRModal(false);
+      setVerifyCode("");
+  
+    } catch (error) {
+      toast.error(error.message || "Invalid code.");
+    } finally {
+      setIsVerifying(false); // ✅ FIX
+    }
+  };
+
+  // --- LOGIC HANDLERS ---
+  const handleSettingsChange = async (e) => {
+    const { name, checked } = e.target;
+  
+    // ===== 2FA =====
+    if (name === "is_2fa_enabled") {
+      if (checked) {
+        const user = auth.currentUser;
+  
+        if (user) {
+          await user.reload();
+  
+          if (!user.emailVerified) {
+            toast.error("Please verify your email first.");
+            setTimeout(() => navigate("/profile"), 2000);
+            return;
+          }
+        }
+  
+        handleStart2FA();
+      } else {
+        try {
+          await updateSecuritySettings({ is_2fa_enabled: false });
+  
+          setSettings(prev => ({
+            ...prev,
+            is_2fa_enabled: false,
+            restrict_multi_device: false
+          }));
+  
+          toast.info("2FA Disabled");
+        } catch {
+          toast.error("Failed to update settings.");
+        }
+      }
+  
+      return;
+    }
+  
+    // ===== RESTRICT DEVICE =====
+    if (name === "restrict_multi_device") {
+      if (checked && !settings.is_2fa_enabled) {
+        toast.warn("Please enable 2FA first!");
+        return;
+      }
+    }
+  
+    setSettings(prev => ({ ...prev, [name]: checked }));
+  
+    try {
+      await updateSecuritySettings({ [name]: checked });
+  
+      toast.success(
+        name === "restrict_multi_device"
+          ? (checked ? "Single Device Enabled 🛡️" : "Single Device Disabled")
+          : "Settings updated"
+      );
+  
+    } catch {
+      toast.error("Update failed");
+  
+      // rollback
+      setSettings(prev => ({ ...prev, [name]: !checked }));
+    }
+  };
+
+  // ===========================
+  // 🧩 LOGIC: LOGOUT
+  // ===========================
   const handleLogout = () => {
     signOut(auth);
     setSessionActive(false);
@@ -215,12 +257,7 @@ export default function SecuritySettings() {
     setTimeout(() => navigate("/login"), 800);
   };
 
-  const QRCodeComponent = ({ url }) => (
-    <div className="p-4 bg-white rounded-xl shadow-inner inline-block">
-      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(url)}`} alt="QR Code" className="mix-blend-multiply" />
-    </div>
-  );
-
+  
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
       
@@ -369,46 +406,61 @@ export default function SecuritySettings() {
 
       </main>
 
-      {/* --- 2FA MODAL --- */}
-      {show2FAModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className={`p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-sm relative overflow-hidden ${isDark ? "bg-gray-800" : "bg-white"}`}>
-            
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-purple-500" />
-            
-            <div className="text-center mb-6">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-blue-500/10 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <QrCode size={28} className="sm:w-[32px] sm:h-[32px]" />
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold">Setup 2FA</h2>
-                <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                   Scan with Authenticator App.
+      {showQRModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-sm sm:max-w-md rounded-2xl p-6 shadow-2xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <QrCode size={20} /> Kích hoạt 2FA
+            </h3>
+
+            <div className="flex flex-col items-center gap-4 mb-6">
+              {qrData.qr_url ? (
+                <img 
+                  src={qrData.qr_url} 
+                  alt="QR Code 2FA" 
+                  className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-lg border"
+                />
+              ) : (
+                <Loader2 className="animate-spin text-blue-500" size={48} />
+              )}
+              
+              <div className="text-center text-sm opacity-80">
+                <p>Quét mã QR bằng Google Authenticator / Microsoft Authenticator</p>
+                <p className="mt-1 font-mono text-xs break-all">
+                  Secret: {qrData.secret}
                 </p>
-            </div>
-            
-            <div className="flex justify-center mb-6">
-                {qrCodeUrl ? <QRCodeComponent url={qrCodeUrl} /> : <Loader2 className="animate-spin text-blue-500" size={40} />}
-            </div>
-            
-            <form onSubmit={handleVerify2FA} className="space-y-4 sm:space-y-5">
-              <div>
-                  <label className="text-[10px] sm:text-xs font-bold uppercase text-gray-500 mb-2 block text-center">Enter 6-digit Code</label>
-                  <input 
-                    type="text"
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                    placeholder="000000"
-                    maxLength={6}
-                    className={`w-full px-4 py-3 rounded-xl text-center text-xl sm:text-2xl font-mono tracking-[0.5em] border outline-none transition-all focus:ring-2 focus:ring-blue-500 ${isDark ? "bg-gray-900 border-gray-700 text-white" : "bg-gray-50 border-gray-300 text-gray-900"}`}
-                  />
               </div>
+            </div>
+
+            <div className="space-y-4">
+              <input
+                type="text"
+                maxLength={6}
+                placeholder="Nhập mã 6 số"
+                value={verifyCode}
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
+                className={`w-full px-4 py-3 rounded-xl border text-center text-xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'}`}
+              />
+
               <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => setShow2FAModal(false)} className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition text-sm sm:text-base ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}>Cancel</button>
-                <button type="submit" disabled={isVerifying || !verificationCode} className="px-4 py-2.5 sm:py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg disabled:opacity-50 flex justify-center items-center text-sm sm:text-base">
-                    {isVerifying ? <Loader2 className="animate-spin" size={20} /> : "Enable"}
+                <button
+                  type="button"
+                  onClick={() => setShowQRModal(false)}
+                  className={`py-3 rounded-xl font-medium transition ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  disabled={isVerifying || verifyCode.length !== 6}
+                  onClick={handleVerify2FA}
+                  className="py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isVerifying ? <Loader2 className="animate-spin" size={18} /> : null}
+                  Xác thực
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

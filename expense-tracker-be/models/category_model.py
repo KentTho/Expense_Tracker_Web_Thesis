@@ -24,8 +24,16 @@ class Category(Base):
     icon = Column(String(50))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Quan hệ
+    # Quan hệ (Hợp nhất về bảng Transaction)
     user = relationship("User", back_populates="categories")
-    incomes = relationship("Income", back_populates="category")
-    expenses = relationship("Expense", back_populates="category")
-    transactions = relationship("Transaction", back_populates="category")
+    transactions = relationship("Transaction", back_populates="category", cascade="all, delete-orphan")
+    incomes = relationship(
+        "Transaction",
+        primaryjoin="and_(Category.id==Transaction.category_id, Transaction.type=='income')",
+        viewonly=True
+    )
+    expenses = relationship(
+        "Transaction",
+        primaryjoin="and_(Category.id==Transaction.category_id, Transaction.type=='expense')",
+        viewonly=True
+    )

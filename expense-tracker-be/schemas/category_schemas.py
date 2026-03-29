@@ -2,12 +2,18 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
+from enum import Enum
+
+
+class CategoryType(str, Enum):
+    income = "income"
+    expense = "expense"
 
 
 class CategoryBase(BaseModel):
     """Schema cơ bản cho danh mục thu/chi"""
     name: str
-    type: str                            # "income" hoặc "expense"
+    type: CategoryType                            # "income" hoặc "expense"
     color: Optional[str] = None
     icon: Optional[str] = None
 
@@ -33,7 +39,7 @@ class CategoryOut(CategoryBase):
 class DefaultCategoryOut(BaseModel):
     id: Optional[UUID] = None # Giữ lại để tránh lỗi Pydantic
     name: str
-    type: str
+    type: CategoryType
     icon: Optional[str] = None
     color: Optional[str] = None
 
@@ -46,7 +52,7 @@ class DefaultCategoryItem(BaseModel):
 
 
 class DefaultCategoryResponse(BaseModel):
-    type: str
+    type: CategoryType
     categories: List[DefaultCategoryItem]
 
     class Config:

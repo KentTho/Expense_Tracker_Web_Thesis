@@ -1,0 +1,31 @@
+1. Khởi động Frontend (FE)
+Mở một Terminal, di chuyển vào thư mục chứa code Frontend và gõ lệnh sau:
+
+Bash
+npm run dev
+(Lệnh này sẽ đánh thức giao diện người dùng, thường chạy ở địa chỉ http://localhost:3000 hoặc http://localhost:5173).
+
+2. Khởi động Backend (BE)
+Mở một cửa sổ Terminal thứ hai, đảm bảo bạn đang đứng ở thư mục Backend (F:\Intern\KhoaLuan\Expense_Tracker\expense-tracker-be) và thực hiện lần lượt 2 bước:
+
+Bước 1: Kích hoạt môi trường ảo (.venv)
+Trên hệ điều hành Windows, bạn dùng lệnh này để bật không gian làm việc riêng biệt cho Python:
+
+Bash
+.\.venv\Scripts\activate
+(Dấu hiệu thành công: Bạn sẽ thấy chữ (.venv) xuất hiện ở ngay đầu dòng gõ lệnh).
+
+Bước 2: Chạy Server FastAPI
+Gõ câu lệnh chuẩn xác mà chúng ta vừa sửa lúc trước:
+
+Bash
+uvicorn main:app --reload
+(Lệnh này gọi Uvicorn chạy file main.py chứa biến app. Hậu tố --reload giúp server tự động khởi động lại mỗi khi bạn Ctrl+S lưu code mới).
+
+3. Cách tắt Server và thoát môi trường ảo
+Để dừng Server (áp dụng cho cả Terminal của FE và BE): Nhấn tổ hợp phím Ctrl + C. Nếu Terminal hiện câu hỏi Terminate batch job (Y/N)?, bạn gõ Y rồi nhấn Enter.
+
+Để thoát khỏi môi trường ảo của Backend: Sau khi đã dừng server BE bằng Ctrl + C, bạn gõ lệnh sau để trả Terminal về trạng thái bình thường của Windows:
+
+Bash
+deactivate

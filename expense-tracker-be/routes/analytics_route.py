@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from datetime import date
 from typing import Dict, Any, Optional
+from uuid import UUID
 
 from cruds.crud_analytics import get_analytics_summary_data
 from db.database import get_db
@@ -17,7 +18,7 @@ def get_analytics_summary(
         type: str = Query('all', description="Transaction type: 'all', 'income', or 'expense'"),
         start_date: Optional[date] = Query(None, description="Start date for filtering"),
         end_date: Optional[date] = Query(None, description="End date for filtering"),
-        category_id: Optional[str] = Query(None, description="Category ID (UUID) for filtering"),
+        category_id: Optional[UUID] = Query(None, description="Category ID (UUID) for filtering"),
 
         current_user=Depends(get_current_user_db),
         db: Session = Depends(get_db)

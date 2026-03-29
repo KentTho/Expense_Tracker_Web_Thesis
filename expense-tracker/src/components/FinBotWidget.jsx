@@ -195,6 +195,9 @@ export default function FinBotWidget({ theme }) {
   
   const isDark = theme === "dark";
 
+
+  // Sử dụng biến dịch thay vì text cứng
+
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => scrollToBottom(), [messages, isOpen]);
 

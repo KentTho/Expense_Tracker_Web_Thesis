@@ -10,7 +10,7 @@ import {
     fetchSystemSettings, 
     updateSystemSettings,
     adminGetSystemHealth 
-} from "../services/adminService";
+} from "../../services/adminService";
 
 // Custom Switch Component
 const PowerSwitch = ({ label, description, checked, onChange, colorClass, isDark, disabled }) => (
