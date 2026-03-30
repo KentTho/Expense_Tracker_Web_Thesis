@@ -38,6 +38,20 @@ function resolveUrl(pathOrUrl) {
   return `${BACKEND_BASE}${pathOrUrl}`;
 }
 
+function buildHeaders(options = {}, token = null) {
+  const headers = new Headers(options.headers || {});
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return headers;
+}
+
 async function parseResponse(response, responseType = "json") {
   if (response.status === 204) {
     return { success: true };
@@ -83,20 +97,6 @@ async function getErrorMessage(response) {
   }
 
   return `Request failed with status ${response.status}`;
-}
-
-function buildHeaders(options = {}, token = null) {
-  const headers = new Headers(options.headers || {});
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  return headers;
 }
 
 export async function authorizedFetch(pathOrUrl, options = {}, config = {}) {
