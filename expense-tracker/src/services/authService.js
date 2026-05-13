@@ -13,9 +13,39 @@ function broadcastUserUpdate() {
   window.dispatchEvent(new Event("user_profile_updated"));
 }
 
+function extractAccessToken(data) {
+  if (!data || typeof data !== "object") return null;
+
+  // common shapes
+  const direct =
+    data.access_token ||
+    data.accessToken ||
+    data.token ||
+    data.id_token ||
+    data.accessTokenToken;
+
+  if (typeof direct === "string" && direct.length > 10) return direct;
+
+  // nested shapes (defensive)
+  const nested = data?.data;
+  if (nested && typeof nested === "object") {
+    const nestedToken =
+      nested.access_token ||
+      nested.accessToken ||
+      nested.token ||
+      nested.id_token;
+
+    if (typeof nestedToken === "string" && nestedToken.length > 10) return nestedToken;
+  }
+
+  return null;
+}
+
 function saveSession(data) {
-  if (data?.access_token) {
-    localStorage.setItem("idToken", data.access_token);
+  const accessToken = extractAccessToken(data);
+
+  if (accessToken) {
+    localStorage.setItem("idToken", accessToken);
   }
 
   if (data?.user) {
@@ -74,6 +104,11 @@ export async function loginAndSync(email, password) {
   }
 
   const data = await response.json();
+
+  if (data.requires_2fa) {
+    return { requires_2fa: true, pending_token: data.pending_token };
+  }
+
   saveSession(data);
   return { user: data.user, idToken: data.access_token };
 }
@@ -91,15 +126,13 @@ export async function logout() {
   return { success: true };
 }
 
-export async function verify2FALogin(code) {
-  const token = localStorage.getItem("idToken");
+export async function verify2FALogin(pending_token, code) {
   const response = await fetch(`${BACKEND_BASE}/security/2fa/login-verify`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ pending_token, code }),
   });
 
   if (!response.ok) {
@@ -107,7 +140,9 @@ export async function verify2FALogin(code) {
     throw new Error(error.detail || "Invalid Code");
   }
 
-  return response.json();
+  const data = await response.json();
+  saveSession(data);
+  return data;
 }
 
 export async function requestEmailVerification() {

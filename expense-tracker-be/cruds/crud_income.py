@@ -1,11 +1,64 @@
 from datetime import date
-from uuid import UUID
 from decimal import Decimal
 from typing import Optional
-from sqlalchemy import func
-from models import transaction_model, category_model, user_model
+from uuid import UUID
+
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
+
+from cruds.crud_category import get_accessible_category_for_user
+from models import category_model, transaction_model, user_model
+
+
+def _resolve_income_category(
+        db: Session,
+        user_id: UUID,
+        category_id: Optional[UUID] = None,
+        category_name: Optional[str] = None,
+        emoji: Optional[str] = None,
+):
+    if category_id is not None:
+        return get_accessible_category_for_user(db, category_id, user_id, "income")
+
+    if not category_name:
+        raise HTTPException(status_code=400, detail="Category ID or category name is required.")
+
+    existing_category = (
+        db.query(category_model.Category)
+        .filter(
+            category_model.Category.user_id == user_id,
+            category_model.Category.name == category_name,
+            category_model.Category.type == "income",
+        )
+        .first()
+    )
+    if existing_category:
+        return existing_category
+
+    default_category = (
+        db.query(category_model.Category)
+        .filter(
+            category_model.Category.user_id == None,
+            category_model.Category.name == category_name,
+            category_model.Category.type == "income",
+        )
+        .first()
+    )
+    if default_category:
+        return default_category
+
+    new_category = category_model.Category(
+        user_id=user_id,
+        name=category_name,
+        type="income",
+        color="#4CAF50",
+        icon=emoji or "income",
+    )
+    db.add(new_category)
+    db.flush()
+    return new_category
+
 
 def create_income(
         db: Session,
@@ -16,103 +69,108 @@ def create_income(
         date_val: date,
         emoji: Optional[str] = None,
         category_id: Optional[UUID] = None,
-        note: Optional[str] = None
+        note: Optional[str] = None,
 ):
-    """🧾 Tạo thu nhập mới vào bảng Transaction"""
-    # Logic Category Resolution
-    if category_id is None and category_name:
-        existing_category = (
-            db.query(category_model.Category)
-            .filter(
-                category_model.Category.user_id == user_id,
-                category_model.Category.name == category_name,
-                category_model.Category.type == "income"
-            )
-            .first()
-        )
-        if existing_category:
-            category_id = existing_category.id
-        else:
-            default_category = (
-                db.query(category_model.Category)
-                .filter(
-                    category_model.Category.user_id == None,
-                    category_model.Category.name == category_name,
-                    category_model.Category.type == "income"
-                )
-                .first()
-            )
-            if default_category:
-                category_id = default_category.id
-            else:
-                new_category = category_model.Category(
-                    user_id=user_id,
-                    name=category_name,
-                    type="income",
-                    color="#4CAF50",
-                    icon=emoji or "💰"
-                )
-                db.add(new_category)
-                db.commit()
-                db.refresh(new_category)
-                category_id = new_category.id
+    """Create a new income transaction."""
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than 0.")
 
-    if category_id is None:
-        raise HTTPException(status_code=400, detail="Category ID is required.")
+    category = _resolve_income_category(db, user_id, category_id, category_name, emoji)
 
-    # Tạo record trong bảng Transaction
     transaction = transaction_model.Transaction(
         user_id=user_id,
-        category_id=category_id,
-        category_name=category_name,
-        type="income", # 👈 Cố định type là income
+        category_id=category.id,
+        category_name=category.name,
+        type="income",
         amount=amount,
         currency_code=currency_code or "USD",
         date=date_val,
         emoji=emoji,
-        note=note
+        note=note,
     )
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
     return transaction
 
+
 def list_incomes_for_user(db: Session, user_id: UUID):
-    """🧾 Danh sách thu nhập từ bảng Transaction"""
+    """List income transactions for one user."""
+    return list_incomes_for_user_filtered(db, user_id)
+
+
+def list_incomes_for_user_filtered(
+        db: Session,
+        user_id: UUID,
+        skip: int = 0,
+        limit: Optional[int] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        category_id: Optional[UUID] = None,
+):
+    """List income transactions for one user with optional filters."""
     user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    incomes = (
+    query = (
         db.query(transaction_model.Transaction)
         .options(joinedload(transaction_model.Transaction.category))
         .filter(
             transaction_model.Transaction.user_id == user_id,
-            transaction_model.Transaction.type == "income" # 👈 Lọc type
+            transaction_model.Transaction.type == "income",
         )
-        .order_by(transaction_model.Transaction.date.desc())
-        .all()
     )
+    if start_date:
+        query = query.filter(transaction_model.Transaction.date >= start_date)
+    if end_date:
+        query = query.filter(transaction_model.Transaction.date <= end_date)
+    if category_id:
+        category = get_accessible_category_for_user(db, category_id, user_id, "income")
+        query = query.filter(transaction_model.Transaction.category_id == category.id)
+
+    query = query.order_by(transaction_model.Transaction.date.desc()).offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
 
     return {
-        "items": incomes,
-        "currency_code": getattr(user, 'currency_code', 'USD'),
-        "currency_symbol": getattr(user, 'currency_symbol', '$'),
+        "items": query.all(),
+        "currency_code": getattr(user, "currency_code", "USD"),
+        "currency_symbol": getattr(user, "currency_symbol", "$"),
     }
 
+
 def update_income(db: Session, income_id: UUID, user_id: UUID, update_data: dict):
-    """✏️ Cập nhật thu nhập trong bảng Transaction"""
+    """Update an income transaction owned by the user."""
     income = (
         db.query(transaction_model.Transaction)
         .filter(
             transaction_model.Transaction.id == income_id,
             transaction_model.Transaction.user_id == user_id,
-            transaction_model.Transaction.type == "income"
+            transaction_model.Transaction.type == "income",
         )
         .first()
     )
     if not income:
         return None
+
+    if "amount" in update_data and update_data["amount"] is not None and update_data["amount"] <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than 0.")
+
+    category_id = update_data.get("category_id")
+    category_name = update_data.get("category_name")
+    if category_id is not None or category_name:
+        category = _resolve_income_category(
+            db=db,
+            user_id=user_id,
+            category_id=category_id,
+            category_name=category_name,
+            emoji=update_data.get("emoji"),
+        )
+        update_data["category_id"] = category.id
+        update_data["category_name"] = category.name
+    else:
+        update_data.pop("category_id", None)
 
     for key, value in update_data.items():
         if hasattr(income, key):
@@ -121,14 +179,15 @@ def update_income(db: Session, income_id: UUID, user_id: UUID, update_data: dict
     db.refresh(income)
     return income
 
+
 def delete_income(db: Session, income_id: UUID, user_id: UUID):
-    """🗑️ Xóa thu nhập từ bảng Transaction"""
+    """Delete an income transaction owned by the user."""
     income = (
         db.query(transaction_model.Transaction)
         .filter(
-            transaction_model.Transaction.id == income_id, 
+            transaction_model.Transaction.id == income_id,
             transaction_model.Transaction.user_id == user_id,
-            transaction_model.Transaction.type == "income"
+            transaction_model.Transaction.type == "income",
         )
         .first()
     )
@@ -138,16 +197,17 @@ def delete_income(db: Session, income_id: UUID, user_id: UUID):
     db.commit()
     return income
 
+
 def get_income_summary(db: Session, user_id: UUID):
-    """📊 Tổng thu nhập theo danh mục"""
+    """Summarize total income by category."""
     summary = (
         db.query(
             transaction_model.Transaction.category_name.label("category_name"),
-            func.sum(transaction_model.Transaction.amount).label("total_amount")
+            func.sum(transaction_model.Transaction.amount).label("total_amount"),
         )
         .filter(
             transaction_model.Transaction.user_id == user_id,
-            transaction_model.Transaction.type == "income"
+            transaction_model.Transaction.type == "income",
         )
         .group_by(transaction_model.Transaction.category_name)
         .order_by(func.sum(transaction_model.Transaction.amount).desc())

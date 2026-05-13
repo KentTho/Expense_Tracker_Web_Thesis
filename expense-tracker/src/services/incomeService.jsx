@@ -57,7 +57,7 @@ async function authorizedFetch(url, options = {}) {
         try {
             const errJson = JSON.parse(errText);
             throw new Error(errJson.detail || errText);
-        } catch (e) {
+        } catch {
             throw new Error(errText || `Request failed: ${res.status}`);
         }
     }

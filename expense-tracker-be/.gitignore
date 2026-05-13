@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+serviceAccountKey.json
+__pycache__/
+*.py[cod]
+.venv/
+alembic/versions/__pycache__/

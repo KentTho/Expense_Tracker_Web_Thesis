@@ -5,7 +5,11 @@ from typing import Dict, Any
 
 from db.database import get_db
 from services.auth_token_db import get_current_user_db
-from schemas.security_schemas import SecuritySettingsOut, SecuritySettingsUpdate, Verify2FALogin
+from schemas.security_schemas import (
+    SecuritySettingsOut,
+    SecuritySettingsUpdate,
+    Verify2FALoginPending,
+)
 from cruds import crud_security
 
 router = APIRouter(prefix="/security", tags=["Security"])
@@ -80,10 +84,55 @@ def verify_enabling_2fa(
 
 @router.post("/2fa/login-verify")
 def verify_login_2fa_route(
-    payload: Verify2FALogin,
-    current_user = Depends(get_current_user_db),
+    payload: Verify2FALoginPending,
     db: Session = Depends(get_db)
 ):
-    """API này được gọi sau khi user đã đăng nhập Firebase thành công nhưng bị chặn ở bước 2"""
-    crud_security.verify_login_2fa(db, current_user.id, payload.code)
-    return {"message": "2FA Verified Successfully"}
+    """Verify OTP với pending_token, chỉ sau đó mới cấp full access JWT."""
+    from core.config import settings
+    from jose import jwt, JWTError
+    from core.security import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+    from datetime import timedelta
+
+    from models.user_model import User
+
+    try:
+        decoded = jwt.decode(payload.pending_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid pending token")
+
+    if decoded.get("token_use") != "pending_2fa":
+        raise HTTPException(status_code=401, detail="Invalid token purpose")
+
+    user_id = decoded.get("id")
+    try:
+        # crud_security.verify_login_2fa cần UUID kiểu python
+        user_id = str(user_id)
+    except Exception:
+        pass
+
+    session_key = decoded.get("session_key")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid pending token payload")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    if user.is_2fa_enabled != True:
+        raise HTTPException(status_code=400, detail="2FA not enabled")
+
+
+    crud_security.verify_login_2fa(db, user.id, payload.code)
+
+    access_token = create_access_token(
+        data={"sub": user.email, "id": str(user.id), "session_key": session_key, "token_use": "access"},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "requires_2fa": False,
+        "user": {"id": str(user.id), "email": user.email},
+    }
+

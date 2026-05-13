@@ -24,8 +24,12 @@ function normalizeIncome(item) {
 }
 
 function buildIncomePayload(form) {
+  const amount = Number(form.amount);
+  if (isNaN(amount) || amount <= 0) {
+    throw new Error("Invalid amount: must be a positive number.");
+  }
   return {
-    amount: Number(form.amount),
+    amount,
     date: form.date,
     category_name: form.category_name || null,
     category_id: form.category_id || null,

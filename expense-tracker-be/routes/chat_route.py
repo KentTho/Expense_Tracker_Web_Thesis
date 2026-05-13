@@ -17,7 +17,7 @@ async def send_message(
 ):
     try:
         # Truyền history vào service
-        response_text = process_chat_message(db, current_user, payload.message, payload.history)
+        response_text = await process_chat_message(db, current_user, payload.message, payload.history)
         return {"reply": response_text}
     except Exception as e:
         print(f"Chat Error: {e}")

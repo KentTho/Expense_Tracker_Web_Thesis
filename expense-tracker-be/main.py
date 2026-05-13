@@ -11,7 +11,8 @@ import firebase_admin
 from firebase_admin import credentials
 
 # Thư viện nội bộ
-from db.database import SessionLocal, engine, Base
+from core.config import settings
+from db.database import SessionLocal
 from cruds.crud_category import seed_default_categories
 from routes import (
     auth_route,
@@ -59,8 +60,12 @@ if not firebase_admin._apps:  # Check singleton tốt, tránh init multiple.
 # -------------------------------------------------
 # 2. Helper Database
 # -------------------------------------------------
-# Tạo bảng nếu chưa có (Rất quan trọng cho lần chạy đầu tiên trên Railway)
-Base.metadata.create_all(bind=engine)  # Sync create tables – OK cho startup, nhưng production dùng Alembic migrations (đã có alembic in reqs) để version control schema changes. Liên kết tiêu chí 2: DB design chuẩn.
+# Tạo bảng thủ công chỉ dành cho local recovery/dev. Production phải dùng Alembic.
+def create_tables_for_local_dev_only():
+    """Manual local helper only. Normal app startup must use Alembic migrations."""
+    from db.database import Base, engine
+
+    Base.metadata.create_all(bind=engine)
 
 @contextmanager
 def get_db_session():  # Helper tốt cho non-async code (e.g., seeding).
@@ -127,15 +132,11 @@ app = FastAPI(
 )
 
 # Cấu hình CORS (Cho phép Vercel truy cập)
-origins = [
-    "http://localhost:3000",  # Localhost Frontend
-    "http://127.0.0.1:8000",  # Localhost Backend
-    "https://expense-tracker-web-thesis.vercel.app",  # Backend Railway  # Specific origins tốt, nhưng dưới dùng ["*"] – conflict? Thay origins=["*"] bằng list này để secure hơn.
-]
+origins = settings.cors_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Quan trọng: Dấu * nghĩa là chấp nhận mọi nơi (Local, Vercel, v.v...)  # OK cho dev, nhưng production lock to origins list (tránh CORS attacks).
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],  # Cho phép mọi phương thức: GET, POST, PUT, DELETE...
     allow_headers=["*"],  # Cho phép mọi loại header  # Rộng, nhưng cần cho auth (e.g., Authorization header).

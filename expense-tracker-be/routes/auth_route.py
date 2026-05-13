@@ -14,14 +14,16 @@ from core.security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-@router.post("/sync", response_model=Token)
+@router.post("/sync")
 def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Session = Depends(get_db)):
     """API đồng bộ với Firebase và nhận JWT nội bộ."""
     id_token = extract_token(authorization)
     decoded = verify_token_and_get_payload(id_token)
-    return auth_service.sync_firebase_user(db, decoded, payload.email, payload.display_name, payload.picture if hasattr(payload, 'picture') else None)
+    picture = getattr(payload, "picture", None)
+    return auth_service.sync_firebase_user(db, decoded, payload.email, payload.display_name, picture)
 
-@router.post("/login_sync", response_model=Token)
+
+@router.post("/login_sync")
 def login_sync_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Đăng nhập bằng email/password nội bộ."""
     user = crud_user.authenticate_user(db, form_data.username, form_data.password)
@@ -32,11 +34,29 @@ def login_sync_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Sessio
     user.last_session_key = new_session_key
     db.add(user); db.commit(); db.refresh(user)
 
+    if user.is_2fa_enabled:
+        pending_token = create_access_token(
+            data={
+                "sub": user.email,
+                "id": str(user.id),
+                "session_key": new_session_key,
+                "token_use": "pending_2fa",
+            },
+            expires_delta=timedelta(minutes=5),
+        )
+        return {
+            "requires_2fa": True,
+            "pending_token": pending_token,
+            "token_type": "pending_2fa",
+            "user": {"id": str(user.id), "email": user.email},
+        }
+
     access_token = create_access_token(
-        data={"sub": user.email, "id": str(user.id), "session_key": new_session_key},
+        data={"sub": user.email, "id": str(user.id), "session_key": new_session_key, "token_use": "access"},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     return {"access_token": access_token, "token_type": "bearer", "user": user}
+
 
 @router.get("/user/profile", response_model=UserOut)
 def get_profile(current_user=Depends(get_current_user_db)):

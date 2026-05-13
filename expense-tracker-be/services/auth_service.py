@@ -5,8 +5,16 @@ from fastapi import HTTPException
 from cruds import crud_user
 from core.security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
 
+PENDING_TOKEN_EXPIRE_MINUTES = 5
+
+
 def sync_firebase_user(db: Session, decoded_token: dict, payload_email: str, payload_name: str, payload_picture: str):
-    """Logic đồng bộ user từ Firebase sang DB nội bộ"""
+
+    """Logic đồng bộ user từ Firebase sang DB nội bộ
+
+    Phase 3: Nếu user bật 2FA => trả pending_2fa token (short-lived) thay vì access JWT.
+    """
+
     uid = decoded_token.get("uid")
     email = decoded_token.get("email") or payload_email
     name = payload_name or decoded_token.get("name")
@@ -32,12 +40,33 @@ def sync_firebase_user(db: Session, decoded_token: dict, payload_email: str, pay
     user.last_session_key = new_session_key
     db.add(user); db.commit(); db.refresh(user)
 
-    # Tạo JWT Token
+    # Phase 3: Gate API thật bằng 2FA
+    # Nếu bật 2FA: không cấp access token, chỉ cấp pending token short-lived.
+    if user.is_2fa_enabled == True:
+
+        pending_token = create_access_token(
+            data={
+                "sub": user.email,
+                "id": str(user.id),
+                "session_key": new_session_key,
+                "token_use": "pending_2fa",
+            },
+            expires_delta=timedelta(minutes=PENDING_TOKEN_EXPIRE_MINUTES),
+        )
+        return {
+            "requires_2fa": True,
+            "pending_token": pending_token,
+            "token_type": "pending_2fa",
+            "user": {"id": str(user.id), "email": user.email},
+        }
+
+    # Không bật 2FA: cấp access token.
     access_token = create_access_token(
-        data={"sub": user.email, "id": str(user.id), "session_key": new_session_key},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        data={"sub": user.email, "id": str(user.id), "session_key": new_session_key, "token_use": "access"},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return {"access_token": access_token, "token_type": "bearer", "user": user}
+
 
 def update_user_profile(db: Session, user, data):
     """Logic cập nhật profile và các ràng buộc bảo mật"""

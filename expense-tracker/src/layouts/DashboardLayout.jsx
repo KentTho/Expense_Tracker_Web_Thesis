@@ -87,9 +87,13 @@ export default function DashboardLayout() {
   }, [theme]);
 
   const handleTourFinish = async () => {
-      setRunTour(false);
-      if (currentUser) setCurrentUser({ ...currentUser, has_onboard: true });
-      try { await updateUserProfile({ has_onboard: true }); } catch (e) {}
+    setRunTour(false);
+    if (currentUser) setCurrentUser({ ...currentUser, has_onboard: true });
+    try {
+      await updateUserProfile({ has_onboard: true });
+    } catch (e) {
+      console.error("Failed to update user profile (has_onboard)", e);
+    }
   };
 
   if (!isAuthChecked) return null;

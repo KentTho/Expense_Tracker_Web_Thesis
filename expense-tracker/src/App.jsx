@@ -11,6 +11,7 @@ import ExportData from "./pages/Dashboard/ExportDataUnified.jsx";
 import Profile from "./pages/Dashboard/Profile";
 import SecuritySettings from "./pages/Dashboard/SecuritySettingsUnified.jsx";
 import Category from "./pages/Dashboard/Category";
+import ErrorBoundary from "./components/ui/ErrorBoundary";
 import Analytics from "./pages/Dashboard/AnalyticsUnified.jsx";
 import DashboardLayout from "./layouts/DashboardLayoutUnified.jsx";
 import AdminUserManagement from "./pages/Admin/AdminUserManagement";
@@ -43,10 +44,31 @@ function App() {
           <Route path="/income" element={<Income />} />
           <Route path="/expense" element={<Expense />} />
           <Route path="/dataexport" element={<ExportData />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/security" element={<SecuritySettings />} />
+          <Route
+            path="/profile"
+            element={
+              <ErrorBoundary>
+                <Profile />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/security"
+            element={
+              <ErrorBoundary>
+                <SecuritySettings />
+              </ErrorBoundary>
+            }
+          />
           <Route path="/change-password" element={<ChangePassword />} />
-          <Route path="/categories" element={<Category />} />
+          <Route
+            path="/categories"
+            element={
+              <ErrorBoundary>
+                <Category />
+              </ErrorBoundary>
+            }
+          />
           {/* ✅ THÊM ROUTE CHO ADMIN */}
           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />

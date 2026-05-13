@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from datetime import datetime
 from uuid import UUID
 from typing import Optional
-from pydantic import Json
 from enum import Enum
 
 class AuditAction(str, Enum):
@@ -20,13 +19,12 @@ class AuditStatus(str, Enum):
 class AuditLogOut(BaseModel):
     id: UUID
     action: str
-    actor_id: Optional[UUID]
     actor_email: str
-    target: Optional[str] = "export_id"
-    status: str
-    details: Optional[Json] = None
+    target: Optional[str] = None
+    status: Optional[str] = None
+    details: Optional[str] = None
     ip_address: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

@@ -10,12 +10,15 @@ import {
   CreditCard,
   Flame,
   Layers3,
-  Loader2,
   Plus,
   Sparkles,
   Target,
   TrendingUp,
 } from "lucide-react";
+import OverviewHeader from "../../components/dashboard/OverviewHeader";
+import MetricCard from "../../components/dashboard/MetricCard";
+import BudgetCard from "../../components/dashboard/BudgetCard";
+import DashboardSkeleton from "../../components/dashboard/DashboardSkeleton";
 import {
   Area,
   AreaChart,
@@ -28,39 +31,29 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getFinancialKpiSummary } from "../../services/incomeService";
+import { getDashboardData } from "../../services/dashboardService";
 import { getExpenseBreakdown, getExpenseDailyTrend } from "../../services/expenseService";
 import { getRecentTransactions } from "../../services/transactionService";
 import { fetchSystemSettings } from "../../services/adminService";
 import { getUserProfile } from "../../services/profileService";
-import {
-  formatCompactCurrency,
-  formatCurrency,
-  formatLongDate,
-  formatShortDate,
-} from "../../utils/formatters";
+import { formatCompactCurrency, formatCurrency, formatLongDate, formatShortDate } from "../../utils/formatters";
 
 const CHART_COLORS = ["#22d3ee", "#fb923c", "#34d399", "#f472b6", "#a78bfa", "#facc15"];
-
-function MetricCard({ title, value, tone, icon: Icon, subtitle }) {
-  return (
-    <div className={`relative overflow-hidden rounded-[2rem] border p-5 shadow-xl ${tone.panel}`}>
-      <div className={`absolute right-4 top-4 flex h-12 w-12 items-center justify-center rounded-2xl ${tone.iconWrap}`}>
-        <Icon size={20} className={tone.icon} />
-      </div>
-      <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">{title}</p>
-      <h3 className="mt-4 text-3xl font-black tracking-tight">{value}</h3>
-      <p className="mt-2 text-sm text-slate-400">{subtitle}</p>
-    </div>
-  );
-}
 
 export default function HomeUnified() {
   const { theme, currencyCode, currentUser } = useOutletContext();
   const isDark = theme === "dark";
 
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState({ total_income: 0, total_expense: 0 });
+  const [error, setError] = useState(null);
+  const [summary, setSummary] = useState({
+    total_income: 0,
+    total_expense: 0,
+    balance: 0,
+    budget_limit: 0,
+    spent_this_month: 0,
+    remaining_budget: 0,
+  });
   const [breakdown, setBreakdown] = useState([]);
   const [trend, setTrend] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
@@ -74,7 +67,7 @@ export default function HomeUnified() {
       setLoading(true);
 
       const results = await Promise.allSettled([
-        getFinancialKpiSummary(),
+        getDashboardData(),
         getExpenseBreakdown(),
         getExpenseDailyTrend(30),
         getRecentTransactions(7),
@@ -86,9 +79,19 @@ export default function HomeUnified() {
         return;
       }
 
-      const [kpis, expenseBreakdown, expenseTrend, recent, settings, userProfile] = results;
+      const [dashboard, expenseBreakdown, expenseTrend, recent, settings, userProfile] = results;
 
-      setSummary(kpis.status === "fulfilled" ? kpis.value : { total_income: 0, total_expense: 0 });
+      if (dashboard.status === "fulfilled" && dashboard.value) {
+        setSummary(dashboard.value.summary || { total_income: 0, total_expense: 0 });
+      } else {
+        // Explicit error state (do not silently fallback on API failure)
+        setError(
+          dashboard.status === "rejected"
+            ? dashboard.reason?.message || "Dashboard request failed"
+            : "Dashboard request failed"
+        );
+      }
+
       setBreakdown(
         expenseBreakdown.status === "fulfilled" && Array.isArray(expenseBreakdown.value)
           ? expenseBreakdown.value
@@ -105,6 +108,7 @@ export default function HomeUnified() {
       setLoading(false);
     }
 
+    setError(null);
     loadDashboard();
     const handleRefresh = () => loadDashboard();
     window.addEventListener("transactionUpdated", handleRefresh);
@@ -116,11 +120,12 @@ export default function HomeUnified() {
   }, []);
 
   const currentProfile = profile || currentUser;
-  const budget = Number(currentProfile?.monthly_budget || 0);
+  const budget = Number(summary?.budget_limit || 0);
   const totalIncome = Number(summary?.total_income || 0);
   const totalExpense = Number(summary?.total_expense || 0);
-  const balance = totalIncome - totalExpense;
-  const budgetUsage = budget > 0 ? Math.min((totalExpense / budget) * 100, 100) : 0;
+  const spentThisMonth = Number(summary?.spent_this_month || 0);
+  const remainingBudget = Number(summary?.remaining_budget ?? 0);
+  const balance = Number(summary?.balance ?? (totalIncome - totalExpense));
 
   const chartData = useMemo(
     () =>
@@ -145,19 +150,27 @@ export default function HomeUnified() {
   );
 
   if (loading) {
+    return <DashboardSkeleton isDark={isDark} />;
+  }
+
+  if (error) {
     return (
-      <div className="flex min-h-[75vh] items-center justify-center">
-        <div
-          className={`rounded-[2rem] border px-8 py-10 text-center ${
-            isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"
-          }`}
-        >
-          <Loader2 size={34} className="mx-auto animate-spin text-cyan-400" />
-          <p className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
-            Building your board
-          </p>
+      <section
+        className={`mt-8 overflow-hidden rounded-[2.25rem] border p-6 shadow-2xl ${
+          isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-rose-300">Dashboard error</p>
+            <h2 className="mt-2 text-xl font-black">Could not load dashboard overview</h2>
+            <p className={`mt-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>{error}</p>
+          </div>
+          <div className="rounded-2xl bg-rose-400/15 px-4 py-3 text-sm font-bold text-rose-300">
+            Retry
+          </div>
         </div>
-      </div>
+      </section>
     );
   }
 
@@ -170,17 +183,11 @@ export default function HomeUnified() {
       >
         <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">
-              <Compass size={14} />
-              Finance cockpit
-            </div>
-            <h1 className="mt-5 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-              {currentProfile?.name ? `Welcome back, ${currentProfile.name.split(" ")[0]}.` : "Welcome back."}
-            </h1>
-            <p className="mt-4 max-w-2xl text-base text-slate-400">
-              This dashboard now reads directly from backend summaries, transaction feeds, security settings, and
-              system announcements so FE and BE stay in one rhythm.
-            </p>
+            <OverviewHeader
+              isDark={isDark}
+              title={currentProfile?.name ? `Welcome back, ${currentProfile.name.split(" ")[0]}.` : "Welcome back."}
+              subtitle="This dashboard reads directly from backend summaries, transaction feeds, and security settings so FE and BE stay in sync."
+            />
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
@@ -209,53 +216,13 @@ export default function HomeUnified() {
             </div>
           </div>
 
-          <div className={`rounded-[2rem] border p-5 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50/70"}`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Mission status</p>
-                <p className="mt-2 text-2xl font-black">{formatCurrency(balance, currencyCode)}</p>
-              </div>
-              <div
-                className={`rounded-2xl px-4 py-2 text-sm font-bold ${
-                  balance >= 0 ? "bg-emerald-400/15 text-emerald-300" : "bg-rose-400/15 text-rose-300"
-                }`}
-              >
-                {balance >= 0 ? "Above water" : "Needs attention"}
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-400">Monthly budget</span>
-                  <span className="font-semibold">
-                    {budget > 0 ? formatCurrency(budget, currencyCode) : "Not set"}
-                  </span>
-                </div>
-                <div className={`mt-3 h-3 overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-slate-200"}`}>
-                  <div
-                    className={`h-full rounded-full ${
-                      budgetUsage >= 100 ? "bg-rose-400" : budgetUsage >= 80 ? "bg-orange-300" : "bg-cyan-400"
-                    }`}
-                    style={{ width: `${budgetUsage || 0}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className={`rounded-2xl p-4 ${isDark ? "bg-slate-950/60" : "bg-white"}`}>
-                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">This month spent</p>
-                  <p className="mt-2 text-lg font-black">{formatCompactCurrency(totalExpense, currencyCode)}</p>
-                </div>
-                <div className={`rounded-2xl p-4 ${isDark ? "bg-slate-950/60" : "bg-white"}`}>
-                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Most active date</p>
-                  <p className="mt-2 text-lg font-black">
-                    {chartData.length ? formatLongDate(chartData[chartData.length - 1].rawDate) : "No data"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <BudgetCard
+            isDark={isDark}
+            currencyCode={currencyCode}
+            budgetLimit={budget}
+            spentThisMonth={spentThisMonth}
+            remainingBudget={remainingBudget}
+          />
         </div>
 
         {systemSettings?.broadcast_message && (
@@ -307,7 +274,7 @@ export default function HomeUnified() {
         <MetricCard
           title="Budget"
           value={budget > 0 ? formatCurrency(budget, currencyCode) : "Not set"}
-          subtitle="Use profile settings to define a monthly limit."
+          subtitle={budget > 0 ? `Remaining: ${formatCurrency(summary.remaining_budget, currencyCode)}` : "Use profile settings to define a monthly limit."}
           icon={Target}
           tone={{
             panel: isDark ? "border-violet-400/15 bg-violet-400/10" : "border-violet-100 bg-violet-50",

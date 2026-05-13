@@ -326,6 +326,50 @@ def get_monthly_summary(db: Session, user_id: UUID, year: int):
     ]
 
 
+def get_monthly_budget_status(db: Session, user_id: UUID, year: int | None = None, month: int | None = None):
+    """
+    Budget status helper for dashboard.
+    - monthly_budget = budget_limit
+    - spent_this_month = sum(expense amounts) for current month
+    - remaining_budget = budget_limit - spent_this_month
+    - NO DB mutation
+    """
+    from models import user_model
+
+    now = datetime.utcnow().date()
+    year = year or now.year
+    month = month or now.month
+
+    user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
+    budget_limit = float(getattr(user, "budget_limit", 0) or 0)
+
+    start_date = date(year, month, 1)
+    if month == 12:
+        end_date = date(year + 1, 1, 1)
+    else:
+        end_date = date(year, month + 1, 1)
+
+    spent_this_month = (
+        db.query(func.coalesce(func.sum(transaction_model.Transaction.amount), 0))
+        .filter(
+            transaction_model.Transaction.user_id == user_id,
+            transaction_model.Transaction.type == "expense",
+            transaction_model.Transaction.date >= start_date,
+            transaction_model.Transaction.date < end_date,
+        )
+        .scalar()
+    )
+
+    spent_this_month = float(spent_this_month or 0)
+    remaining_budget = float(budget_limit) - spent_this_month
+
+    return {
+        "budget_limit": float(budget_limit),
+        "spent_this_month": spent_this_month,
+        "remaining_budget": float(remaining_budget),
+    }
+
+
 def get_dashboard_data(db: Session, user_id: UUID):
     from models import user_model
 
@@ -389,6 +433,8 @@ def get_dashboard_data(db: Session, user_id: UUID):
         .all()
     )
 
+    monthly_budget_status = get_monthly_budget_status(db=db, user_id=user_id)
+
     return {
         "summary": {
             "total_income": float(total_income or 0),
@@ -396,6 +442,10 @@ def get_dashboard_data(db: Session, user_id: UUID):
             "total_balance": balance,
             "is_positive": balance >= 0,
             "currency": getattr(user, "currency_code", "USD"),
+            # Phase 4 budget status (read-only)
+            "budget_limit": monthly_budget_status["budget_limit"],
+            "spent_this_month": monthly_budget_status["spent_this_month"],
+            "remaining_budget": monthly_budget_status["remaining_budget"],
         },
         "recent_transactions": recent_transactions,
         "income_chart": [{"date": row.date, "total": float(row.total or 0)} for row in income_chart],

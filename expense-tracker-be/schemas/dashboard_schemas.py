@@ -23,6 +23,11 @@ class SummaryStats(BaseModel):
     total_balance: float
     is_positive: bool  # True nếu balance > 0, dùng để FE đổi màu xanh/đỏ nhanh chóng
 
+    # Phase 4: Budget status (không mutate DB)
+    budget_limit: float = 0.0
+    spent_this_month: float = 0.0
+    remaining_budget: float = 0.0
+
     currency: str = "VND"
 
 class ChartPoint(BaseModel):

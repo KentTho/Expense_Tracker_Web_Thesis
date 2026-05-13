@@ -18,12 +18,17 @@ const getToken = async () => {
 };
 
 async function handleForceLogout() {
-    localStorage.clear();
-    sessionStorage.clear();
-    try { await signOut(auth); } catch (e) {}
-    if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
-    }
+  localStorage.clear();
+  sessionStorage.clear();
+  try {
+    await signOut(auth);
+  } catch (e) {
+    // no-op: logout best-effort
+    console.warn("AnalyticsService signOut failed:", e);
+  }
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
 }
 
 async function authorizedFetch(url, options = {}) {

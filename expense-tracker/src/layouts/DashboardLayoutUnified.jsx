@@ -90,22 +90,37 @@ export default function DashboardLayoutUnified() {
   if (!isAuthChecked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-200">
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 animate-spin rounded-full border-4 border-cyan-400/20 border-t-cyan-400" />
-          <p className="mt-4 text-sm uppercase tracking-[0.25em] text-slate-400">Syncing workspace</p>
+        <div className="relative">
+          <div className="absolute inset-0 h-24 w-24 animate-ping rounded-full bg-cyan-500/20" />
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/10 bg-slate-900 shadow-2xl">
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-transparent border-t-cyan-400" />
+          </div>
+          <p className="mt-8 text-center text-[10px] font-bold uppercase tracking-[0.4em] text-cyan-400/70 animate-pulse">
+            Syncing Vault
+          </p>
         </div>
       </div>
     );
   }
 
-  const contentOffset = isMobile ? 0 : sidebarCollapsed ? 120 : 344;
+  const contentOffset = isMobile ? 0 : sidebarCollapsed ? 112 : 336;
 
   return (
     <div className={theme === "dark" ? "dark" : ""}>
-      <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(251,146,60,0.15),_transparent_24%)]">
-        <div className="absolute inset-0 hidden bg-[linear-gradient(120deg,rgba(15,23,42,0.94),rgba(15,23,42,0.78))] dark:block" />
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(248,250,252,0.94),rgba(255,247,237,0.88))] dark:hidden" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[linear-gradient(180deg,rgba(34,211,238,0.10),transparent)]" />
+      <div className="relative min-h-screen overflow-hidden selection:bg-cyan-500/30">
+        {/* Modern Background */}
+        <div className="fixed inset-0 z-0">
+          <div className={`absolute inset-0 transition-opacity duration-1000 ${theme === "dark" ? "opacity-100" : "opacity-0"}`}>
+            <div className="absolute inset-0 bg-slate-950" />
+            <div className="absolute left-[-10%] top-[-10%] h-[40%] w-[40%] rounded-full bg-cyan-500/10 blur-[120px]" />
+            <div className="absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] rounded-full bg-orange-500/10 blur-[120px]" />
+          </div>
+          <div className={`absolute inset-0 transition-opacity duration-1000 ${theme === "light" ? "opacity-100" : "opacity-0"}`}>
+            <div className="absolute inset-0 bg-slate-50" />
+            <div className="absolute left-[-10%] top-[-10%] h-[40%] w-[40%] rounded-full bg-orange-200/40 blur-[120px]" />
+            <div className="absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] rounded-full bg-cyan-200/40 blur-[120px]" />
+          </div>
+        </div>
 
         <SidebarUnified
           collapsed={sidebarCollapsed}
@@ -119,11 +134,9 @@ export default function DashboardLayoutUnified() {
         />
 
         {isMobile && isSidebarOpen && (
-          <button
-            type="button"
-            aria-label="Close sidebar overlay"
+          <div
+            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-md transition-all duration-500"
             onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm"
           />
         )}
 
@@ -131,14 +144,14 @@ export default function DashboardLayoutUnified() {
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="fixed left-4 top-4 z-50 inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-900/85 px-4 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur"
+            className="fixed left-6 top-6 z-50 inline-flex items-center gap-2.5 rounded-2xl border border-white/10 bg-slate-950/80 px-5 py-3.5 text-xs font-bold uppercase tracking-widest text-white shadow-2xl backdrop-blur-xl transition-all hover:scale-105 active:scale-95"
           >
-            <Menu size={18} />
+            <Menu size={16} className="text-cyan-400" />
             Menu
           </button>
         )}
 
-        <main className="relative z-10 min-h-screen transition-all duration-300" style={{ paddingLeft: contentOffset }}>
+        <main className="relative z-10 min-h-screen transition-all duration-500 ease-in-out" style={{ paddingLeft: contentOffset }}>
           <div className="min-h-screen p-4 pt-20 lg:p-6 lg:pt-6">
             <Outlet
               context={{

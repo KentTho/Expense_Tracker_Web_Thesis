@@ -1,7 +1,9 @@
 # routes/transaction_route.py
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from typing import List
+from datetime import date
+from typing import List, Optional
+from uuid import UUID
 
 from cruds.crud_summary import get_financial_summary_from_transactions, get_expense_by_category as crud_get_expense_by_category
 from cruds.crud_transaction import get_recent_transactions, create_transaction, delete_transaction, update_transaction, list_transactions_for_user
@@ -12,9 +14,27 @@ from services.auth_token_db import get_current_user_db
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 @router.get("/", response_model=List[TransactionOut])
-def list_transactions(current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):
+def list_transactions(
+    current_user=Depends(get_current_user_db),
+    db: Session = Depends(get_db),
+    skip: int = Query(0, ge=0),
+    limit: Optional[int] = Query(None, ge=1, le=500),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    category_id: Optional[UUID] = Query(None),
+    type: Optional[str] = Query(None, pattern="^(income|expense)$"),
+):
     """Get all income + expense transactions."""
-    return list_transactions_for_user(db, current_user.id)
+    return list_transactions_for_user(
+        db=db,
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit,
+        start_date=start_date,
+        end_date=end_date,
+        category_id=category_id,
+        type_filter=type,
+    )
 
 @router.get("/summary", response_model=SummaryOut)
 def get_summary(current_user=Depends(get_current_user_db), db: Session = Depends(get_db)):

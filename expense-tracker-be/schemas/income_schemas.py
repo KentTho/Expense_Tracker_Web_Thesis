@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import date, datetime
 from uuid import UUID
@@ -9,7 +9,7 @@ from decimal import Decimal
 class IncomeBase(BaseModel):
     """Schema cơ bản cho bảng thu nhập"""
     category_name: Optional[str] = None
-    amount: Decimal
+    amount: Decimal = Field(..., gt=0)
     currency_code: str = "USD"  # 💡 Bổ sung
     date: date
     emoji: Optional[str] = None

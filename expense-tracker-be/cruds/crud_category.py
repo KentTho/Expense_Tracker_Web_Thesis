@@ -1,7 +1,10 @@
 # cruds/crud_category.py (Đã dọn dẹp, sáng tạo hơn)
+from typing import Optional
+
 from sqlalchemy import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from fastapi import HTTPException
 from models import category_model
 import uuid
 
@@ -41,6 +44,22 @@ def list_all_categories_for_user(db: Session, user_id: UUID, type_filter: str = 
     if type_filter:
         query = query.filter(category_model.Category.type == type_filter)
     return query.order_by(category_model.Category.user_id.desc(), category_model.Category.name.asc()).all()
+
+
+def get_accessible_category_for_user(db: Session, category_id, user_id, expected_type: Optional[str] = None):
+    """Return a user-owned or default category only when its type matches."""
+    category = (
+        db.query(category_model.Category)
+        .filter(category_model.Category.id == category_id)
+        .first()
+    )
+    if not category:
+        raise HTTPException(status_code=400, detail="Category not found.")
+    if expected_type is not None and category.type != expected_type:
+        raise HTTPException(status_code=400, detail=f"Category type must be '{expected_type}'.")
+    if category.user_id is not None and str(category.user_id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Category is not accessible for this user.")
+    return category
 
 
 def update_category(db: Session, category_id: UUID, user_id: UUID, update_data: dict):

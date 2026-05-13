@@ -21,6 +21,7 @@ export default function Login() {
   
   // State quản lý bước 2FA
   const [show2FA, setShow2FA] = useState(false);
+  const [pendingToken, setPendingToken] = useState("");
   const [otpCode, setOtpCode] = useState("");
   
   const navigate = useNavigate();
@@ -29,6 +30,12 @@ export default function Login() {
     const token = localStorage.getItem("idToken");
     if (token) {
         // Có thể redirect nếu muốn
+    }
+    // Sync pending token from session storage if page reloaded during 2FA
+    const savedPending = sessionStorage.getItem("pending2faToken");
+    if (savedPending) {
+        setPendingToken(savedPending);
+        setShow2FA(true);
     }
   }, [navigate]);
 
@@ -41,23 +48,28 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await loginAndSync(email, password);
-      const user = res?.user; 
+      
+      // Case: Requires 2FA
+      if (res?.requires_2fa) {
+          setPendingToken(res.pending_token);
+          sessionStorage.setItem("pending2faToken", res.pending_token);
+          setShow2FA(true);
+          toast.info("🔐 Security Check Required");
+          return;
+      }
 
+      // Case: Normal Login (No 2FA)
+      const user = res?.user; 
       if (!user) {
           throw new Error("Invalid response from server (No User Data).");
       }
       
-      if (user.is_2fa_enabled) {
-          setShow2FA(true);
-          toast.info("🔐 Security Check Required");
-      } else {
-          toast.success("✅ Welcome back!");
-          setTimeout(() => navigate("/dashboard"), 1000);
-      }
+      toast.success("✅ Welcome back!");
+      setTimeout(() => navigate("/dashboard"), 1000);
     } catch (err) {
       console.error("Login Error:", err);
-      let msg = "Invalid email or password.";
-      if (err.message && (err.message.includes("401") || err.message.includes("auth/"))) {
+      let msg = err.message || "An unexpected server error occurred.";
+      if (err.message && (err.message.includes("401") || err.message.includes("auth/") || err.message.includes("wrong-password") || err.message.includes("invalid-credential"))) {
           msg = "Incorrect email or password.";
       }
       if (err.message && err.message.includes("user-not-found")) {
@@ -65,7 +77,7 @@ export default function Login() {
       }
       toast.error(`❌ ${msg}`);
     } finally {
-        if (!show2FA) setLoading(false);
+        setLoading(false);
     }
   };
 
@@ -75,9 +87,18 @@ export default function Login() {
           toast.error("Code must be 6 digits");
           return;
       }
+
+      const tokenToVerify = pendingToken || sessionStorage.getItem("pending2faToken");
+      if (!tokenToVerify) {
+          toast.error("Session expired. Please login again.");
+          setShow2FA(false);
+          return;
+      }
+
       setLoading(true);
       try {
-          await verify2FALogin(otpCode);
+          await verify2FALogin(tokenToVerify, otpCode);
+          sessionStorage.removeItem("pending2faToken");
           toast.success("✅ Verified! Redirecting...");
           setTimeout(() => navigate("/dashboard"), 1000);
       } catch (error) {

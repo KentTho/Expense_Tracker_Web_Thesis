@@ -22,10 +22,14 @@ function normalizeExpense(item) {
 }
 
 function buildExpensePayload(form) {
+  const amount = Number(form.amount);
+  if (isNaN(amount) || amount <= 0) {
+    throw new Error("Invalid amount: must be a positive number.");
+  }
   return {
     category_id: form.category_id || null,
     category_name: form.category_name || null,
-    amount: Number(form.amount),
+    amount,
     date: form.date,
     emoji: form.emoji || null,
     currency_code: form.currency_code || "USD",

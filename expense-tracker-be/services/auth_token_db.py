@@ -65,13 +65,20 @@ def get_current_user_db(
     try:
         # Giải mã Token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        token_use: str = payload.get("token_use")
         email: str = payload.get("sub")
         token_session_key: str = payload.get("session_key")  # Lấy key từ token
 
         if email is None:
             raise credentials_exception
+
+        # ✅ Block pending_2fa token from accessing normal API endpoints
+        if token_use != "access":
+            raise credentials_exception
+
     except JWTError:
         raise credentials_exception
+
 
     # Tìm user trong DB
     user = db.query(user_model.User).filter(user_model.User.email == email).first()
@@ -81,7 +88,8 @@ def get_current_user_db(
     # ============================================================
     # ✅ LOGIC SINGLE DEVICE MODE (CHỈ KÍCH HOẠT NẾU USER BẬT)
     # ============================================================
-    if user.restrict_multi_device:  # Nếu user đã bật chức năng này
+    if user.restrict_multi_device == True:  # Nếu user đã bật chức năng này
+
         # Kiểm tra xem key trong token có khớp với key mới nhất trong DB không
         if token_session_key != user.last_session_key:
             raise HTTPException(
