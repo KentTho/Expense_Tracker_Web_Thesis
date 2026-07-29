@@ -111,6 +111,7 @@ requests-toolbelt==1.0.0
 rsa==4.9.1
 simplejson==3.20.2
 six==1.17.0
+slowapi==0.1.9
 SQLAlchemy==2.0.44
 sqlparse==0.5.5
 starlette==0.50.0

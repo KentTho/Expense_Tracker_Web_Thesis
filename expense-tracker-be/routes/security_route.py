@@ -1,5 +1,7 @@
 # routes/security_route.py (TẠO MỚI)
-from fastapi import APIRouter, Depends, HTTPException, Body
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Body, Request
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
@@ -11,6 +13,9 @@ from schemas.security_schemas import (
     Verify2FALoginPending,
 )
 from cruds import crud_security
+from core.rate_limit import limiter, AUTH_RATE_LIMIT
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/security", tags=["Security"])
 
@@ -79,11 +84,16 @@ def verify_enabling_2fa(
             return {"success": True}
         else:
             raise HTTPException(status_code=400, detail="Invalid 2FA code")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("2FA enable-verify error")  # F6: không lộ str(e) ra client.
+        raise HTTPException(status_code=400, detail="Could not verify 2FA code")
 
 @router.post("/2fa/login-verify")
+@limiter.limit(AUTH_RATE_LIMIT)  # F3: chống brute-force mã OTP 2FA.
 def verify_login_2fa_route(
+    request: Request,
     payload: Verify2FALoginPending,
     db: Session = Depends(get_db)
 ):
