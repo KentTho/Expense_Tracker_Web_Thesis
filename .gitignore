@@ -9,3 +9,17 @@ expense-tracker-be/serviceAccountKey.json
 **/.venv/
 **/.env
 **/__pycache__/
+
+# --- v2.0 governance: reference/report/asset chỉ giữ local, KHÔNG đẩy lên git ---
+image_structure/
+report-in4/
+KetQua-Audit.md
+README_andrej-karpathy-skills.md
+*_REPORT.md
+
+# --- test cache / coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+**/coverage/
+**/.vitest/
