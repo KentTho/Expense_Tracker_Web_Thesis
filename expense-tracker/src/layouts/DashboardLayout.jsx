@@ -1,179 +1,172 @@
-// layouts/DashboardLayout.jsx
-import React, { useState, useEffect } from "react";
-import { Outlet, useNavigate, useLocation } from "react-router-dom"; 
-import Sidebar from "../components/Sidebar";
+import { useEffect, useState } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Menu } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { auth } from "../components/firebase"; 
 import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../components/firebase";
 import FinBotWidget from "../components/FinBotWidget";
-import { getUserProfile, updateUserProfile } from "../services/profileService"; 
-import WelcomeSplash from "../components/WelcomeSplash";
-import AppGuide from "../components/AppGuide"; 
+import SidebarUnified from "../components/Sidebar.jsx";
+import { getUserProfile } from "../services/profileService";
 
-export default function DashboardLayout() {
-  // State quản lý UI
-  const [isOpen, setIsOpen] = useState(false); // Trạng thái mở menu Mobile
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop: Mặc định mở rộng
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [theme, setTheme] = useState("dark");
-  
-  // State Auth & User
-  const [isAuthChecked, setIsAuthChecked] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [showSplash, setShowSplash] = useState(true);
-  const [runTour, setRunTour] = useState(false);
+const THEME_KEY = "expense-theme";
 
+function getInitialTheme() {
+  return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+}
+
+export default function DashboardLayoutUnified() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 1. Hàm lấy User mới nhất
-  const refreshUserProfile = async () => {
-    try {
-        const data = await getUserProfile();
-        setCurrentUser(data);
-        localStorage.setItem("user", JSON.stringify(data));
-        return data; 
-    } catch (error) {
-        console.error("Fetch profile failed", error);
-        return null;
-    }
-  };
+  const [theme, setTheme] = useState(getInitialTheme);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 1024);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 1280);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  // 2. Check Auth
+  async function refreshUserProfile() {
+    try {
+      const data = await getUserProfile();
+      setCurrentUser(data);
+
+      const userForStorage = { ...data };
+      delete userForStorage.profile_image;
+      localStorage.setItem("user", JSON.stringify(userForStorage));
+      window.dispatchEvent(new Event("user_profile_updated"));
+      return data;
+    } catch (error) {
+      console.error("Failed to refresh profile:", error);
+      return null;
+    }
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      const localToken = localStorage.getItem("idToken");
-      if (!user || !localToken) {
-        localStorage.removeItem("idToken"); localStorage.removeItem("user");
-        navigate("/login");
-      } else {
-        await refreshUserProfile();
-        setIsAuthChecked(true); 
+      const token = localStorage.getItem("idToken");
+
+      if (!user || !token) {
+        localStorage.removeItem("idToken");
+        localStorage.removeItem("user");
+        setCurrentUser(null);
+        setIsAuthChecked(true);
+        navigate("/login", { replace: true });
+        return;
       }
+
+      await refreshUserProfile();
+      setIsAuthChecked(true);
     });
+
     return () => unsubscribe();
   }, [navigate]);
 
-  // 3. Xử lý Resize & Mobile Detection
   useEffect(() => {
     const handleResize = () => {
-        const mobile = window.innerWidth < 768;
-        setIsMobile(mobile);
-        if (!mobile) setIsOpen(true); // Desktop luôn hiện
-        else setIsOpen(false); // Mobile mặc định ẩn
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      setIsSidebarOpen(!mobile);
+
+      if (window.innerWidth < 1280) {
+        setSidebarCollapsed(true);
+      }
     };
+
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 4. Tự đóng Menu khi chuyển trang trên Mobile
   useEffect(() => {
-      if (isMobile) {
-          setIsOpen(false);
-      }
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
   }, [location.pathname, isMobile]);
 
-  // Logic Tour & Theme
   useEffect(() => {
-    if (!showSplash && isAuthChecked && currentUser?.has_onboard === false) {
-         setTimeout(() => setRunTour(true), 2500);
-    }
-  }, [showSplash, isAuthChecked, currentUser]);
-
-  useEffect(() => {
-    if (theme === "dark") { document.documentElement.className = 'dark'; document.body.classList.add("bg-[#0F172A]", "text-gray-100"); }
-    else { document.documentElement.className = 'light'; document.body.classList.add("bg-gray-100", "text-gray-900"); }
+    localStorage.setItem(THEME_KEY, theme);
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.body.className = theme === "dark" ? "bg-slate-950 text-slate-100" : "bg-stone-100 text-slate-900";
   }, [theme]);
 
-  const handleTourFinish = async () => {
-    setRunTour(false);
-    if (currentUser) setCurrentUser({ ...currentUser, has_onboard: true });
-    try {
-      await updateUserProfile({ has_onboard: true });
-    } catch (e) {
-      console.error("Failed to update user profile (has_onboard)", e);
-    }
-  };
+  if (!isAuthChecked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-200">
+        <div className="relative">
+          <div className="absolute inset-0 h-24 w-24 animate-ping rounded-full bg-cyan-500/20" />
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/10 bg-slate-900 shadow-2xl">
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-transparent border-t-cyan-400" />
+          </div>
+          <p className="mt-8 text-center text-[10px] font-bold uppercase tracking-[0.4em] text-cyan-400/70 animate-pulse">
+            Syncing Vault
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  if (!isAuthChecked) return null;
+  const contentOffset = isMobile ? 0 : sidebarCollapsed ? 112 : 336;
 
   return (
-    <>
-      <AnimatePresence mode="wait">
-        {showSplash && (
-          <motion.div key="splash">
-            <WelcomeSplash onComplete={() => setShowSplash(false)} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {!showSplash && (
-          <div className={`flex min-h-screen relative overflow-hidden transition-colors duration-300 ${theme === "dark" ? "bg-[#0F172A] text-gray-100" : "bg-gray-100 text-gray-900"}`}>
-            
-            {/* SIDEBAR WRAPPER */}
-            <AnimatePresence>
-                {(isOpen || !isMobile) && (
-                <motion.div 
-                    key="sidebar" 
-                    initial={isMobile ? { x: -280 } : { x: 0 }} 
-                    animate={{ x: 0 }} 
-                    exit={isMobile ? { x: -280 } : { x: 0 }} 
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className={`fixed md:fixed h-full z-50`}
-                >
-                    <Sidebar 
-                        collapsed={isMobile ? false : sidebarCollapsed} 
-                        setCollapsed={isMobile ? () => {} : setSidebarCollapsed} 
-                        theme={theme} 
-                        setTheme={setTheme} 
-                        isMobile={isMobile}
-                    />
-                </motion.div>
-                )}
-            </AnimatePresence>
-            
-            {/* OVERLAY CHO MOBILE */}
-            {isOpen && isMobile && (
-                <div 
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" 
-                    onClick={() => setIsOpen(false)} 
-                />
-            )}
-
-            {/* MAIN CONTENT */}
-            <motion.main 
-                key="main-content" 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className={`flex-1 min-h-screen transition-all duration-300 ${theme === "dark" ? "bg-[#111827]" : "bg-white"}`}
-                style={{ 
-                    marginLeft: !isMobile ? (sidebarCollapsed ? "6rem" : "18rem") : "0" 
-                }}
-            >
-                {/* 🔥 FIX: Nút Menu Mobile Floating (Trôi nổi & Tự ẩn) */}
-                {!isOpen && (
-                     <button 
-                        onClick={() => setIsOpen(true)}
-                        className="md:hidden fixed top-4 left-4 z-40 p-3 rounded-xl bg-purple-600 text-white shadow-xl shadow-purple-500/30 active:scale-95 transition-all hover:scale-105 animate-fadeIn"
-                     >
-                        <Menu size={24} />
-                     </button>
-                )}
-
-                {/* Nội dung trang (Thêm padding-top trên mobile để ko bị nút che) */}
-                <div className="p-4 md:p-6 pt-16 md:pt-6">
-                    <Outlet context={{ theme, setTheme, currentUser, refreshUserProfile, currencyCode: currentUser?.currency_code || "USD" }} />
-                </div>
-
-                <FinBotWidget theme={theme} />
-            </motion.main>
-            
-            {/* APP GUIDE */}
-            {runTour && (
-                <AppGuide run={true} theme={theme} onFinish={handleTourFinish} />
-            )}
+    <div className={theme === "dark" ? "dark" : ""}>
+      <div className="relative min-h-screen overflow-hidden selection:bg-cyan-500/30">
+        {/* Modern Background */}
+        <div className="fixed inset-0 z-0">
+          <div className={`absolute inset-0 transition-opacity duration-1000 ${theme === "dark" ? "opacity-100" : "opacity-0"}`}>
+            <div className="absolute inset-0 bg-slate-950" />
+            <div className="absolute left-[-10%] top-[-10%] h-[40%] w-[40%] rounded-full bg-cyan-500/10 blur-[120px]" />
+            <div className="absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] rounded-full bg-orange-500/10 blur-[120px]" />
+          </div>
+          <div className={`absolute inset-0 transition-opacity duration-1000 ${theme === "light" ? "opacity-100" : "opacity-0"}`}>
+            <div className="absolute inset-0 bg-slate-50" />
+            <div className="absolute left-[-10%] top-[-10%] h-[40%] w-[40%] rounded-full bg-orange-200/40 blur-[120px]" />
+            <div className="absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] rounded-full bg-cyan-200/40 blur-[120px]" />
+          </div>
         </div>
-      )}
-    </>
+
+        <SidebarUnified
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
+          theme={theme}
+          setTheme={setTheme}
+          isMobile={isMobile}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          currentUser={currentUser}
+        />
+
+        {isMobile && isSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-md transition-all duration-500"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
+        {!isSidebarOpen && isMobile && (
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="fixed left-6 top-6 z-50 inline-flex items-center gap-2.5 rounded-2xl border border-white/10 bg-slate-950/80 px-5 py-3.5 text-xs font-bold uppercase tracking-widest text-white shadow-2xl backdrop-blur-xl transition-all hover:scale-105 active:scale-95"
+          >
+            <Menu size={16} className="text-cyan-400" />
+            Menu
+          </button>
+        )}
+
+        <main className="relative z-10 min-h-screen transition-all duration-500 ease-in-out" style={{ paddingLeft: contentOffset }}>
+          <div className="min-h-screen p-4 pt-20 lg:p-6 lg:pt-6">
+            <Outlet
+              context={{
+                theme,
+                setTheme,
+                currentUser,
+                refreshUserProfile,
+                currencyCode: currentUser?.currency_code || "USD",
+              }}
+            />
+          </div>
+        </main>
+
+        <FinBotWidget theme={theme} />
+      </div>
+    </div>
   );
 }

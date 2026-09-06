@@ -1,528 +1,454 @@
-// Home.jsx
-
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { useOutletContext, Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useOutletContext } from "react-router-dom";
 import {
-    DollarSign,
-    ArrowDown,
-    ArrowUp,
-    TrendingUp,
-    PieChart as PieIcon,
-    Wallet,
-    Loader2,
-    BarChart2, 
-    Activity,
-    Clock,
-    Plus, 
-    ChevronDown,
-    Megaphone,
-    AlertTriangle
+  ArrowDownRight,
+  ArrowUpRight,
+  BellRing,
+  BriefcaseBusiness,
+  CircleDollarSign,
+  Compass,
+  CreditCard,
+  Flame,
+  Layers3,
+  Plus,
+  Sparkles,
+  Target,
+  TrendingUp,
 } from "lucide-react";
+import OverviewHeader from "../../components/dashboard/OverviewHeader";
+import MetricCard from "../../components/dashboard/MetricCard";
+import BudgetCard from "../../components/dashboard/BudgetCard";
+import DashboardSkeleton from "../../components/dashboard/DashboardSkeleton";
 import {
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
-    AreaChart,
-    Area,
-    XAxis, 
-    YAxis, 
-    CartesianGrid, 
-    Tooltip
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
-import toast, { Toaster } from "react-hot-toast";
-
-// Giữ nguyên các import service
-import { getFinancialKpiSummary } from "../../services/incomeService";
-import { 
-    getExpenseDailyTrend, 
-    getExpenseBreakdown 
-} from "../../services/expenseService";
+import { getDashboardData } from "../../services/dashboardService";
+import { getExpenseBreakdown, getExpenseDailyTrend } from "../../services/expenseService";
 import { getRecentTransactions } from "../../services/transactionService";
 import { fetchSystemSettings } from "../../services/adminService";
-import { getUserProfile } from "../../services/profileService"; 
-const BREAKDOWN_COLORS = [
-    "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", 
-    "#6366F1", "#EF4444", "#14B8A6", "#F97316", "#A8A29E"
-];
+import { getUserProfile } from "../../services/profileService";
+import { formatCompactCurrency, formatCurrency, formatLongDate, formatShortDate } from "../../utils/formatters";
 
-// Helper format tiền tệ (An toàn hơn với giá trị null/undefined)
-const formatAmountDisplay = (amount, currencyCode = 'USD', decimals = 0) => {
-    const numberAmount = Number(amount) || 0; // Fallback về 0 nếu NaN/Null
-    try {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: currencyCode,
-            minimumFractionDigits: decimals,
-            maximumFractionDigits: decimals,
-        }).format(numberAmount);
-    } catch (error) {
-        return `${currencyCode} ${numberAmount.toLocaleString()}`;
-    }
-};
+const CHART_COLORS = ["#22d3ee", "#fb923c", "#34d399", "#f472b6", "#a78bfa", "#facc15"];
 
-const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good Morning";
-    if (hour < 18) return "Good Afternoon";
-    return "Good Evening";
-};
+export default function HomeUnified() {
+  const { theme, currencyCode, currentUser } = useOutletContext();
+  const isDark = theme === "dark";
 
-export default function Home() {
-    // Lấy context từ Outlet cha
-    const { theme, currencyCode } = useOutletContext();
-    const isDark = theme === "dark";
-    
-    // State quản lý dữ liệu
-    const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, balance: 0 });
-    const [expenseBreakdown, setExpenseBreakdown] = useState([]);
-    const [recentTransactions, setRecentTransactions] = useState([]);
-    const [expenseTrend, setExpenseTrend] = useState([]); 
-    const [loading, setLoading] = useState(true);
-    const [broadcastMsg, setBroadcastMsg] = useState("");
-    const [budget, setBudget] = useState(0); 
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [summary, setSummary] = useState({
+    total_income: 0,
+    total_expense: 0,
+    balance: 0,
+    budget_limit: 0,
+    spent_this_month: 0,
+    remaining_budget: 0,
+  });
+  const [breakdown, setBreakdown] = useState([]);
+  const [trend, setTrend] = useState([]);
+  const [recentTransactions, setRecentTransactions] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [systemSettings, setSystemSettings] = useState({ broadcast_message: "" });
 
-    // State quản lý UI menu
-    const [showAddMenu, setShowAddMenu] = useState(false);
-    const addMenuRef = useRef(null);
+  useEffect(() => {
+    let mounted = true;
 
-    // Hàm fetch dữ liệu an toàn (Safe Fetching)
-    // Giúp User mới không bị báo lỗi đỏ lòm khi chưa có dữ liệu
-    const fetchData = useCallback(async () => {
-        // Không set loading=true ở đây nếu muốn reload ngầm (optional), 
-        // nhưng set ở lần đầu mount là cần thiết.
-        
-        try {
-            // Sử dụng Promise.all để gọi song song, nhưng catch lỗi riêng lẻ từng cái
-            // Để đảm bảo 1 cái lỗi không làm sập cả trang dashboard
-            const [
-                kpiData, 
-                breakdownData, 
-                recentTx, 
-                trendData, 
-                systemSettings, 
-                userProfile
-            ] = await Promise.all([
-                // 1. KPI: Nếu lỗi -> trả về object 0
-                getFinancialKpiSummary().catch(err => {
-                    console.warn("KPI Fetch silent fail:", err);
-                    return { total_income: 0, total_expense: 0 };
-                }),
+    async function loadDashboard() {
+      setLoading(true);
 
-                // 2. Breakdown: Nếu lỗi -> trả về mảng rỗng
-                getExpenseBreakdown().catch(err => {
-                    console.warn("Breakdown Fetch silent fail:", err);
-                    return [];
-                }),
+      const results = await Promise.allSettled([
+        getDashboardData(),
+        getExpenseBreakdown(),
+        getExpenseDailyTrend(30),
+        getRecentTransactions(7),
+        fetchSystemSettings(),
+        getUserProfile(),
+      ]);
 
-                // 3. Transactions: Nếu lỗi -> trả về mảng rỗng
-                getRecentTransactions(10).catch(err => {
-                    console.warn("Transactions Fetch silent fail:", err);
-                    return [];
-                }),
+      if (!mounted) {
+        return;
+      }
 
-                // 4. Trend: Nếu lỗi -> trả về mảng rỗng
-                getExpenseDailyTrend(30).catch(err => {
-                    console.warn("Trend Fetch silent fail:", err);
-                    return [];
-                }),
+      const [dashboard, expenseBreakdown, expenseTrend, recent, settings, userProfile] = results;
 
-                // 5. Settings: Lỗi thì bỏ qua
-                fetchSystemSettings().catch(() => ({ broadcast_message: "" })),
-
-                // 6. Profile: Lỗi thì bỏ qua
-                getUserProfile().catch(() => ({}))
-            ]);
-
-            // --- Xử lý dữ liệu sau khi fetch an toàn ---
-
-            // Broadcast Message
-            if (systemSettings && systemSettings.broadcast_message) {
-                setBroadcastMsg(systemSettings.broadcast_message);
-            }
-
-            // Summary
-            const totalIncome = Number(kpiData?.total_income) || 0;
-            const totalExpense = Number(kpiData?.total_expense) || 0;
-            setSummary({
-                total_income: totalIncome,
-                total_expense: totalExpense,
-                balance: totalIncome - totalExpense,
-            });
-
-            // Budget Profile
-            if (userProfile) {
-                setBudget(Number(userProfile.monthly_budget || 0));
-            }
-
-            // Expense Breakdown Chart
-            const formattedBreakdown = Array.isArray(breakdownData) 
-                ? breakdownData.map(item => ({
-                    name: item.category_name,
-                    value: Number(item.total_amount) || 0,
-                })).filter(item => item.value > 0)
-                : [];
-            setExpenseBreakdown(formattedBreakdown);
-
-            // Recent Transactions
-            const formattedRecentTx = Array.isArray(recentTx) 
-                ? recentTx.map(tx => ({
-                    ...tx,
-                    date: tx.date ? tx.date.split('T')[0] : 'N/A',
-                    category_name: tx.category_name || tx.category?.name || 'General'
-                })) 
-                : [];
-            setRecentTransactions(formattedRecentTx);
-
-            // Expense Trend Chart
-            const formattedTrend = Array.isArray(trendData) 
-                ? trendData.map(item => ({
-                    date: item.date, 
-                    amount: Number(item.total_amount) || 0
-                })) 
-                : [];
-            setExpenseTrend(formattedTrend);
-
-        } catch (error) {
-            // Lỗi nghiêm trọng mới log ra console, KHÔNG TOAST để tránh làm phiền user
-            console.error("Critical Dashboard Error:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, []); 
-
-    // Effect khởi tạo và lắng nghe sự kiện update
-    useEffect(() => {
-        fetchData();
-        
-        const handleUpdate = () => {
-            // Reload ngầm (không hiện loading spinner toàn màn hình) để trải nghiệm mượt hơn
-            fetchData();
-        };
-        
-        window.addEventListener("transactionUpdated", handleUpdate);
-        return () => window.removeEventListener("transactionUpdated", handleUpdate);
-    }, [fetchData]);
-
-    // Xử lý click outside menu "Add New"
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (addMenuRef.current && !addMenuRef.current.contains(event.target)) {
-                setShowAddMenu(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [addMenuRef]);
-
-    // Render Component: Thẻ ngân sách
-    const renderBudgetCard = () => {
-        if (budget <= 0) return null; 
-
-        const totalExpense = summary.total_expense;
-        const percentage = Math.min((totalExpense / budget) * 100, 100);
-        
-        let progressColor = "bg-green-500";
-        let statusText = "Safe zone";
-        let iconColor = "text-gray-500";
-
-        if (percentage >= 80) { 
-            progressColor = "bg-yellow-500"; 
-            statusText = "Warning"; 
-            iconColor = "text-yellow-500";
-        }
-        if (percentage >= 100) { 
-            progressColor = "bg-red-600"; 
-            statusText = "Over budget!"; 
-            iconColor = "text-red-600 animate-pulse";
-        }
-
-        return (
-            <div className={`mb-8 p-5 rounded-2xl shadow-lg flex flex-col sm:flex-row items-center gap-5 transition-all ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border border-red-100"}`}>
-                <div className={`p-3 rounded-full ${isDark ? "bg-gray-700" : "bg-red-50"}`}>
-                    <AlertTriangle className={iconColor} size={28} />
-                </div>
-                <div className="flex-1 w-full">
-                    <div className="flex justify-between mb-2">
-                        <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Monthly Budget</span>
-                        <span className={`text-sm font-bold ${percentage >= 100 ? "text-red-600" : "text-gray-500"}`}>
-                            {percentage.toFixed(1)}% ({statusText})
-                        </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700 overflow-hidden">
-                        <div 
-                            className={`h-3 rounded-full transition-all duration-1000 ease-out ${progressColor}`} 
-                            style={{ width: `${percentage}%` }}
-                        ></div>
-                    </div>
-                    <div className="flex justify-between mt-2 text-xs text-gray-400">
-                        <span>Spent: <b>{formatAmountDisplay(totalExpense, currencyCode)}</b></span>
-                        <span>Limit: <b>{formatAmountDisplay(budget, currencyCode)}</b></span>
-                    </div>
-                </div>
-            </div>
+      if (dashboard.status === "fulfilled" && dashboard.value) {
+        setSummary(dashboard.value.summary || { total_income: 0, total_expense: 0 });
+      } else {
+        // Explicit error state (do not silently fallback on API failure)
+        setError(
+          dashboard.status === "rejected"
+            ? dashboard.reason?.message || "Dashboard request failed"
+            : "Dashboard request failed"
         );
+      }
+
+      setBreakdown(
+        expenseBreakdown.status === "fulfilled" && Array.isArray(expenseBreakdown.value)
+          ? expenseBreakdown.value
+          : []
+      );
+      setTrend(
+        expenseTrend.status === "fulfilled" && Array.isArray(expenseTrend.value) ? expenseTrend.value : []
+      );
+      setRecentTransactions(recent.status === "fulfilled" && Array.isArray(recent.value) ? recent.value : []);
+      setSystemSettings(
+        settings.status === "fulfilled" && settings.value ? settings.value : { broadcast_message: "" }
+      );
+      setProfile(userProfile.status === "fulfilled" ? userProfile.value : null);
+      setLoading(false);
+    }
+
+    setError(null);
+    loadDashboard();
+    const handleRefresh = () => loadDashboard();
+    window.addEventListener("transactionUpdated", handleRefresh);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("transactionUpdated", handleRefresh);
     };
+  }, []);
 
-    // Màn hình Loading
-    if (loading) {
-        return (
-            <div className={`min-h-screen flex justify-center items-center ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
-                <div className="text-center">
-                    <Loader2 className="animate-spin text-blue-500 mx-auto mb-4" size={48} />
-                    <p className="text-gray-500 font-medium">Loading your financial insights...</p>
-                </div>
-            </div>
-        );
-    }
+  const currentProfile = profile || currentUser;
+  const budget = Number(summary?.budget_limit || 0);
+  const totalIncome = Number(summary?.total_income || 0);
+  const totalExpense = Number(summary?.total_expense || 0);
+  const spentThisMonth = Number(summary?.spent_this_month || 0);
+  const remainingBudget = Number(summary?.remaining_budget ?? 0);
+  const balance = Number(summary?.balance ?? (totalIncome - totalExpense));
 
+  const chartData = useMemo(
+    () =>
+      trend.map((item) => ({
+        date: formatShortDate(item.date),
+        rawDate: item.date,
+        total_amount: Number(item.total_amount || 0),
+      })),
+    [trend]
+  );
+
+  const distributionData = useMemo(
+    () =>
+      breakdown
+        .map((item) => ({
+          name: item.category_name,
+          value: Number(item.total_amount || 0),
+        }))
+        .filter((item) => item.value > 0)
+        .slice(0, 6),
+    [breakdown]
+  );
+
+  if (loading) {
+    return <DashboardSkeleton isDark={isDark} />;
+  }
+
+  if (error) {
     return (
-        <div className={`min-h-screen transition-colors duration-300 ${isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
-            <Toaster position="top-center" />
-            
-            <header className="p-6 sm:p-8 pb-2">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h1 className="text-3xl sm:text-4xl font-extrabold flex items-center gap-3">
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
-                                {getGreeting()}
-                            </span>
-                            <span className="text-2xl animate-wave">👋</span>
-                        </h1>
-                        <p className="text-gray-500 dark:text-gray-400 mt-1 font-medium flex items-center gap-2">
-                            <Clock size={16} /> Here's your financial overview today.
-                        </p>
-                    </div>
-                    
-                    <div className="relative hidden sm:block flex items-center gap-3" ref={addMenuRef}>
-                        
-                        <button 
-                            onClick={() => setShowAddMenu(prev => !prev)} 
-                            className="px-5 py-2.5 rounded-full bg-blue-600 text-white font-semibold shadow-lg hover:bg-blue-500 hover:shadow-blue-500/30 transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
-                        >
-                            <Plus size={18} /> New Transaction <ChevronDown size={18} />
-                        </button>
-
-                        {showAddMenu && (
-                            <div className={`absolute top-full right-0 mt-2 w-48 rounded-xl shadow-2xl p-2 z-50 ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border"}`}>
-                                <Link 
-                                    to="/income"
-                                    onClick={() => setShowAddMenu(false)}
-                                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "text-green-400 hover:bg-gray-700" : "text-green-600 hover:bg-gray-50"}`}
-                                >
-                                    <ArrowUp size={16} /> Add New Income
-                                </Link>
-                                <Link 
-                                    to="/expense"
-                                    onClick={() => setShowAddMenu(false)}
-                                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "text-red-400 hover:bg-gray-700" : "text-red-600 hover:bg-gray-50"}`}
-                                >
-                                    <ArrowDown size={16} /> Add New Expense
-                                </Link>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {broadcastMsg && (
-                    <div className="mt-6 p-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg flex items-center gap-3 animate-pulse">
-                        <Megaphone size={24} />
-                        <p className="font-bold text-sm sm:text-base">{broadcastMsg}</p>
-                    </div>
-                )}
-            </header>
-
-            <main className="p-6 sm:p-8 space-y-8">
-                
-                {renderBudgetCard()}
-
-                {/* 1. KPI CARDS */}
-                <div id="tour-kpi" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-xl shadow-green-500/20 transition-transform hover:scale-[1.02]">
-                        <div className="absolute right-0 top-0 p-4 opacity-10"><Wallet size={100} /></div>
-                        <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-3 opacity-90">
-                                <div className="p-1.5 bg-white/20 rounded-full"><ArrowUp size={16} /></div>
-                                <span className="text-sm font-bold uppercase tracking-wider">Total Income</span>
-                            </div>
-                            <p className="text-3xl sm:text-4xl font-extrabold">
-                                {formatAmountDisplay(summary.total_income, currencyCode, 0)}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-xl shadow-red-500/20 transition-transform hover:scale-[1.02]">
-                         <div className="absolute right-0 top-0 p-4 opacity-10"><Activity size={100} /></div>
-                        <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-3 opacity-90">
-                                <div className="p-1.5 bg-white/20 rounded-full"><ArrowDown size={16} /></div>
-                                <span className="text-sm font-bold uppercase tracking-wider">Total Expense</span>
-                            </div>
-                            <p className="text-3xl sm:text-4xl font-extrabold">
-                                {formatAmountDisplay(summary.total_expense, currencyCode, 0)}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className={`relative overflow-hidden p-6 rounded-2xl shadow-xl transition-transform hover:scale-[1.02] ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-100"}`}>
-                         <div className="absolute right-0 top-0 p-4 opacity-5"><DollarSign size={120} /></div>
-                        <div className="relative z-10">
-                             <div className="flex items-center gap-2 mb-3 text-gray-500 dark:text-gray-400">
-                                <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-500 rounded-full"><DollarSign size={16} /></div>
-                                <span className="text-sm font-bold uppercase tracking-wider">Net Balance</span>
-                            </div>
-                            <p className={`text-3xl sm:text-4xl font-extrabold ${summary.balance >= 0 ? "text-blue-500" : "text-red-500"}`}>
-                                {formatAmountDisplay(summary.balance, currencyCode, 0)}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-2">
-                                Available balance across all accounts.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 2. CHARTS */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div id="tour-chart-trend" className={`lg:col-span-2 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                <BarChart2 className="text-blue-500" size={24} />
-                                30-Day Expense Trend
-                            </h2>
-                        </div>
-                        <div className="flex-1 min-h-[300px]">
-                             {expenseTrend.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={expenseTrend}>
-                                        <defs>
-                                            <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3}/>
-                                                <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
-                                        <XAxis 
-                                            dataKey="date" 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 12}} 
-                                            dy={10} 
-                                        />
-                                        <YAxis 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 12}} 
-                                            tickFormatter={(val) => formatAmountDisplay(val, currencyCode, 0).replace(currencyCode, "").trim()} 
-                                        />
-                                        <Tooltip 
-                                            contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                                            formatter={(val) => [formatAmountDisplay(val, currencyCode), "Expense"]} 
-                                        />
-                                        <Area type="monotone" dataKey="amount" stroke="#EF4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                                    <BarChart2 size={48} className="mb-2" />
-                                    <p className="text-sm">No trend data available yet.</p>
-                                    <p className="text-xs mt-1">Add expenses to see analytics.</p>
-                                </div>
-                             )}
-                        </div>
-                    </div>
-
-                    <div id="tour-chart-pie" className={`lg:col-span-1 p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                <PieIcon className="text-purple-500" size={24} />
-                                Breakdown
-                            </h2>
-                            <Link to="/analytics" className="text-xs font-bold text-purple-500 hover:underline">DETAILS →</Link>
-                        </div>
-                        <div className="flex-1 min-h-[300px] relative">
-                            {expenseBreakdown.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie 
-                                            data={expenseBreakdown} 
-                                            innerRadius={60} 
-                                            outerRadius={90} 
-                                            paddingAngle={5} 
-                                            dataKey="value"
-                                        >
-                                            {expenseBreakdown.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length]} stroke={isDark ? "#1F2937" : "#FFF"} strokeWidth={2} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip 
-                                             contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                                             formatter={(val) => formatAmountDisplay(val, currencyCode)}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 opacity-60">
-                                    <PieIcon size={48} className="mb-2" />
-                                    <p className="text-sm">No expenses yet.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* 3. RECENT TRANSACTIONS */}
-                <div id="tour-recent" className={`p-6 rounded-2xl shadow-lg ${isDark ? "bg-gray-800" : "bg-white"}`}>
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <TrendingUp className="text-orange-500" size={24} />
-                            Recent Activity
-                        </h2>
-                        <Link to="/analytics" className="px-4 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                            View All History
-                        </Link>
-                    </div>
-
-                    <div className="space-y-1 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                        {recentTransactions.length > 0 ? (
-                            recentTransactions.map((tx) => (
-                                <div 
-                                    key={tx.id} 
-                                    className={`flex items-center justify-between p-4 rounded-xl transition-colors ${isDark ? "hover:bg-gray-700/50" : "hover:bg-gray-50"}`}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-sm ${isDark ? "bg-gray-700" : "bg-gray-100"}`}>
-                                            {tx.emoji || "💸"}
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-base">{tx.category_name}</p>
-                                            <p className="text-xs font-medium text-gray-400 mt-0.5 uppercase tracking-wide">
-                                                {tx.date} • {tx.category_name}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className={`text-lg font-bold ${tx.type === "income" ? "text-green-500" : "text-red-500"}`}>
-                                            {tx.type === "income" ? "+" : "-"} {formatAmountDisplay(tx.amount, tx.currency_code || currencyCode, 0)}
-                                        </p>
-                                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${tx.type === "income" ? "bg-green-100 text-green-600 dark:bg-green-900/30" : "bg-red-100 text-red-600 dark:bg-red-900/30"}`}>
-                                            {tx.type.toUpperCase()}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="text-center py-12 text-gray-500 opacity-70">
-                                <TrendingUp size={40} className="mx-auto mb-3 opacity-30" />
-                                <p className="font-medium">No recent activity.</p>
-                                <p className="text-xs mt-1">Your recent transactions will appear here.</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-            </main>
+      <section
+        className={`mt-8 overflow-hidden rounded-[2.25rem] border p-6 shadow-2xl ${
+          isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-rose-300">Dashboard error</p>
+            <h2 className="mt-2 text-xl font-black">Could not load dashboard overview</h2>
+            <p className={`mt-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>{error}</p>
+          </div>
+          <div className="rounded-2xl bg-rose-400/15 px-4 py-3 text-sm font-bold text-rose-300">
+            Retry
+          </div>
         </div>
+      </section>
     );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section
+        className={`overflow-hidden rounded-[2.25rem] border p-6 shadow-2xl ${
+          isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"
+        }`}
+      >
+        <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
+          <div>
+            <OverviewHeader
+              isDark={isDark}
+              title={currentProfile?.name ? `Welcome back, ${currentProfile.name.split(" ")[0]}.` : "Welcome back."}
+              subtitle="This dashboard reads directly from backend summaries, transaction feeds, and security settings so FE and BE stay in sync."
+            />
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                to="/income"
+                className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:translate-y-[-1px]"
+              >
+                <Plus size={16} />
+                Add income
+              </Link>
+              <Link
+                to="/expense"
+                className="inline-flex items-center gap-2 rounded-2xl border border-orange-300/30 bg-orange-300/10 px-5 py-3 text-sm font-bold text-orange-200 transition hover:translate-y-[-1px]"
+              >
+                <Plus size={16} />
+                Add expense
+              </Link>
+              <Link
+                to="/analytics"
+                className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition hover:translate-y-[-1px] ${
+                  isDark ? "bg-white/5 text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                <Layers3 size={16} />
+                Open analytics
+              </Link>
+            </div>
+          </div>
+
+          <BudgetCard
+            isDark={isDark}
+            currencyCode={currencyCode}
+            budgetLimit={budget}
+            spentThisMonth={spentThisMonth}
+            remainingBudget={remainingBudget}
+          />
+        </div>
+
+        {systemSettings?.broadcast_message && (
+          <div
+            className={`mt-6 flex items-center gap-3 rounded-[1.5rem] border px-4 py-4 ${
+              isDark ? "border-orange-300/20 bg-orange-300/10 text-orange-100" : "border-orange-200 bg-orange-50 text-orange-700"
+            }`}
+          >
+            <BellRing size={18} />
+            <p className="text-sm font-medium">{systemSettings.broadcast_message}</p>
+          </div>
+        )}
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Income"
+          value={formatCurrency(totalIncome, currencyCode)}
+          subtitle="Money flowing into your account base."
+          icon={ArrowUpRight}
+          tone={{
+            panel: isDark ? "border-emerald-400/15 bg-emerald-400/10" : "border-emerald-100 bg-emerald-50",
+            iconWrap: isDark ? "bg-emerald-300 text-slate-950" : "bg-emerald-500 text-white",
+            icon: "",
+          }}
+        />
+        <MetricCard
+          title="Expense"
+          value={formatCurrency(totalExpense, currencyCode)}
+          subtitle="Backend-synced spending across categories."
+          icon={ArrowDownRight}
+          tone={{
+            panel: isDark ? "border-orange-300/15 bg-orange-300/10" : "border-orange-100 bg-orange-50",
+            iconWrap: isDark ? "bg-orange-300 text-slate-950" : "bg-orange-400 text-white",
+            icon: "",
+          }}
+        />
+        <MetricCard
+          title="Balance"
+          value={formatCurrency(balance, currencyCode)}
+          subtitle="Your live financial posture after sync."
+          icon={CircleDollarSign}
+          tone={{
+            panel: isDark ? "border-cyan-400/15 bg-cyan-400/10" : "border-cyan-100 bg-cyan-50",
+            iconWrap: isDark ? "bg-cyan-300 text-slate-950" : "bg-cyan-500 text-white",
+            icon: "",
+          }}
+        />
+        <MetricCard
+          title="Budget"
+          value={budget > 0 ? formatCurrency(budget, currencyCode) : "Not set"}
+          subtitle={budget > 0 ? `Remaining: ${formatCurrency(summary.remaining_budget, currencyCode)}` : "Use profile settings to define a monthly limit."}
+          icon={Target}
+          tone={{
+            panel: isDark ? "border-violet-400/15 bg-violet-400/10" : "border-violet-100 bg-violet-50",
+            iconWrap: isDark ? "bg-violet-300 text-slate-950" : "bg-violet-500 text-white",
+            icon: "",
+          }}
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
+        <div className={`rounded-[2rem] border p-5 shadow-xl ${isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"}`}>
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Thirty-day signal</p>
+              <h2 className="mt-2 text-2xl font-black">Expense momentum</h2>
+            </div>
+            <div className={`rounded-2xl px-4 py-2 text-xs font-bold ${isDark ? "bg-white/5 text-slate-300" : "bg-slate-100 text-slate-600"}`}>
+              Live BE chart
+            </div>
+          </div>
+
+          <div className="h-[320px]">
+            {chartData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="expense-glow" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.45} />
+                      <stop offset="95%" stopColor="#22d3ee" stopOpacity={0.04} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#243041" : "#e2e8f0"} vertical={false} />
+                  <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 12 }} />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={52}
+                    tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 12 }}
+                    tickFormatter={(value) => formatCompactCurrency(value, currencyCode)}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: isDark ? "#0f172a" : "#ffffff",
+                      borderRadius: 18,
+                      border: "1px solid rgba(148,163,184,0.15)",
+                    }}
+                    formatter={(value) => [formatCurrency(value, currencyCode), "Expense"]}
+                  />
+                  <Area type="monotone" dataKey="total_amount" stroke="#22d3ee" strokeWidth={3} fill="url(#expense-glow)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-[1.5rem] border border-dashed border-white/10 text-center text-slate-400">
+                <div>
+                  <TrendingUp size={28} className="mx-auto text-cyan-400" />
+                  <p className="mt-3 text-sm">Add expenses to see your momentum line.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={`rounded-[2rem] border p-5 shadow-xl ${isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"}`}>
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Category pulse</p>
+              <h2 className="mt-2 text-2xl font-black">Expense mix</h2>
+            </div>
+            <Flame className="text-orange-300" size={20} />
+          </div>
+
+          <div className="h-[320px]">
+            {distributionData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={distributionData} dataKey="value" innerRadius={60} outerRadius={95} paddingAngle={3}>
+                    {distributionData.map((item, index) => (
+                      <Cell key={item.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: isDark ? "#0f172a" : "#ffffff",
+                      borderRadius: 18,
+                      border: "1px solid rgba(148,163,184,0.15)",
+                    }}
+                    formatter={(value) => [formatCurrency(value, currencyCode), "Spent"]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-[1.5rem] border border-dashed border-white/10 text-center text-slate-400">
+                <div>
+                  <BriefcaseBusiness size={28} className="mx-auto text-orange-300" />
+                  <p className="mt-3 text-sm">No breakdown available yet.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {distributionData.slice(0, 4).map((item, index) => (
+              <div key={item.name} className={`flex items-center justify-between rounded-2xl px-3 py-2 ${isDark ? "bg-white/5" : "bg-slate-100/80"}`}>
+                <div className="flex items-center gap-3">
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                  <span className="text-sm font-semibold">{item.name}</span>
+                </div>
+                <span className="text-sm font-bold">{formatCurrency(item.value, currencyCode)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className={`rounded-[2rem] border p-5 shadow-xl ${isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"}`}>
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Recent feed</p>
+            <h2 className="mt-2 text-2xl font-black">Latest transactions</h2>
+          </div>
+          <Link
+            to="/analytics"
+            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold ${
+              isDark ? "bg-white/5 text-white" : "bg-slate-100 text-slate-700"
+            }`}
+          >
+            <Sparkles size={16} />
+            Explore full timeline
+          </Link>
+        </div>
+
+        <div className="grid gap-3">
+          {recentTransactions.length ? (
+            recentTransactions.map((transaction) => {
+              const type = transaction.type === "income" ? "income" : "expense";
+              const fallbackBadge = type === "income" ? "$" : "-";
+
+              return (
+                <div
+                  key={transaction.id}
+                  className={`flex flex-col gap-4 rounded-[1.5rem] border px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${
+                    isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50/70"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-base font-black ${type === "income" ? "bg-emerald-400/15 text-emerald-300" : "bg-orange-300/15 text-orange-200"}`}>
+                      {transaction.emoji || fallbackBadge}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">{transaction.category_name || "Uncategorized"}</p>
+                      <p className="text-xs text-slate-400">{formatLongDate(transaction.date)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 sm:justify-end">
+                    <div className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] ${type === "income" ? "bg-emerald-400/15 text-emerald-300" : "bg-orange-300/15 text-orange-200"}`}>
+                      {type}
+                    </div>
+                    <div className={`text-right text-lg font-black ${type === "income" ? "text-emerald-300" : "text-orange-200"}`}>
+                      {type === "income" ? "+" : "-"}{" "}
+                      {formatCurrency(transaction.amount, transaction.currency_code || currencyCode)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className={`rounded-[1.5rem] border border-dashed px-6 py-14 text-center ${isDark ? "border-white/10 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+              <CreditCard size={28} className="mx-auto text-cyan-400" />
+              <p className="mt-4 text-sm">No recent activity yet. Backend transactions will appear here as soon as they exist.</p>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
 }

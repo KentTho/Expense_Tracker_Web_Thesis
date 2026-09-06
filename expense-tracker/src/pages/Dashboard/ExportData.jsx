@@ -1,613 +1,285 @@
-// ExportData.jsx
-
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
-  FileSpreadsheet,
   Download,
-  CheckCircle2,
+  Filter,
+  Loader2,
   RefreshCw,
-  TrendingUp,
-  TrendingDown,
-  Scale,
-  Filter, 
-  FileText,
   SearchX,
-  Loader2
+  ShieldCheck,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  Vault,
 } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast"; 
-import { BACKEND_BASE } from "../../services/api";
-import { getToken } from "../../services/incomeService"; 
-import ExportStatusModal from "../../components/ExportStatusModal";
+import toast, { Toaster } from "react-hot-toast";
+import { authorizedFetch } from "../../services/api";
+import { getIncomes } from "../../services/incomeService";
+import { getExpenses } from "../../services/expenseService";
+import { formatCurrency, formatLongDate } from "../../utils/formatters";
 
-export default function ExportData() {
+function SummaryTile({ title, value, icon: Icon, tone }) {
+  return (
+    <div className={`rounded-[1.75rem] border p-5 shadow-xl ${tone}`}>
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">{title}</p>
+        <Icon size={18} className="text-cyan-300" />
+      </div>
+      <h3 className="mt-4 text-3xl font-black tracking-tight">{value}</h3>
+    </div>
+  );
+}
+
+export default function ExportDataUnified() {
   const { theme, currencyCode } = useOutletContext();
   const isDark = theme === "dark";
 
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloaded, setDownloaded] = useState({ income: false, expense: false });
-  const [data, setData] = useState([]); 
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  const [previewFilter, setPreviewFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [transactions, setTransactions] = useState([]);
 
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportTaskId, setExportTaskId] = useState(null);
-  const [exportStatus, setExportStatus] = useState(null); // pending | processing | completed | failed
-  const [exportType, setExportType] = useState(null);     // 'income' | 'expense'
-  const [exportFileUrl, setExportFileUrl] = useState(null);
+  useEffect(() => {
+    let mounted = true;
 
-  // ===========================
-  // 🧩 HELPER: CURRENCY FORMATTING
-  // ===========================
-  const formatCurrency = (amount, currencyCode) => {
-    const roundedAmount = Math.round(Number(amount) || 0); 
-    try {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: currencyCode || 'USD',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-        }).format(roundedAmount).replace(currencyCode, currencyCode); 
-    } catch (e) { 
-        return `${currencyCode} ${roundedAmount.toLocaleString()}`; 
+    async function loadPreview() {
+      setLoading(true);
+
+      const [incomeResult, expenseResult] = await Promise.allSettled([getIncomes(), getExpenses()]);
+      if (!mounted) {
+        return;
+      }
+
+      const incomes = incomeResult.status === "fulfilled" ? incomeResult.value : [];
+      const expenses = expenseResult.status === "fulfilled" ? expenseResult.value?.items || [] : [];
+      const merged = [
+        ...incomes.map((item) => ({ ...item, type: "income" })),
+        ...expenses.map((item) => ({ ...item, type: "expense" })),
+      ].sort((left, right) => new Date(right.date) - new Date(left.date));
+
+      setTransactions(merged);
+      setLoading(false);
     }
-  };
 
-  // ===========================
-  // 🧩 Fetch data
-  // ===========================
-  const fetchData = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      const token = await getToken();
-      
-      const safeFetch = async (url) => {
-        try {
-            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-            if (!res.ok) return { items: [] }; 
-            return await res.json();
-        } catch (e) {
-            console.warn(`Fetch failed for ${url}`, e);
-            return { items: [] };
-        }
-      };
+    loadPreview();
+    const handleRefresh = () => loadPreview();
+    window.addEventListener("transactionUpdated", handleRefresh);
 
-      const [incomeResponse, expenseResponse] = await Promise.all([
-        safeFetch(`${BACKEND_BASE}/incomes`),
-        safeFetch(`${BACKEND_BASE}/expenses`),
-      ]);
-
-      const incomeData = Array.isArray(incomeResponse.items) ? incomeResponse.items : [];
-      const expenseData = Array.isArray(expenseResponse.items) ? expenseResponse.items : [];
-      
-      const combined = [
-        ...incomeData.map((i) => ({ ...i, type: "income" })),
-        ...expenseData.map((e) => ({ ...e, type: "expense" })),
-      ].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-      setData(combined);
-      
-    } catch (err) {
-      console.error("❌ Critical Fetch error:", err);
-    } finally {
-      setIsRefreshing(false);
-    }
+    return () => {
+      mounted = false;
+      window.removeEventListener("transactionUpdated", handleRefresh);
+    };
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const filteredTransactions = useMemo(
+    () => (filter === "all" ? transactions : transactions.filter((item) => item.type === filter)),
+    [transactions, filter]
+  );
 
-  // ===========================
-  // 🧩 Handle export Excel
-  // ===========================
-  const handleDownload = async (type) => {
-    const hasData = data.some(item => item.type === type);
-    if (!hasData) {
-        toast("No data available to export.", { icon: "📂" });
-        return;
-    }
-
-    try {
-      setIsDownloading(true);
-      const toastId = toast.loading(`Preparing ${type} report...`);
-      
-      const token = await getToken(); 
-      const endpoint =
-        type === "income"
-          ? `${BACKEND_BASE}/export/income`
-          : `${BACKEND_BASE}/export/expense`;
-
-      const res = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("Export failed");
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${type}_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-
-      setDownloaded((prev) => ({ ...prev, [type]: true }));
-      toast.success(`${type} report downloaded!`, { id: toastId });
-
-      setTimeout(() => {
-        setDownloaded((prev) => ({ ...prev, [type]: false }));
-      }, 3000);
-
-    } catch (err) {
-      console.error("Export failed:", err);
-      toast.error("Failed to download report. Please try again.");
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  // ===========================
-  // 💡 FILTERED DATA
-  // ===========================
-  const filteredData = useMemo(() => {
-    if (previewFilter === 'all') return data;
-    return data.filter(item => item.type === previewFilter);
-  }, [data, previewFilter]);
-
-  // ===========================
-  // 💡 CALCULATE TOTALS
-  // ===========================
-  const { totalIncome, totalExpense, netBalance } = useMemo(() => {
-    const income = filteredData
-      .filter((d) => d.type === "income")
-      .reduce((a, b) => a + Number(b.amount || 0), 0);
-    
-    const expense = filteredData
-      .filter((d) => d.type === "expense")
-      .reduce((a, b) => a + Number(b.amount || 0), 0);
-      
-    return {
-      totalIncome: income,
-      totalExpense: expense,
-      netBalance: income - expense
-    };
-  }, [filteredData]); 
-
-
-  // Hàm poll task status (thêm hàm này)
-  const pollExportStatus = useCallback(async (taskId) => {
-    if (!taskId) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`${BACKEND_BASE}/export/status/${taskId}`, {
-          headers: {
-            Authorization: `Bearer ${getToken()}`,
-          },
-        });
-        const data = await res.json();
-
-        setExportStatus(data.status);
-
-        if (data.status === 'completed') {
-          clearInterval(interval);
-          setExportFileUrl(data.file_url);
-          toast.success(`Xuất ${exportType} hoàn tất!`);
-        } else if (data.status === 'failed') {
-          clearInterval(interval);
-          toast.error('Xuất file thất bại. Vui lòng thử lại.');
-        }
-      } catch (err) {
-        console.error(err);
-        clearInterval(interval);
-        toast.error('Lỗi khi kiểm tra trạng thái export.');
-      }
-    }, 3000); // poll mỗi 3 giây
-
-    // Cleanup khi component unmount hoặc task hoàn tất
-    return () => clearInterval(interval);
-  }, [exportType]);
-
-  // Effect theo dõi khi taskId thay đổi
-  useEffect(() => {
-    if (exportTaskId) {
-      const cleanup = pollExportStatus(exportTaskId);
-      return cleanup;
-    }
-  }, [exportTaskId, pollExportStatus]);
-
-  // ────────────────────────────────────────────────
-  // Thay thế / bổ sung vào hai nút export hiện có
-  // Ví dụ: thay vì gọi download trực tiếp, gọi hàm mới
-
-  const handleExport = async (type) => {   // type: 'income' hoặc 'expense'
-    try {
-      setIsDownloading(true);
-      setExportType(type);
-      setExportStatus('pending');
-      setExportFileUrl(null);
-
-      const res = await fetch(`${BACKEND_BASE}/export/${type}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${getToken()}`,
+  const totals = useMemo(
+    () =>
+      filteredTransactions.reduce(
+        (accumulator, item) => {
+          const amount = Number(item.amount || 0);
+          if (item.type === "income") {
+            accumulator.income += amount;
+          } else {
+            accumulator.expense += amount;
+          }
+          return accumulator;
         },
-      });
+        { income: 0, expense: 0 }
+      ),
+    [filteredTransactions]
+  );
 
-      if (!res.ok) throw new Error('Export request failed');
-
-      const data = await res.json();
-
-      if (data.task_id) {
-        setExportTaskId(data.task_id);
-        setShowExportModal(true);
-        toast.loading(`Đang xử lý xuất ${type}...`);
-      } else {
-        toast.error('Không nhận được task export');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Lỗi khi khởi tạo export');
+  async function handleDownload(type) {
+    try {
+      setDownloading(type);
+      const toastId = toast.loading(`Preparing ${type} export...`);
+      const blob = await authorizedFetch(`/export/${type}`, { method: "GET" }, { responseType: "blob" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${type}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      toast.success(`${type === "income" ? "Income" : "Expense"} export downloaded.`, { id: toastId });
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast.error(error.message || "Failed to export data.");
     } finally {
-      setIsDownloading(false);
+      setDownloading("");
     }
-  };
+  }
 
-  // ===========================
-  // 💄 UI RENDER
-  // ===========================
   return (
-    <div
-      className={`min-h-screen transition-colors duration-300 ${
-        isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"
-      }`}
-    >
+    <div className="space-y-6">
       <Toaster position="top-center" />
-      
-      <main className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+
+      <section
+        className={`rounded-[2.25rem] border p-6 shadow-xl ${
+          isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"
+        }`}
+      >
+        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold flex items-center gap-3">
-              <FileSpreadsheet className="text-blue-500" size={28} />
-              Export Center
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm sm:text-base">
-              Preview and export your transaction history.
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">
+              <Vault size={14} />
+              Export vault
+            </div>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">Download center</h1>
+            <p className="mt-4 max-w-3xl text-base text-slate-400">
+              Exports are now synchronized with the backend streaming endpoints. The preview below is built from the
+              same live income and expense sources the rest of the app uses.
             </p>
           </div>
 
-          <button
-            onClick={fetchData}
-            disabled={isRefreshing}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-medium transition-all active:scale-95 text-sm sm:text-base ${
-              isDark
-                ? "border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-200"
-                : "border-gray-300 bg-white hover:bg-gray-100 text-gray-700"
-            }`}
-          >
-            <RefreshCw
-              size={18}
-              className={isRefreshing ? "animate-spin text-blue-500" : "text-gray-500"}
-            />
-            {isRefreshing ? "Syncing..." : "Refresh Data"}
-          </button>
-        </div>
-
-        {/* 💡 DOWNLOAD CARDS - Responsive Grid */}
-        <div
-          className={`p-4 sm:p-8 rounded-2xl shadow-xl ${
-            isDark ? "bg-gray-800" : "bg-white border border-gray-100"
-          }`}
-        >
-          <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Available Exports</h2>
-          <div className="flex flex-col md:flex-row gap-4 sm:gap-6">
-            
-            {/* Income Card */}
-            <div
-              className={`flex-1 rounded-2xl p-5 sm:p-6 flex flex-col justify-between items-center border-2 transition-all duration-300
-                ${isDark
-                  ? "border-green-500/30 bg-green-500/5 hover:bg-green-500/10"
-                  : "border-green-100 bg-green-50 hover:border-green-200"
-                } hover:shadow-lg`}
-            >
-              <div className="text-center">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2 text-green-600 dark:text-green-500">
-                  Income Report
-                </h3>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                  Detailed list of all earnings.
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleDownload("income")}
-                disabled={isDownloading}
-                className={`mt-4 sm:mt-6 w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-white text-sm sm:text-base transition-all
-                  ${downloaded.income
-                    ? "bg-green-700 hover:bg-green-600"
-                    : "bg-green-600 hover:bg-green-500"
-                  }
-                  shadow-lg shadow-green-500/20 transform hover:-translate-y-0.5 active:translate-y-0`}
-              >
-                {isDownloading ? (
-                   <Loader2 size={18} className="animate-spin" />
-                ) : downloaded.income ? (
-                  <CheckCircle2 size={18} />
-                ) : (
-                  <Download size={18} />
-                )}
-                {isDownloading ? "Processing..." : (downloaded.income ? "Saved" : "Download .XLSX")}
-              </button>
-            </div>
-
-            {/* Expense Card */}
-            <div
-              className={`flex-1 rounded-2xl p-5 sm:p-6 flex flex-col justify-between items-center border-2 transition-all duration-300
-                ${isDark
-                  ? "border-red-500/30 bg-red-500/5 hover:bg-red-500/10"
-                  : "border-red-100 bg-red-50 hover:border-red-200"
-                } hover:shadow-lg`}
-            >
-              <div className="text-center">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2 text-red-600 dark:text-red-500">
-                  Expense Report
-                </h3>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                  Detailed list of all spendings.
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleDownload("expense")}
-                disabled={isDownloading}
-                className={`mt-4 sm:mt-6 w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-white text-sm sm:text-base transition-all
-                  ${downloaded.expense
-                    ? "bg-red-700 hover:bg-red-600"
-                    : "bg-red-600 hover:bg-red-500"
-                  }
-                  shadow-lg shadow-red-500/20 transform hover:-translate-y-0.5 active:translate-y-0`}
-              >
-                {isDownloading ? (
-                   <Loader2 size={18} className="animate-spin" />
-                ) : downloaded.expense ? (
-                  <CheckCircle2 size={18} />
-                ) : (
-                  <Download size={18} />
-                )}
-                {isDownloading ? "Processing..." : (downloaded.expense ? "Saved" : "Download .XLSX")}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 💡 PREVIEW TABLE (MOBILE OPTIMIZED) */}
-        <div
-          className={`p-4 sm:p-8 rounded-2xl shadow-xl ${
-            isDark ? "bg-gray-800" : "bg-white border border-gray-100"
-          }`}
-        >
-          <div className="mt-1">
-            {/* Header with Filter */}
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4 sm:mb-6">
-              <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                 Preview Data
-                 <span className="text-[10px] sm:text-xs font-normal text-gray-500 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full">
-                    {filteredData.length} items
-                 </span>
-              </h3>
-              
-              <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
-                <Filter size={18} className="text-gray-400 flex-shrink-0" />
-                <select
-                  value={previewFilter}
-                  onChange={(e) => setPreviewFilter(e.target.value)}
-                  className={`w-full md:w-auto py-2 px-3 sm:py-2.5 sm:px-4 rounded-xl border text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white"
-                      : "bg-gray-50 border-gray-200 text-gray-800"
-                  }`}
-                >
-                  <option value="all">All Transactions</option>
-                  <option value="income">Income Only</option>
-                  <option value="expense">Expense Only</option>
-                </select>
-              </div>
-            </div>
-            
-            {/* ✅ Responsive Table */}
-            <div className="overflow-x-auto custom-scrollbar rounded-xl border dark:border-gray-700">
-              <table className="min-w-full text-left border-collapse">
-                <thead>
-                  <tr
-                    className={`${
-                      isDark ? "bg-gray-700/50" : "bg-gray-50"
-                    } border-b ${isDark ? "border-gray-700" : "border-gray-200"}`}
-                  >
-                    <th className="py-3 px-3 sm:py-4 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Type</th>
-                    <th className="py-3 px-3 sm:py-4 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Category</th>
-                    <th className="hidden sm:table-cell py-3 px-3 sm:py-4 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Note</th>
-                    <th className="py-3 px-3 sm:py-4 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Amount</th>
-                    {/* Date Column hidden on mobile */}
-                    <th className="hidden sm:table-cell py-3 px-3 sm:py-4 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredData.length > 0 ? (
-                    filteredData.map((item) => (
-                      <tr
-                        key={item.id}
-                        className={`transition-colors ${
-                            isDark ? "hover:bg-gray-700/30" : "hover:bg-gray-50"
-                        }`}
-                      >
-                        {/* Type Badge */}
-                        <td className="py-3 px-3 sm:py-4 sm:px-4">
-                          <span 
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold capitalize ${
-                              item.type === "income"
-                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                            }`}
-                          >
-                            {item.type}
-                          </span>
-                        </td>
-
-                        {/* Category + Mobile Date */}
-                        <td className="py-3 px-3 sm:py-4 sm:px-4 text-xs sm:text-sm font-medium">
-                            <div className="flex items-center gap-2">
-                                <span className="text-base sm:text-lg">{item.emoji || (item.type === 'income' ? '💰' : '💸')}</span>
-                                <div>
-                                    <span className="block">{item.category_name || "Uncategorized"}</span>
-                                    {/* Mobile Date display */}
-                                    <span className="sm:hidden text-[10px] text-gray-400 block mt-0.5 font-normal">
-                                        {item.date}
-                                    </span>
-                                </div>
-                            </div>
-                        </td>
-
-                        {/* Note (Desktop Only) */}
-                        <td className="hidden sm:table-cell py-3 px-3 sm:py-4 sm:px-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">
-                            {item.note ? <span className="flex items-center gap-1"><FileText size={12}/> {item.note}</span> : "-"}
-                        </td>
-
-                        {/* Amount */}
-                        <td className={`py-3 px-3 sm:py-4 sm:px-4 text-xs sm:text-sm font-bold text-right ${item.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
-                          {item.type === 'expense' ? '-' : '+'} {formatCurrency(item.amount, currencyCode)}
-                        </td>
-
-                        {/* Date (Desktop Only) */}
-                        <td className="hidden sm:table-cell py-3 px-3 sm:py-4 sm:px-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400 text-right font-medium">
-                            {item.date}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    // --- EMPTY STATE ---
-                    <tr>
-                      <td colSpan="5" className="text-center py-10 sm:py-12">
-                         <div className="flex flex-col items-center justify-center text-gray-400 opacity-70">
-                            {isRefreshing ? (
-                                <>
-                                    <RefreshCw size={32} className="animate-spin mb-2 text-blue-500" />
-                                    <p className="font-medium text-sm">Syncing data...</p>
-                                </>
-                            ) : (
-                                <>
-                                    <SearchX size={40} className="mb-2" />
-                                    <p className="font-medium text-sm">No transactions found.</p>
-                                    <p className="text-xs mt-1">Change the filter or add new data.</p>
-                                </>
-                            )}
-                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* 💡 LIVE SUMMARY */}
-            <div className="mt-6 sm:mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className={`p-4 rounded-xl border ${isDark ? "bg-gray-700/30 border-gray-700" : "bg-green-50 border-green-100"} ${previewFilter === 'expense' && 'opacity-40 grayscale'}`}>
-                <p className="text-[10px] sm:text-xs font-bold uppercase text-green-500 flex items-center gap-2 mb-1">
-                  <TrendingUp size={14} /> Total Income
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200">
-                  {formatCurrency(totalIncome, currencyCode)}
-                </p>
-              </div>
-              
-              <div className={`p-4 rounded-xl border ${isDark ? "bg-gray-700/30 border-gray-700" : "bg-red-50 border-red-100"} ${previewFilter === 'income' && 'opacity-40 grayscale'}`}>
-                <p className="text-[10px] sm:text-xs font-bold uppercase text-red-500 flex items-center gap-2 mb-1">
-                  <TrendingDown size={14} /> Total Expense
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200">
-                  {formatCurrency(totalExpense, currencyCode)}
-                </p>
-              </div>
-              
-              <div className={`p-4 rounded-xl border ${isDark ? "bg-gray-700 border-gray-600" : "bg-white border-gray-200"}`}>
-                <p className="text-[10px] sm:text-xs font-bold uppercase text-gray-500 flex items-center gap-2 mb-1">
-                  <Scale size={14} /> Net Balance
-                </p>
-                <p className={`text-xl sm:text-2xl font-bold ${netBalance >= 0 ? 'text-blue-500' : 'text-red-500'}`}>
-                  {formatCurrency(netBalance, currencyCode)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </main>
-      {showExportModal && (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-        <div className={`w-full max-w-md rounded-2xl p-6 shadow-2xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <FileSpreadsheet size={20} />
-            Đang xuất dữ liệu {exportType === 'income' ? 'thu nhập' : 'chi tiêu'}
-          </h3>
-
-          <div className="space-y-4">
-            <p className="text-sm opacity-80">
-              Task ID: <span className="font-mono text-xs">{exportTaskId}</span>
-            </p>
-
+          <div className={`rounded-[1.75rem] border p-5 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50/80"}`}>
             <div className="flex items-center gap-3">
-              {exportStatus === 'completed' ? (
-                <>
-                  <CheckCircle2 className="text-green-500" size={28} />
-                  <span className="font-medium text-green-600 dark:text-green-400">Hoàn tất!</span>
-                </>
-              ) : exportStatus === 'failed' ? (
-                <>
-                  <AlertTriangle className="text-red-500" size={28} />
-                  <span className="font-medium text-red-600 dark:text-red-400">Thất bại</span>
-                </>
-              ) : (
-                <>
-                  <Loader2 className="animate-spin text-blue-500" size={28} />
-                  <span className="font-medium">Đang xử lý...</span>
-                </>
-              )}
+              <div className="rounded-2xl bg-emerald-400/15 p-3 text-emerald-300">
+                <ShieldCheck size={18} />
+              </div>
+              <div>
+                <p className="text-sm font-bold">Synchronized exports</p>
+                <p className="text-xs text-slate-400">
+                  No fake progress loop. The FE now downloads exactly what the BE generates.
+                </p>
+              </div>
             </div>
 
-            {exportStatus === 'completed' && exportFileUrl && (
-              <a
-                href={exportFileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl text-center transition mt-4"
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => handleDownload("income")}
+                disabled={downloading === "income"}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:translate-y-[-1px] disabled:opacity-60"
               >
-                Tải file ngay
-              </a>
-            )}
+                {downloading === "income" ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                Income .xlsx
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownload("expense")}
+                disabled={downloading === "expense"}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm font-black text-orange-100 transition hover:translate-y-[-1px] disabled:opacity-60"
+              >
+                {downloading === "expense" ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                Expense .xlsx
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <SummaryTile
+          title="Income preview"
+          value={formatCurrency(totals.income, currencyCode)}
+          icon={TrendingUp}
+          tone={isDark ? "border-emerald-400/15 bg-emerald-400/10" : "border-emerald-100 bg-emerald-50"}
+        />
+        <SummaryTile
+          title="Expense preview"
+          value={formatCurrency(totals.expense, currencyCode)}
+          icon={TrendingDown}
+          tone={isDark ? "border-orange-300/15 bg-orange-300/10" : "border-orange-100 bg-orange-50"}
+        />
+        <SummaryTile
+          title="Rows selected"
+          value={`${filteredTransactions.length}`}
+          icon={Sparkles}
+          tone={isDark ? "border-cyan-400/15 bg-cyan-400/10" : "border-cyan-100 bg-cyan-50"}
+        />
+      </section>
+
+      <section className={`rounded-[2rem] border p-5 shadow-xl ${isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"}`}>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Preview table</p>
+            <h2 className="mt-2 text-2xl font-black">Ready-to-export rows</h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 ${isDark ? "bg-white/5 text-slate-300" : "bg-slate-100 text-slate-600"}`}>
+              <Filter size={16} />
+              <select
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                className={`bg-transparent text-sm font-semibold outline-none ${isDark ? "text-white" : "text-slate-700"}`}
+              >
+                <option value="all">All rows</option>
+                <option value="income">Income only</option>
+                <option value="expense">Expense only</option>
+              </select>
+            </div>
 
             <button
-              onClick={() => {
-                setShowExportModal(false);
-                setExportTaskId(null);
-                setExportStatus(null);
-              }}
-              className={`w-full py-3 px-4 rounded-xl font-medium transition ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("transactionUpdated"))}
+              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold ${isDark ? "bg-white/5 text-white" : "bg-slate-100 text-slate-700"}`}
             >
-              Đóng
+              <RefreshCw size={16} />
+              Refresh
             </button>
           </div>
         </div>
-      </div>
-      )}
-      <ExportStatusModal
-        isOpen={showExportModal}
-        taskId={exportTaskId}
-        status={exportStatus}
-        onClose={() => setShowExportModal(false)}
-      />
-    </div>
 
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-slate-400">
+            <div className="text-center">
+              <Loader2 size={30} className="mx-auto animate-spin text-cyan-400" />
+              <p className="mt-4 text-sm">Loading preview rows...</p>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-[1.5rem] border border-white/10">
+            <table className="min-w-full text-left">
+              <thead className={isDark ? "bg-slate-950/70 text-slate-400" : "bg-slate-100 text-slate-500"}>
+                <tr>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.25em]">Type</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.25em]">Category</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.25em]">Note</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.25em]">Date</th>
+                  <th className="px-4 py-4 text-right text-xs font-bold uppercase tracking-[0.25em]">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTransactions.length ? (
+                  filteredTransactions.map((item) => (
+                    <tr
+                      key={`${item.type}-${item.id}`}
+                      className={`border-t ${isDark ? "border-white/10 hover:bg-white/5" : "border-slate-200 hover:bg-slate-50"}`}
+                    >
+                      <td className="px-4 py-4">
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] ${item.type === "income" ? "bg-emerald-400/15 text-emerald-300" : "bg-orange-300/15 text-orange-200"}`}>
+                          {item.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm font-semibold">
+                        <span className="mr-2">{item.emoji || (item.type === "income" ? "$" : "-")}</span>
+                        {item.category_name || "Uncategorized"}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-400">{item.note || "No note"}</td>
+                      <td className="px-4 py-4 text-sm">{formatLongDate(item.date)}</td>
+                      <td className={`px-4 py-4 text-right text-sm font-black ${item.type === "income" ? "text-emerald-300" : "text-orange-200"}`}>
+                        {item.type === "income" ? "+" : "-"} {formatCurrency(item.amount, item.currency_code || currencyCode)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-16 text-center text-slate-400">
+                      <SearchX size={28} className="mx-auto text-cyan-400" />
+                      <p className="mt-4 text-sm">No rows available for the current filter.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }

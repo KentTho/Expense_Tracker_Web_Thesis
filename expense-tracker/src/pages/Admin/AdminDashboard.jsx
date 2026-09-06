@@ -1,284 +1,361 @@
-// pages/AdminDashboard.jsx
-
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useOutletContext, Link } from "react-router-dom";
-import { 
-    LayoutDashboard, Users, TrendingUp, TrendingDown, DollarSign, Loader2,
-    BarChart, PieChart as PieIcon, UserPlus, SearchX
+import { useEffect, useMemo, useState } from "react";
+import { Link, useOutletContext } from "react-router-dom";
+import {
+  Activity,
+  ArrowUpRight,
+  BarChart3,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import {
-    ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, 
-    XAxis, YAxis, CartesianGrid, Tooltip
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
-import { toast, Toaster } from "react-hot-toast";
-import { 
-    adminGetGlobalKPIs, 
-    adminGetGlobalUserGrowth,
-    adminGetAllUsers 
-} from "../../services/adminService";
+import { adminGetAllUsers, adminGetGlobalKPIs, adminGetGlobalUserGrowth } from "../../services/adminService";
+import { formatCompactCurrency, formatCurrency, formatShortDate } from "../../utils/formatters";
 
-// Helper format tiền tệ an toàn
-const formatAmountDisplay = (amount) => {
-    const num = Number(amount) || 0; // Fallback về 0 nếu null/undefined
-    try {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-        }).format(num);
-    } catch (e) {
-        return `$${num}`;
-    }
-};
+const PIE_COLORS = ["#22d3ee", "#fb923c"];
 
-// Helper format ngày an toàn
-const formatDate = (dateString) => {
-    try {
-        if (!dateString) return "";
-        return new Date(dateString).toLocaleDateString("en-US", { month: 'short', day: 'numeric' });
-    } catch (e) {
-        return "";
-    }
-};
+function StatCard({ label, value, icon: Icon, tone, helper }) {
+  return (
+    <div className={`rounded-[1.75rem] border p-5 shadow-xl ${tone}`}>
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">{label}</p>
+        <Icon size={18} className="text-cyan-300" />
+      </div>
+      <h3 className="mt-4 text-3xl font-black tracking-tight">{value}</h3>
+      <p className="mt-2 text-sm text-slate-400">{helper}</p>
+    </div>
+  );
+}
 
-const PIE_COLORS = ["#10B981", "#EF4444"];
-
-export default function AdminDashboard() {
+export default function AdminDashboardUnified() {
   const { theme } = useOutletContext();
   const isDark = theme === "dark";
 
-  const [kpis, setKpis] = useState(null);
-  const [userGrowth, setUserGrowth] = useState([]);
-  const [recentUsers, setRecentUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [kpis, setKpis] = useState(null);
+  const [growth, setGrowth] = useState([]);
+  const [recentUsers, setRecentUsers] = useState([]);
 
-  // --- FETCH DATA (SILENT FAIL) ---
-  const fetchData = useCallback(async () => {
-    // Chỉ set loading true lần đầu mount
-    // setLoading(true); 
-    try {
-      // Gọi song song các API, catch lỗi riêng lẻ để tránh sập toàn trang
-      const [kpisData, growthData, usersData] = await Promise.all([
-        adminGetGlobalKPIs().catch(err => { console.warn("KPI fetch fail:", err); return null; }),
-        adminGetGlobalUserGrowth(30).catch(err => { console.warn("Growth fetch fail:", err); return []; }),
-        adminGetAllUsers(0, 5).catch(err => { console.warn("Users fetch fail:", err); return { users: [] }; }), 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadDashboard() {
+      setLoading(true);
+
+      const [kpiResult, growthResult, usersResult] = await Promise.allSettled([
+        adminGetGlobalKPIs(),
+        adminGetGlobalUserGrowth(30),
+        adminGetAllUsers(0, 12),
       ]);
 
-      // Xử lý dữ liệu an toàn
-      setKpis(kpisData || { total_users: 0, total_income: 0, total_expense: 0, net_balance: 0 });
-      
-      const safeGrowth = Array.isArray(growthData) ? growthData : [];
-      setUserGrowth(safeGrowth.map(d => ({...d, date: formatDate(d.date)})));
-      
-      const safeUsers = usersData?.users && Array.isArray(usersData.users) ? usersData.users : [];
-      setRecentUsers(usersData);
+      if (!mounted) {
+        return;
+      }
 
-    } catch (error) {
-      console.error("Critical Dashboard Error:", error);
-      // Không toast error để admin không bị spam thông báo
-    } finally {
+      setKpis(
+        kpiResult.status === "fulfilled"
+          ? kpiResult.value
+          : {
+              total_users: 0,
+              total_income: 0,
+              total_expense: 0,
+              net_balance: 0,
+              total_2fa_users: 0,
+              new_users_24h: 0,
+            }
+      );
+
+      setGrowth(growthResult.status === "fulfilled" && Array.isArray(growthResult.value) ? growthResult.value : []);
+      const users = usersResult.status === "fulfilled" && Array.isArray(usersResult.value) ? usersResult.value : [];
+      setRecentUsers([...users].sort((left, right) => new Date(right.created_at) - new Date(left.created_at)).slice(0, 6));
       setLoading(false);
     }
+
+    loadDashboard();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  useEffect(() => { 
-      fetchData(); 
-  }, [fetchData]);
+  const financeSplit = useMemo(
+    () =>
+      [
+        { name: "Income", value: Number(kpis?.total_income || 0) },
+        { name: "Expense", value: Number(kpis?.total_expense || 0) },
+      ].filter((item) => item.value > 0),
+    [kpis]
+  );
 
-  const financialBreakdownData = useMemo(() => {
-    if (!kpis) return [];
-    // Chỉ hiển thị biểu đồ tròn nếu có số liệu > 0
-    if (Number(kpis.total_income) <= 0 && Number(kpis.total_expense) <= 0) return [];
-    
-    return [
-        { name: 'Income', value: Number(kpis.total_income) || 0 },
-        { name: 'Expense', value: Number(kpis.total_expense) || 0 }
-    ];
-  }, [kpis]);
-
+  const growthData = useMemo(
+    () =>
+      growth.map((item) => ({
+        ...item,
+        label: formatShortDate(item.date),
+      })),
+    [growth]
+  );
 
   if (loading) {
     return (
-        <div className={`min-h-screen flex justify-center items-center ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
-            <Loader2 className="animate-spin text-blue-500" size={48} />
+      <div className="flex min-h-[75vh] items-center justify-center">
+        <div
+          className={`rounded-[2rem] border px-8 py-10 text-center ${
+            isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"
+          }`}
+        >
+          <Loader2 size={34} className="mx-auto animate-spin text-cyan-400" />
+          <p className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">Loading admin board</p>
         </div>
+      </div>
     );
   }
 
   return (
-    <div className={`min-h-screen pb-10 transition-colors duration-300 ${isDark ? "text-gray-100 bg-gray-900" : "text-gray-900 bg-gray-50"}`}>
-      <Toaster position="top-right" />
-
-      {/* Header - Responsive Flex */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <h1 className="text-3xl sm:text-4xl font-extrabold flex items-center gap-3">
-            <LayoutDashboard className="text-blue-500" size={32} />
-            <span className="truncate">Admin Dashboard</span>
-        </h1>
-      </div>
-
-      {/* 1. KPI Cards (RESPONSIVE GRID) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8">
-        {/* Total Users */}
-        <div className={`relative overflow-hidden p-6 rounded-2xl shadow-lg border transition-transform hover:scale-[1.02] ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-            <div className="absolute right-0 top-0 p-4 opacity-5"><Users size={80} /></div>
-            <p className="text-sm font-semibold text-gray-400 flex items-center gap-2 uppercase tracking-wide"><Users size={16} /> Total Users</p>
-            <p className="text-3xl sm:text-4xl font-bold mt-2">{kpis?.total_users ?? 0}</p>
-        </div>
-        {/* Total Income */}
-        <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/20 transition-transform hover:scale-[1.02]">
-            <div className="absolute right-0 top-0 p-4 opacity-10"><TrendingUp size={80} /></div>
-            <p className="text-sm font-bold uppercase tracking-wider opacity-90">Total Income</p>
-            <p className="text-2xl sm:text-3xl font-extrabold mt-2 truncate">{formatAmountDisplay(kpis?.total_income)}</p>
-        </div>
-        {/* Total Expense */}
-        <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/20 transition-transform hover:scale-[1.02]">
-            <div className="absolute right-0 top-0 p-4 opacity-10"><TrendingDown size={80} /></div>
-            <p className="text-sm font-bold uppercase tracking-wider opacity-90">Total Expense</p>
-            <p className="text-2xl sm:text-3xl font-extrabold mt-2 truncate">{formatAmountDisplay(kpis?.total_expense)}</p>
-        </div>
-        {/* Net Balance */}
-        <div className={`relative overflow-hidden p-6 rounded-2xl shadow-lg border transition-transform hover:scale-[1.02] ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-            <div className="absolute right-0 top-0 p-4 opacity-5"><DollarSign size={80} /></div>
-            <p className="text-sm font-semibold text-gray-400 flex items-center gap-2 uppercase tracking-wide"><DollarSign size={16} /> Net Balance</p>
-            <p className={`text-2xl sm:text-3xl font-bold mt-2 truncate ${Number(kpis?.net_balance) >= 0 ? 'text-blue-500' : 'text-red-500'}`}>
-                {formatAmountDisplay(kpis?.net_balance)}
+    <div className="space-y-6">
+      <section
+        className={`rounded-[2.25rem] border p-6 shadow-xl ${
+          isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"
+        }`}
+      >
+        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-orange-300/20 bg-orange-300/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.3em] text-orange-200">
+              <ShieldCheck size={14} />
+              Admin cockpit
+            </div>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">System pulse</h1>
+            <p className="mt-4 max-w-3xl text-base text-slate-400">
+              Global KPIs, user growth, and newest accounts now read directly from backend admin endpoints, with the FE
+              handling the user list shape correctly.
             </p>
-        </div>
-      </div>
+          </div>
 
-      {/* 2. Charts (RESPONSIVE GRID) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        
-        {/* User Growth Chart (2/3) */}
-        <div className={`lg:col-span-2 p-4 sm:p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
-            <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2 mb-6">
-                <BarChart className="text-blue-500" size={24} />
-                New User Growth (30 Days)
-            </h2>
-            <div className="h-[250px] sm:h-[300px] w-full">
-                {userGrowth.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={userGrowth}>
-                            <defs>
-                                <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
-                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 10}} dy={10} minTickGap={30} />
-                            <YAxis axisLine={false} tickLine={false} tick={{fill: isDark ? "#9CA3AF" : "#6B7280", fontSize: 10}} width={30} />
-                            <Tooltip contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
-                            <Area type="monotone" dataKey="count" stroke="#3B82F6" strokeWidth={3} fill="url(#colorGrowth)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                        <BarChart size={48} className="mb-2" />
-                        <p className="text-sm">No growth data available.</p>
-                    </div>
-                )}
+          <div className={`rounded-[1.75rem] border p-5 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50/80"}`}>
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Quick focus</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className={`rounded-2xl p-4 ${isDark ? "bg-slate-950/60" : "bg-white"}`}>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">New users (24h)</p>
+                <p className="mt-2 text-2xl font-black">+{kpis?.new_users_24h || 0}</p>
+              </div>
+              <div className={`rounded-2xl p-4 ${isDark ? "bg-slate-950/60" : "bg-white"}`}>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">2FA adoption</p>
+                <p className="mt-2 text-2xl font-black">{kpis?.total_2fa_users || 0}</p>
+              </div>
             </div>
-        </div>
 
-        {/* Financial Snapshot (1/3) */}
-        <div className={`lg:col-span-1 p-4 sm:p-6 rounded-2xl shadow-lg flex flex-col ${isDark ? "bg-gray-800" : "bg-white"}`}>
-            <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2 mb-6">
-                <PieIcon className="text-purple-500" size={24} />
-                Financial Split
-            </h2>
-            <div className="h-[250px] sm:h-[300px] w-full relative">
-                {financialBreakdownData.length > 0 ? (
-                    <>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={financialBreakdownData}
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {financialBreakdownData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke={isDark ? "#1F2937" : "#FFF"} strokeWidth={2} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(val) => formatAmountDisplay(val)} contentStyle={{ backgroundColor: isDark ? "#1F2937" : "#FFF", borderRadius: "8px", border: "none" }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        {/* Legend */}
-                        <div className="flex justify-center gap-4 mt-[-20px]">
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                <span className="text-xs font-medium text-gray-500">Income</span>
-                            </div>
-                             <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                <span className="text-xs font-medium text-gray-500">Expense</span>
-                            </div>
-                        </div>
-                    </>
-                ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 opacity-60">
-                        <PieIcon size={48} className="mb-2" />
-                        <p className="text-sm">No financial data yet.</p>
-                    </div>
-                )}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                to="/admin/users"
+                className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:translate-y-[-1px]"
+              >
+                <Users size={16} />
+                Manage users
+              </Link>
+              <Link
+                to="/admin/logs"
+                className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold ${
+                  isDark ? "bg-white/5 text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                <Activity size={16} />
+                Open logs
+              </Link>
             </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* 3. Recent Signups (RESPONSIVE TABLE) */}
-      <div className={`p-4 sm:p-6 rounded-2xl shadow-lg ${isDark ? "bg-gray-800" : "bg-white"}`}>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                <UserPlus className="text-orange-500" size={24} />
-                Recent Signups
-            </h2>
-            <Link to="/admin/users" className="w-full sm:w-auto text-center px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                View All Users
-            </Link>
-        </div>
-        
-        {/* List Items */}
-        <div className="space-y-3">
-            {recentUsers.length > 0 ? (
-                recentUsers.map((user) => (
-                    <div 
-                        key={user.id} 
-                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-xl transition-colors border ${isDark ? "border-gray-700 hover:bg-gray-700/50" : "border-gray-100 hover:bg-gray-50"}`}
-                    >
-                        <div className="flex items-center gap-3 mb-2 sm:mb-0">
-                            <img 
-                                src={user.profile_image || "https://i.pravatar.cc/40"} 
-                                alt="avatar" 
-                                className="w-10 h-10 rounded-full object-cover flex-shrink-0 bg-gray-200"
-                            />
-                            <div className="min-w-0">
-                                <p className="font-bold text-sm truncate max-w-[150px] sm:max-w-xs">{user.name || "No Name"}</p>
-                                <p className="text-xs text-gray-400 truncate max-w-[150px] sm:max-w-xs">{user.email}</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between sm:block sm:text-right w-full sm:w-auto">
-                            <p className="text-xs font-medium text-gray-400">
-                                {new Date(user.created_at).toLocaleDateString()}
-                            </p>
-                            {user.is_admin && (
-                                <span className="sm:ml-2 text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                                    ADMIN
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                ))
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Users"
+          value={`${kpis?.total_users || 0}`}
+          icon={Users}
+          helper="Accounts currently tracked by the system."
+          tone={isDark ? "border-cyan-400/15 bg-cyan-400/10" : "border-cyan-100 bg-cyan-50"}
+        />
+        <StatCard
+          label="Income"
+          value={formatCurrency(kpis?.total_income, "USD")}
+          icon={TrendingUp}
+          helper="Global recorded income."
+          tone={isDark ? "border-emerald-400/15 bg-emerald-400/10" : "border-emerald-100 bg-emerald-50"}
+        />
+        <StatCard
+          label="Expense"
+          value={formatCurrency(kpis?.total_expense, "USD")}
+          icon={TrendingDown}
+          helper="Global recorded expense."
+          tone={isDark ? "border-orange-300/15 bg-orange-300/10" : "border-orange-100 bg-orange-50"}
+        />
+        <StatCard
+          label="Net"
+          value={formatCurrency(kpis?.net_balance, "USD")}
+          icon={Sparkles}
+          helper="Income minus expense across the platform."
+          tone={isDark ? "border-violet-400/15 bg-violet-400/10" : "border-violet-100 bg-violet-50"}
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className={`rounded-[2rem] border p-5 shadow-xl ${isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"}`}>
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">User acquisition</p>
+              <h2 className="mt-2 text-2xl font-black">30-day growth</h2>
+            </div>
+            <BarChart3 className="text-cyan-400" size={18} />
+          </div>
+
+          <div className="h-[320px]">
+            {growthData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={growthData}>
+                  <defs>
+                    <linearGradient id="admin-growth" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.45} />
+                      <stop offset="95%" stopColor="#22d3ee" stopOpacity={0.04} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#243041" : "#e2e8f0"} vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 12 }} />
+                  <YAxis tickLine={false} axisLine={false} width={40} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{
+                      background: isDark ? "#0f172a" : "#ffffff",
+                      borderRadius: 18,
+                      border: "1px solid rgba(148,163,184,0.15)",
+                    }}
+                    formatter={(value) => [`${value} new users`, "Growth"]}
+                  />
+                  <Area type="monotone" dataKey="count" stroke="#22d3ee" strokeWidth={3} fill="url(#admin-growth)" />
+                </AreaChart>
+              </ResponsiveContainer>
             ) : (
-                <div className="text-center py-10 text-gray-500 opacity-70">
-                    <SearchX size={32} className="mx-auto mb-2" />
-                    <p className="text-sm">No new users found recently.</p>
+              <div className="flex h-full items-center justify-center rounded-[1.5rem] border border-dashed border-white/10 text-center text-slate-400">
+                <div>
+                  <UserPlus size={28} className="mx-auto text-cyan-400" />
+                  <p className="mt-3 text-sm">Growth data is not available yet.</p>
                 </div>
+              </div>
             )}
+          </div>
         </div>
-      </div>
 
+        <div className={`rounded-[2rem] border p-5 shadow-xl ${isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"}`}>
+          <div className="mb-5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Financial split</p>
+            <h2 className="mt-2 text-2xl font-black">Income vs expense</h2>
+          </div>
+
+          <div className="h-[320px]">
+            {financeSplit.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={financeSplit} dataKey="value" innerRadius={64} outerRadius={104} paddingAngle={3}>
+                    {financeSplit.map((item, index) => (
+                      <Cell key={item.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: isDark ? "#0f172a" : "#ffffff",
+                      borderRadius: 18,
+                      border: "1px solid rgba(148,163,184,0.15)",
+                    }}
+                    formatter={(value) => [formatCurrency(value, "USD"), "Amount"]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-[1.5rem] border border-dashed border-white/10 text-center text-slate-400">
+                <div>
+                  <Sparkles size={28} className="mx-auto text-orange-200" />
+                  <p className="mt-3 text-sm">No finance split to visualize yet.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className={`rounded-2xl p-4 ${isDark ? "bg-white/5" : "bg-slate-100"}`}>
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Income share</p>
+              <p className="mt-2 text-lg font-black text-cyan-300">{formatCompactCurrency(kpis?.total_income, "USD")}</p>
+            </div>
+            <div className={`rounded-2xl p-4 ${isDark ? "bg-white/5" : "bg-slate-100"}`}>
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Expense share</p>
+              <p className="mt-2 text-lg font-black text-orange-200">{formatCompactCurrency(kpis?.total_expense, "USD")}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={`rounded-[2rem] border p-5 shadow-xl ${isDark ? "border-white/10 bg-slate-900/70" : "border-white/80 bg-white/75"}`}>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Newest members</p>
+            <h2 className="mt-2 text-2xl font-black">Recent signups</h2>
+          </div>
+          <Link
+            to="/admin/users"
+            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold ${
+              isDark ? "bg-white/5 text-white" : "bg-slate-100 text-slate-700"
+            }`}
+          >
+            <ArrowUpRight size={16} />
+            View all users
+          </Link>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {recentUsers.length ? (
+            recentUsers.map((user) => (
+              <div key={user.id} className={`rounded-[1.5rem] border p-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50/80"}`}>
+                <div className="flex items-center gap-3">
+                  {user.profile_image ? (
+                    <img src={user.profile_image} alt={user.name || "User"} className="h-12 w-12 rounded-2xl object-cover" />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-orange-300 text-sm font-black text-slate-950">
+                      {(user.name || user.email || "U").charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">{user.name || "Unnamed user"}</p>
+                    <p className="truncate text-xs text-slate-400">{user.email}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] ${user.is_admin ? "bg-violet-400/15 text-violet-300" : "bg-cyan-400/15 text-cyan-300"}`}>
+                    {user.is_admin ? "Admin" : "Member"}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-400">{formatShortDate(user.created_at)}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-[1.5rem] border border-dashed border-white/10 px-6 py-16 text-center text-slate-400 md:col-span-2 xl:col-span-3">
+              <Users size={28} className="mx-auto text-cyan-400" />
+              <p className="mt-4 text-sm">No recent users to display yet.</p>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
