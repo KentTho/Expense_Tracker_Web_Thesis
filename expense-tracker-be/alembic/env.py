@@ -20,8 +20,37 @@ load_dotenv()
 # Alembic Config
 config = context.config
 
-# Ghi đè sqlalchemy.url từ settings (DATABASE_URL trong .env)
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+
+def _assert_safe_test_url(url: str) -> None:
+    """Guard: khi migrate bằng TEST_DATABASE_URL, chỉ cho phép DB test local.
+
+    Chặn trỏ nhầm vào Neon/Render/production. KHÔNG in giá trị URL.
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    dbname = (parsed.path or "").lstrip("/").lower()
+    banned = ("neon", "render", "railway", "supabase", "production", "prod", "amazonaws")
+    if any(token in host or token in dbname for token in banned):
+        raise RuntimeError("TEST_DATABASE_URL bị từ chối: có dấu hiệu DB remote/production.")
+    if host not in ("localhost", "127.0.0.1", "::1"):
+        raise RuntimeError("TEST_DATABASE_URL phải trỏ host local.")
+    if "test" not in dbname:
+        raise RuntimeError("TEST_DATABASE_URL phải là database có 'test' trong tên.")
+
+
+def _resolve_db_url() -> str:
+    """Ưu tiên TEST_DATABASE_URL (có guard) rồi mới tới DATABASE_URL production."""
+    test_url = os.getenv("TEST_DATABASE_URL")
+    if test_url:
+        _assert_safe_test_url(test_url)
+        return test_url
+    return settings.DATABASE_URL
+
+
+# Ghi đè sqlalchemy.url: TEST_DATABASE_URL (local test) > DATABASE_URL (.env)
+config.set_main_option("sqlalchemy.url", _resolve_db_url())
 
 # Logging
 if config.config_file_name is not None:

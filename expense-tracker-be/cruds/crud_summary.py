@@ -341,7 +341,9 @@ def get_monthly_budget_status(db: Session, user_id: UUID, year: int | None = Non
     month = month or now.month
 
     user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
-    budget_limit = float(getattr(user, "budget_limit", 0) or 0)
+    # BUGFIX (Wave 02B): field đúng là `monthly_budget` (User không có `budget_limit`),
+    # trước đây getattr luôn trả 0 => dashboard budget_limit/remaining luôn sai.
+    budget_limit = float(getattr(user, "monthly_budget", 0) or 0)
 
     start_date = date(year, month, 1)
     if month == 12:
