@@ -1,0 +1,47 @@
+# Dev/test stack: FastAPI backend + PostgreSQL 17.6 + Redis.
+# Chỉ dùng cho local/dev/test — KHÔNG dùng cho production, KHÔNG chứa secret thật.
+services:
+  db:
+    image: postgres:17.6
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: expense_tracker_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./expense-tracker-be
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Secret dev-only; production nạp qua secret manager, KHÔNG hardcode.
+      SECRET_KEY: dev-only-not-a-real-secret
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/expense_tracker_app
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: development
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:

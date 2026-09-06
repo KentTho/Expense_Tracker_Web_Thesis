@@ -17,7 +17,7 @@ Baseline hiện tại: branch `main` · HEAD `9f0c2714` · worktree `DIRTY_WORKT
 | 02 | Architecture Design (Option A) | ✅ LANDED | `DESIGN_READY` (Option A: Layered Modular) |
 | 03A | Wave 0 — Foundation & Test Harness | ✅ PASS | `FOUNDATION_WAVE_00_LOCAL_PASS` |
 | 03B | Wave 1 — Security Hardening | ✅ PASS | `SECURITY_HARDENING_WAVE_01_LOCAL_PASS` |
-| 03C | Wave 2 — DB Migration Rebuild & Tests | 🔄 CURRENT (unlocked) | (sẵn sàng bắt đầu) |
+| 03C | Wave 2 — DB Migration Rebuild & Tests | ✅ PASS | `DB_MIGRATION_REGRESSION_WAVE_02_LOCAL_PASS` |
 | 03D | Wave 3 — Repo Hygiene & FE Clean Code | ⛔ BLOCKED | — |
 | 03E | Wave 4 — Infra / CI-CD Gate / Observability | ⛔ BLOCKED | — |
 
@@ -41,9 +41,9 @@ Baseline hiện tại: branch `main` · HEAD `9f0c2714` · worktree `DIRTY_WORKT
 | F5 | HIGH | Chat LLM: cost/injection/lộ lỗi | Wave 1 |
 | F6 | MEDIUM | bare `except:` / trả `str(e)` | Wave 1 |
 | F15 | LOW | Token expiry mismatch (15p vs 30p) | Wave 1 |
-| F4 | HIGH | Migration không dựng lại schema từ zero | Wave 2 |
-| F11 | HIGH | Không có test nào (FE+BE) | Wave 0→2 |
-| F7 | MEDIUM | Thiếu transaction lock | Wave 2 |
+| F4 | HIGH | Migration không dựng lại schema từ zero | Wave 2 ✅ FIXED (baseline `a1b2c3d4e5f6`) |
+| F11 | HIGH | Không có test nào (FE+BE) | Wave 0→2 ✅ (18 BE + 2 FE) |
+| F7 | MEDIUM | Thiếu transaction lock | Wave 2 → `NOT_APPLICABLE` (aggregate-on-read, đã có test toàn vẹn) |
 | F9 | LOW | `__pycache__`/`.idea` bị commit | Wave 3 |
 | F10 | LOW/MED | Dup `.js/.jsx`, `*Unified` dead code | Wave 3 |
 | F12 | LOW | Dep bloat (Django/Booktype) | Wave 3 |
@@ -91,6 +91,31 @@ Baseline hiện tại: branch `main` · HEAD `9f0c2714` · worktree `DIRTY_WORKT
 
 ---
 
+## 4.2 TIẾN ĐỘ WAVE 2 (DB MIGRATION REBUILD & REGRESSION) — `DB_MIGRATION_REGRESSION_WAVE_02_LOCAL_PASS`
+
+**Schema authority chốt:** `TARGET_TABLE_SET_7` (users, categories, transactions, incomes, expenses,
+audit_logs, system_settings) — giữ đúng metadata runtime + REST contract của FE.
+
+| Mục tiêu | Chi tiết | Trạng thái |
+|---|---|---|
+| Test authority | PostgreSQL 17.6 local, DB `expense_tracker_test`, role least-priv `et_test`, NO_TARGET_GUARD | ✅ PASS |
+| F4 Migration rebuild-from-zero | Squash `e92cd622d537` (delta-hỏng) → baseline mới `a1b2c3d4e5f6` (7 bảng); `downgrade base`→`upgrade head` sạch | ✅ FIXED |
+| env.py | Ưu tiên `TEST_DATABASE_URL` + guard chống Neon; `models/__init__` nạp đủ 7 bảng (hết split-brain) | ✅ PASS |
+| Hermetic test infra | `conftest`: engine test, `db_session` cô lập SAVEPOINT-rollback, override `get_db`/auth; offline auto-skip | ✅ PASS |
+| Regression MIG-01..03 | rebuild-from-zero, parity schema↔ORM, PK/FK CASCADE/unique index | ✅ 3 PASS |
+| Regression DAT-01..06 | seed idempotent, tổng dashboard, ownership isolation, money>0, rollback atomicity, budget | ✅ PASS |
+| Bug ẩn LIVE | `crud_summary.get_monthly_budget_status` đọc nhầm `budget_limit`→`monthly_budget` (luôn =0) | ✅ FIXED + test |
+| F7 Concurrency | Aggregate-on-read (không lưu balance) → `NOT_APPLICABLE`; test toàn vẹn create/update/delete xen kẽ | ✅ PASS |
+| Docker + CI/CD | `Dockerfile`, `docker-compose.yml` (BE+PG17.6+Redis), `.github/workflows/ci.yml` (pytest+vitest+build) | ✅ ADDED |
+
+**Bằng chứng test (local):** `pytest` (có `TEST_DATABASE_URL`) → **18 passed**; offline (không DB) → 5 passed, 13 skipped. `vitest run` → 2 passed. `vite build` → OK.
+
+**Tech-debt ghi nhận (Wave 02C — cần phê duyệt):** hàm legacy TRÙNG LẶP trong `crud_summary.py:86–289` (bị shadow, DEAD_LEGACY) + bảng `incomes`/`expenses` vestigial → hợp nhất về 5 bảng khi dọn code + xác nhận Neon không còn dữ liệu cần giữ. `crud_summary.py:58` `get_monthly_summary` bản đầu dùng `transaction_date` (không tồn tại) — dead/shadowed.
+
+> ⚠️ CHƯA chạm Neon/production. Reconcile Neon = `alembic stamp a1b2c3d4e5f6` (GATED, chưa chạy). Chưa deploy. Chưa commit Wave 2.
+
+---
+
 ## 5. FILE KHÔNG ĐẨY LÊN GIT (do-not-push — theo yêu cầu người dùng)
 Đã thêm vào `.gitignore`. Các nhóm sau chỉ tồn tại local:
 - Tham chiếu thiết kế: `image_structure/`
@@ -122,3 +147,5 @@ Sau khi cài, chạy lại Wave 0 validation để chuyển các mục BLOCKED �
 - Wave 0 → tạo governance + test skeleton; STOP chờ phê duyệt cài test dependency.
 - Wave 0 (đóng) → cài BE dev-deps + FE test-deps; harness `pytest`/`vitest` PASS → `FOUNDATION_WAVE_00_LOCAL_PASS`.
 - Wave 1 → bịt F1/F2/F3/F5/F6/F15; 3 security test PASS; FE build OK → `SECURITY_HARDENING_WAVE_01_LOCAL_PASS`. Mở khoá Wave 2.
+- Wave 00/01 LAND → 2 commit local `1c92e9cb` (foundation) + `e7f14c00` (security). HEAD `9f0c2714`→`e7f14c00`.
+- Wave 2 → PG17.6 test authority; squash migration → baseline 7 bảng (F4 FIXED); bug budget FIXED; 18 BE test PASS + Docker/CI → `DB_MIGRATION_REGRESSION_WAVE_02_LOCAL_PASS`. Mở khoá Wave 3.
