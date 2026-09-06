@@ -28,7 +28,11 @@ JavaScript/React:
 - `camelCase` cho variable/function.
 - `PascalCase` cho component.
 - `useXxx` cho custom hook.
-- KHÔNG tạo `.js` mới khi canonical source đang dùng `.jsx`.
+- **FILE EXTENSION CONVENTION (canonical):**
+  - Module React chứa JSX (pages / components / layouts) → `.jsx`.
+  - Module JavaScript không chứa JSX (services / api / utils / config / data) → `.js`.
+- KHÔNG để tồn tại song song `X.js` và `X.jsx` cho cùng một module (import không đuôi sẽ bị Vite resolve nhầm `.js` trước `.jsx`). Một module = một file = một đuôi đúng convention.
+- Hậu tố `Unified` KHÔNG phải khái niệm kiến trúc lâu dài; nếu bản `Unified` là bản active đúng thì đổi về tên canonical.
 
 ## 4. ARCHITECTURE RULES
 Backend (Layered Pragmatic Monolith — GIỮ NGUYÊN):
@@ -43,7 +47,7 @@ Backend (Layered Pragmatic Monolith — GIỮ NGUYÊN):
 - KHÔNG áp Full Clean Architecture (không tạo `domain/application/infrastructure/presentation`).
 
 Frontend:
-- Mọi API call đi qua canonical API client (`src/services/api.jsx`).
+- Mọi API call đi qua canonical API client (`src/services/api.js`).
 - Component KHÔNG hardcode API origin (dùng `VITE_API_URL`).
 - KHÔNG nhân đôi auth/logout logic.
 - KHÔNG tạo global state khi local state đủ dùng.
@@ -63,16 +67,37 @@ Frontend:
 - KHÔNG commit / push / deploy khi chưa được yêu cầu.
 
 ## 7. VALIDATION COMMANDS
-Đã xác minh tồn tại (từ `expense-tracker/package.json` scripts):
+Đã xác minh chạy được:
 - Frontend build: `cd expense-tracker && npm run build`
 - Frontend lint:  `cd expense-tracker && npm run lint`
 - Frontend dev:   `cd expense-tracker && npm run dev`
-
-Chưa xác minh (chờ Wave 0 hoàn tất cài dev-dependency — xem `PROJECT_ROADMAP.md`):
-- Backend test:   `cd expense-tracker-be && .venv/Scripts/python -m pytest`  (cần cài `pytest`)
-- Frontend test:  `cd expense-tracker && npx vitest run`                       (cần cài `vitest`)
+- Frontend test:  `cd expense-tracker && npm test -- --run` (vitest)
+- Backend test:   `cd expense-tracker-be && .venv/Scripts/python -m pytest`
+  - DB-suite (MIG/DAT/F7) chỉ chạy khi có `TEST_DATABASE_URL` trỏ Postgres **local test** (guard chặn Neon/production); thiếu env → skip an toàn, KHÔNG fallback SQLite.
 
 ## 8. OUTPUT RULE
 - Trả kết quả ngắn gọn nhưng đủ evidence (dùng `path:line`).
-- KHÔNG tạo report folder / report `.md` (trừ `CLAUDE.md` và `PROJECT_ROADMAP.md`).
+- KHÔNG tạo report folder / report `.md` (trừ `CLAUDE.md`, `PROJECT_ROADMAP.md`, và tài liệu kiến trúc lâu dài trong `docs/architecture/**`).
 - KHÔNG tuyên bố "production-ready" / "DONE 100%" khi chỉ kiểm tra local.
+
+## 9. SOFTWARE AUTHORITIES (one concern → one authority)
+Quyết định của Human Operator. Trạng thái: CURRENT (đang dùng) / TARGET (đích, chưa verify) / DEFERRED.
+
+| Concern | Authority | Trạng thái |
+|---|---|---|
+| Source control (SCM) | **GitHub** (single canonical) | CURRENT |
+| CI | **GitHub Actions** (single canonical) | CURRENT |
+| Frontend stack | React 18 + Vite + Tailwind | CURRENT |
+| Frontend host | Vercel | TARGET |
+| Backend stack | FastAPI + Pydantic + SQLAlchemy 2 + Alembic | CURRENT |
+| Backend runtime | Python 3.10 | CURRENT · **Python 3.12 = TARGET (chưa verify — cần Docker)** |
+| Backend host | Render (Docker Web Service) | TARGET |
+| Database | PostgreSQL / Neon | CURRENT (local test) · Neon = TARGET/PRODUCTION_GATED |
+| Cache / rate-limit store | Redis-compatible; prod = Render Key Value / Valkey. In-memory chỉ là fallback LOCAL/DEGRADED | TARGET |
+| Container | Docker / Docker Compose (dev + CI reproducibility) | CURRENT |
+| DNS | Cloudflare (Vercel record DNS-only; Render API record proxy/WAF candidate) | TARGET |
+| Auth | Firebase + Backend JWT (KHÔNG thêm session/token_version giai đoạn này) | CURRENT |
+
+Quy tắc: GitLab CI đã gỡ; KHÔNG dùng lại. KHÔNG đặt Cloudflare proxy trước frontend Vercel.
+
+Tài liệu kiến trúc canonical: [`docs/architecture/CODEBASE_MAP.md`](docs/architecture/CODEBASE_MAP.md) · [`docs/architecture/STACK_AND_DEPLOYMENT.md`](docs/architecture/STACK_AND_DEPLOYMENT.md).
