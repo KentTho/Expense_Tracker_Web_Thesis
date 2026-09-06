@@ -9,6 +9,9 @@ from cruds import crud_income, crud_expense, crud_summary, crud_transaction, cru
 from models import user_model, category_model
 from sqlalchemy import func
 from typing import List
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --- SCHEMAS (Giữ nguyên các schema cũ của User) ---
 class CreateTransactionInput(BaseModel):
@@ -78,8 +81,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
                                             final_emoji, cat_id, note=note)
                 return f"[REFRESH] ✅ Đã thêm CHI TIÊU: {amount:,.0f} ({final_name}). Ghi chú: {note}"
             return "❌ Lỗi loại giao dịch."
-        except Exception as e:
-            return f"❌ Lỗi: {str(e)}"
+        except Exception:
+            logger.exception("FinBot tool error")
+            return "❌ Không thực hiện được yêu cầu."
 
     def set_budget_func(amount: float):
         try:
@@ -87,16 +91,18 @@ def get_finbot_tools(db: Session, user: user_model.User):
             db.commit();
             db.refresh(user)
             return f"[REFRESH] ✅ Đã cập nhật ngân sách: {amount:,.0f}."
-        except Exception as e:
-            return f"Lỗi: {str(e)}"
+        except Exception:
+            logger.exception("FinBot tool error")
+            return "Xin lỗi, không thực hiện được yêu cầu này."
 
     def get_balance_func():
         try:
             summary = crud_summary.get_financial_kpi_summary(db, user.id)
             return {"Thu": float(summary["total_income"]), "Chi": float(summary["total_expense"]),
                     "Dư": float(summary["total_income"] - summary["total_expense"])}
-        except Exception as e:
-            return f"Lỗi: {str(e)}"
+        except Exception:
+            logger.exception("FinBot tool error")
+            return "Xin lỗi, không thực hiện được yêu cầu này."
 
     def get_statistics_func(start_date, end_date):
         try:
@@ -104,8 +110,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
             e_date = date.fromisoformat(end_date)
             stats = crud_summary.get_period_summary(db, user.id, s_date, e_date)
             return json.dumps(stats, default=str)
-        except Exception as e:
-            return f"Lỗi: {str(e)}"
+        except Exception:
+            logger.exception("FinBot tool error")
+            return "Xin lỗi, không thực hiện được yêu cầu này."
 
     def analyze_spending_func(start_date, end_date):
         try:
@@ -115,8 +122,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
             if not breakdown: return "NO_DATA"
             chart_data = {"type": "pie", "data": breakdown, "title": f"Chi tiêu {start_date} - {end_date}"}
             return f"[CHART_DATA_START]{json.dumps(chart_data)}[CHART_DATA_END]"
-        except Exception as e:
-            return f"Lỗi: {str(e)}"
+        except Exception:
+            logger.exception("FinBot tool error")
+            return "Xin lỗi, không thực hiện được yêu cầu này."
 
     def get_history_func(limit=5):
         try:
@@ -125,8 +133,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
             res = ""
             for t in txs: res += f"- {t.date}: {t.type} {t.amount:,.0f} ({t.category_name}) Note: {t.note}\n"
             return res
-        except Exception as e:
-            return f"Lỗi: {str(e)}"
+        except Exception:
+            logger.exception("FinBot tool error")
+            return "Xin lỗi, không thực hiện được yêu cầu này."
 
     def create_batch_transactions_func(transactions: List[CreateTransactionInput]):
         results = []
@@ -144,8 +153,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
 
             # Trả về 1 chuỗi kết quả duy nhất
             return f"[REFRESH] ✅ Đã ghi nhận {len(results)} giao dịch:\n- " + "\n- ".join(results)
-        except Exception as e:
-            return f"❌ Lỗi ghi hàng loạt: {str(e)}"
+        except Exception:
+            logger.exception("FinBot batch transaction error")
+            return "❌ Không ghi được danh sách giao dịch."
 
     # ==========================================
     # 🛡️ ADMIN TOOLS (MỚI & XỊN)
@@ -165,7 +175,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
                 "new_users": kpis.get('new_users_24h', 0)
             }
             return f"Tình hình hệ thống hiện tại:\n[ADMIN_KPI_DATA]{json.dumps(data)}[/ADMIN_KPI_DATA]"
-        except Exception as e: return f"Lỗi: {e}"
+        except Exception:
+            logger.exception("FinBot admin tool error")
+            return "Lỗi: không truy vấn được dữ liệu."
 
     # 2. Xem Log hệ thống (Ai vừa làm gì?)
     def get_admin_logs_func(limit: int = 5):
@@ -183,8 +195,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
                     "details": log.details
                 })
             return f"Các hoạt động gần đây:\n[ADMIN_LOGS_DATA]{json.dumps(data)}[/ADMIN_LOGS_DATA]"
-        except Exception as e:
-            return f"Lỗi: {e}"
+        except Exception:
+            logger.exception("FinBot admin tool error")
+            return "Lỗi: không truy vấn được dữ liệu."
 
     # 3. Tra cứu thông tin User bất kỳ
     def admin_search_user_func(email: str):
@@ -202,8 +215,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
                 "2fa_status": "Enabled" if target.is_2fa_enabled else "Disabled"
             }
             return f"Thông tin người dùng:\n[ADMIN_USER_DATA]{json.dumps(data)}[/ADMIN_USER_DATA]"
-        except Exception as e:
-            return f"Lỗi: {e}"
+        except Exception:
+            logger.exception("FinBot admin tool error")
+            return "Lỗi: không truy vấn được dữ liệu."
 
     def admin_reset_security_func(email: str):
         """
@@ -227,8 +241,9 @@ def get_finbot_tools(db: Session, user: user_model.User):
                                   details="Admin reset bảo mật", status="SUCCESS")
 
             return f"✅ Đã CỨU HỘ user {email} thành công!\n- 2FA: Đã TẮT.\n- Hacker: Đã bị ĐÁ VĂNG (Kick Session).\n👉 Hãy báo user đăng nhập lại ngay."
-        except Exception as e:
-            return f"❌ Lỗi: {str(e)}"
+        except Exception:
+            logger.exception("FinBot tool error")
+            return "❌ Không thực hiện được yêu cầu."
 
     # --- DANH SÁCH TOOLS CHUNG ---
     user_tools = [

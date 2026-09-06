@@ -67,8 +67,11 @@ def start_enabling_2fa(
         data = crud_security.enable_2fa_generate_secret(db, current_user.id)
         # FE sẽ nhận data = {"secret": "...", "qr_url": "..."} và hiển thị QR code
         return data
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("2FA enable-start error")
+        raise HTTPException(status_code=400, detail="Could not start 2FA setup")
 
 
 @router.post("/2fa/enable-verify", response_model=Dict[str, bool])

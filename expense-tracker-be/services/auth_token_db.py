@@ -13,6 +13,10 @@ from models import user_model
 # ✅ SỬA LỖI Ở ĐÂY: Import User từ user_model
 from models.user_model import User
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login_sync")
 
 # -------------------------------------------------
@@ -45,8 +49,9 @@ def verify_token_and_get_payload(id_token: str):
         raise HTTPException(status_code=401, detail="Invalid Firebase token")
     except fb_auth.RevokedIdTokenError:
         raise HTTPException(status_code=401, detail="Token has been revoked")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token verification failed: {str(e)}")
+    except Exception:
+        logger.exception("Firebase token verification failed")
+        raise HTTPException(status_code=401, detail="Token verification failed")
 
 
 # ----------------------

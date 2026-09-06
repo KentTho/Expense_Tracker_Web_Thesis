@@ -12,6 +12,10 @@ from models import user_model
 from cruds import crud_admin, crud_audit
 from schemas import admin_schemas, category_schemas, user_schemas, audit_schemas
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(
     prefix="/admin",
     tags=["Admin"],
@@ -84,17 +88,18 @@ def update_user_by_admin(
             ip_address=request.client.host
         )
         return updated_user
-    except Exception as e:
+    except Exception:
+        logger.exception("Admin update_user failed for target %s", target_email)
         crud_audit.create_audit_log(
             db=db,
             action="UPDATE_USER",
             actor_email=current_admin.email,
             target=target_email,
             status="ERROR",
-            details=str(e),
+            details="update failed",
             ip_address=request.client.host
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update user")
 
 
 @router.delete("/users/{user_id}")
@@ -122,17 +127,18 @@ def delete_user_by_admin(
             ip_address=request.client.host
         )
         return {"message": message}
-    except Exception as e:
+    except Exception:
+        logger.exception("Admin delete_user failed for target %s", target_email)
         crud_audit.create_audit_log(
             db=db,
             action="DELETE_USER",
             actor_email=current_admin.email,
             target=target_email,
             status="ERROR",
-            details=str(e),
+            details="delete failed",
             ip_address=request.client.host
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to delete user")
 
 
 # =========================================================
@@ -195,8 +201,9 @@ def create_default_category(
             ip_address=request.client.host
         )
         return new_cat
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Admin create_default_category failed")
+        raise HTTPException(status_code=500, detail="Failed to create category")
 
 
 @router.put("/categories/{category_id}", response_model=category_schemas.CategoryOut)
@@ -224,8 +231,9 @@ def update_default_category(
             ip_address=request.client.host
         )
         return updated_cat
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Admin update_default_category failed")
+        raise HTTPException(status_code=500, detail="Failed to update category")
 
 
 @router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -252,7 +260,8 @@ def delete_default_category(
             ip_address=request.client.host
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Admin delete_default_category failed")
+        raise HTTPException(status_code=500, detail="Failed to delete category")
 
 
