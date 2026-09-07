@@ -45,9 +45,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          # CURRENT proven runtime = 3.10. TARGET = 3.12 (chờ Gate 8 chứng minh
-          # tương thích qua Docker trước khi nâng — xem docs/architecture).
-          python-version: "3.10"
+          # CANONICAL runtime = 3.12 (đã verify clean-build python:3.12-slim +
+          # full pytest + pip check qua Docker — xem docs/architecture).
+          python-version: "3.12"
           cache: pip
       - name: Install dependencies
         run: |

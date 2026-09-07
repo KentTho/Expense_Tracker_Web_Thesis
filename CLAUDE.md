@@ -90,7 +90,7 @@ Quyết định của Human Operator. Trạng thái: CURRENT (đang dùng) / TAR
 | Frontend stack | React 18 + Vite + Tailwind | CURRENT |
 | Frontend host | Vercel | TARGET |
 | Backend stack | FastAPI + Pydantic + SQLAlchemy 2 + Alembic | CURRENT |
-| Backend runtime | Python 3.10 | CURRENT · **Python 3.12 = TARGET (chưa verify — cần Docker)** |
+| Backend runtime | **Python 3.12** | CURRENT (verified: clean-build `python:3.12-slim` + `pip check` + full pytest qua Docker) |
 | Backend host | Render (Docker Web Service) | TARGET |
 | Database | PostgreSQL / Neon | CURRENT (local test) · Neon = TARGET/PRODUCTION_GATED |
 | Cache / rate-limit store | Redis-compatible; prod = Render Key Value / Valkey. In-memory chỉ là fallback LOCAL/DEGRADED | TARGET |

@@ -159,4 +159,5 @@ Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_
 - `transactions` chưa có composite index `(user_id, date)` (nợ hiệu năng khi data lớn).
 - FE bundle 1 chunk ~1.9MB (chưa code-split).
 - `data/defaultCategories.jsx`, `models/check_models.py`, `firebase_admin_init.py`, `reset_alembic.py`: rà lại quy ước đuôi/utility.
-- Python runtime 3.10 (CURRENT); 3.12 là TARGET, chưa verify (cần Docker — xem STACK_AND_DEPLOYMENT).
+- Python runtime 3.12 (CURRENT, đã verify clean-build Docker `python:3.12-slim` + full pytest — xem STACK_AND_DEPLOYMENT).
+- `requirements.txt`: đã gỡ `langgraph` (UNUSED_DIRECT). Còn orphan `langgraph-checkpoint`/`langgraph-sdk` + transitive celery cũ (`amqp`/`billiard`/`kombu`/`vine`) — chờ pass dọn dependency riêng, KHÔNG broad-prune phase này.
