@@ -1,7 +1,19 @@
 import { signOut } from "firebase/auth";
 import { auth } from "../components/firebase";
 
-export const BACKEND_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Canonical rule: VITE_API_URL = ORIGIN ONLY (vd https://api.example.com).
+// KHÔNG kèm path (/api, /auth) và KHÔNG trailing slash — mọi route được ghép ở resolveUrl.
+function normalizeBackendBase(raw) {
+  const value = (raw || "http://localhost:8000").trim().replace(/\/+$/, "");
+  if (import.meta.env.DEV && /\/(api|auth)$/i.test(value)) {
+    console.warn(
+      `[api] VITE_API_URL nên là origin-only (không kèm path). Phát hiện đuôi path trong "${value}".`
+    );
+  }
+  return value;
+}
+
+export const BACKEND_BASE = normalizeBackendBase(import.meta.env.VITE_API_URL);
 
 export async function forceLogout() {
   localStorage.removeItem("idToken");

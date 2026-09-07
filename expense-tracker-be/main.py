@@ -31,7 +31,8 @@ from routes import (
     security_route,
     admin_route,
     system_route,
-    chat_route
+    chat_route,
+    health_route
 )
 
 from core.cache import init_redis, close_redis, check_redis_health
@@ -171,6 +172,7 @@ app.include_router(security_route.router)  # Security: 2FA? (pyotp in reqs).
 app.include_router(admin_route.router)
 app.include_router(system_route.router)
 app.include_router(chat_route.router)  # Chat: LangChain integrate (cool cho AI summary expenses).
+app.include_router(health_route.router)  # Health/readiness cho deployment probes.
 
 
 @app.get("/", tags=["Root"])
