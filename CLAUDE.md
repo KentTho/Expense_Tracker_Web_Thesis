@@ -17,6 +17,13 @@
 - **Simplicity First** — code tối thiểu giải quyết đúng vấn đề; không abstraction cho code dùng-một-lần.
 - **Surgical Changes** — chỉ đụng file trong scope; không format/refactor liền kề; dead code chỉ ghi nhận.
 - **Goal-Driven Execution** — mỗi task = tiêu chí verify rõ ràng; loop tới khi PASS.
+- **Clarification Gate (Evidence-First)** — hỏi Human đúng lúc, KHÔNG tạo ceremony; KHÔNG phải "luôn luôn hỏi trước khi làm":
+  1. Tự kiểm chứng bằng Git/source/tests/tool/runtime (READ-ONLY) TRƯỚC.
+  2. Chỉ hỏi khi ambiguity còn lại thực sự ảnh hưởng: hành động bất khả nghịch; push/merge/deploy; production/hệ thống ngoài; credential/secret; thao tác DB/data phá hủy; breaking API contract; authority kiến trúc/tool; mở rộng scope lớn; nhiều phương án hợp lệ có trade-off đáng kể.
+  3. Nếu repo/tool tự trả lời được → phải tự kiểm, KHÔNG hỏi Human.
+  4. Có safe default rõ ràng và reversible → tự tiếp tục và ghi assumption.
+  5. KHÔNG hỏi lại quyết định Human đã khóa trong CLAUDE.md hoặc phase hiện tại.
+  6. Mục tiêu = đủ độ tin cậy để hành động an toàn, KHÔNG phải thêm thủ tục.
 
 ## 3. NAMING RULES
 Python:
