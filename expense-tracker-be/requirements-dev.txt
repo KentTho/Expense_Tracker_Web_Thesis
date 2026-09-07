@@ -1,0 +1,4 @@
+# Dev/test dependencies — KHÔNG dùng ở runtime production.
+# Cài trong venv sẵn có:  .venv/Scripts/python -m pip install -r requirements-dev.txt
+pytest==8.3.4
+pytest-asyncio==0.24.0

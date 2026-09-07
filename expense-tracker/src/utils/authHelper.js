@@ -7,6 +7,16 @@ export const getToken = () => {
   return token || null;
 };
 
+// User hồ sơ lưu ở localStorage["user"] (cùng nguồn Sidebar dùng để hiện menu admin).
+export const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const handleForceLogout = async () => {
   localStorage.removeItem("idToken");
   localStorage.removeItem("user");

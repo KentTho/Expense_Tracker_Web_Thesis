@@ -11,16 +11,14 @@ DEFAULT_CORS_ORIGINS = [
 ]
 
 class Settings(BaseSettings):  # Inheritance tốt – dễ extend (e.g., thêm Redis URL sau).
-    # Cấu hình cơ bản
-    SECRET_KEY: str = "vantho2200006616"  # Default OK, nhưng production random generate (os.urandom(32)). Liên kết tiêu chí 1: JWT secret.
-    ALGORITHM: str = "HS256"  # Symmetric OK, nhưng consider RS256 cho public/private keys (scale tốt hơn).
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # Short expire tốt cho security (refresh token nếu cần long session).
+    # --- FAIL-CLOSED (F1, F2): KHÔNG default. Thiếu ENV → Settings() raise → app từ chối khởi động.
+    SECRET_KEY: str  # F1: bắt buộc từ ENV/.env; không còn secret hardcode fallback.
+    DATABASE_URL: str  # F2: bắt buộc từ ENV/.env; không còn credential hardcode fallback.
 
-    # ⚠️ QUAN TRỌNG: Sửa dòng này để ưu tiên lấy từ ENV (Railway), nếu không có mới dùng localhost
-    DATABASE_URL: str = os.getenv(  # Smart: Prioritize ENV → cloud-friendly (tiêu chí 2/8).
-        "DATABASE_URL",
-        "postgresql://admin:123456@localhost:5432/expense_tracker_app"  # Local default tốt, nhưng password hardcode → xóa default, force ENV.
-    )
+    ALGORITHM: str = "HS256"  # Symmetric OK, nhưng consider RS256 cho public/private keys (scale tốt hơn).
+    # F15 — TOKEN EXPIRY AUTHORITY: đây là NGUỒN DUY NHẤT cho thời gian hết hạn access token.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     BACKEND_CORS_ORIGINS: str = ",".join(DEFAULT_CORS_ORIGINS)
 

@@ -9,9 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Thư viện nội bộ
 from core.config import settings
+from core.rate_limit import limiter
+from core.exceptions import register_exception_handlers
 from db.database import SessionLocal
 from cruds.crud_category import seed_default_categories
 from routes import (
@@ -130,6 +134,15 @@ app = FastAPI(
     description="API for managing personal income and expenses.",
     lifespan=lifespan  # Attach lifespan – pro.
 )
+
+# --- F3: Rate limiting ---
+# Gắn limiter vào app.state (slowapi yêu cầu) + handler trả HTTP 429 chuẩn.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- F5/F6: Error sanitization ---
+# Đăng ký các custom handler để KHÔNG rò rỉ str(e)/stack trace ra client.
+register_exception_handlers(app)
 
 # Cấu hình CORS (Cho phép Vercel truy cập)
 origins = settings.cors_origins

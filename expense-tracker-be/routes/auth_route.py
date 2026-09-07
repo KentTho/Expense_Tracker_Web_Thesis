@@ -11,6 +11,11 @@ from schemas import UserOut, UserSyncPayload, UserUpdate, Token, SupportRequest
 from services import auth_service
 from services.auth_token_db import extract_token, verify_token_and_get_payload, get_current_user_db
 from core.security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+from core.rate_limit import limiter, AUTH_RATE_LIMIT
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -24,7 +29,8 @@ def auth_sync(payload: UserSyncPayload, authorization: str = Header(...), db: Se
 
 
 @router.post("/login_sync")
-def login_sync_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit(AUTH_RATE_LIMIT)  # F3: chống brute-force đăng nhập.
+def login_sync_user(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Đăng nhập bằng email/password nội bộ."""
     user = crud_user.authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -78,8 +84,9 @@ async def submit_support_request(req: SupportRequest, request: Request, db: Sess
         crud_audit.log_action(db, actor_email=req.email, action="SOS_REQUEST", target="ADMIN", 
                               details=f"[{req.issue_type}] {req.message}", status="PENDING", ip_address=client_ip)
         return {"message": "Gửi thành công! Admin sẽ xử lý sớm."}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"message": f"Lỗi hệ thống: {str(e)}"})
+    except Exception:
+        logger.exception("Support request error")  # F6: chi tiết vào log, không lộ ra client.
+        return JSONResponse(status_code=500, content={"message": "Lỗi hệ thống, vui lòng thử lại sau."})
 
 @router.get("/me", response_model=UserOut)
 def get_me(current_user=Depends(get_current_user_db)):
