@@ -88,19 +88,26 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      const { user, idToken } = await signupAndSync(email, password, fullname);
-      localStorage.setItem("idToken", idToken);
-      localStorage.setItem("user", JSON.stringify(user));
+      // signupAndSync đã ghi session qua saveSession() (single write authority).
+      // KHÔNG ghi localStorage lại ở đây để tránh nhân đôi nguồn session.
+      await signupAndSync(email, password, fullname);
 
       toast.success("🎉 Đăng ký thành công!", {
         position: "top-center",
         autoClose: 2000,
-        onClose: () => navigate("/dashboard"), 
+        onClose: () => navigate("/dashboard"),
       });
 
     } catch (err) {
       if (err.code === "auth/email-already-in-use") {
           toast.error("❌ Email này đã được sử dụng.");
+      } else if (err.partialSignup) {
+          // Firebase đã tạo tài khoản nhưng backend chưa đồng bộ → recover bằng đăng nhập.
+          toast.info("ℹ️ " + err.message, {
+              position: "top-center",
+              autoClose: 3000,
+              onClose: () => navigate("/login"),
+          });
       } else {
           toast.error("❌ Đăng ký thất bại. Vui lòng thử lại.");
           console.error(err);

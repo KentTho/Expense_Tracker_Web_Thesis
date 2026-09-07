@@ -13,6 +13,18 @@ function broadcastUserUpdate() {
   window.dispatchEvent(new Event("user_profile_updated"));
 }
 
+// Đọc thông điệp lỗi an toàn từ backend (KHÔNG ném raw body/stack ra UI).
+async function readSyncError(response) {
+  try {
+    const payload = await response.clone().json();
+    if (payload?.detail) return payload.detail;
+    if (payload?.message) return payload.message;
+  } catch {
+    // ignore parse error, dùng fallback
+  }
+  return `Đồng bộ máy chủ thất bại (mã ${response.status}).`;
+}
+
 function extractAccessToken(data) {
   if (!data || typeof data !== "object") return null;
 
@@ -61,21 +73,35 @@ export async function signupAndSync(email, password, displayName = null) {
   const user = credential.user;
   const firebaseToken = await user.getIdToken();
 
-  const response = await fetch(`${BACKEND_BASE}/auth/sync`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${firebaseToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email: user.email,
-      display_name: displayName || user.displayName || "",
-      firebase_uid: user.uid,
-    }),
-  });
+  // Tài khoản Firebase (identity authority) đã tồn tại sau bước trên. Nếu bước
+  // /auth/sync thất bại (network/backend) => signup "một nửa": KHÔNG xoá Firebase
+  // user; hướng người dùng đăng nhập lại — loginAndSync sẽ reconcile idempotent.
+  let response;
+  try {
+    response = await fetch(`${BACKEND_BASE}/auth/sync`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${firebaseToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: user.email,
+        display_name: displayName || user.displayName || "",
+        firebase_uid: user.uid,
+      }),
+    });
+  } catch {
+    const err = new Error(
+      "Đã tạo tài khoản nhưng chưa kết nối được máy chủ. Vui lòng đăng nhập để hoàn tất."
+    );
+    err.partialSignup = true;
+    throw err;
+  }
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    const err = new Error(await readSyncError(response));
+    err.partialSignup = true;
+    throw err;
   }
 
   const data = await response.json();
@@ -100,7 +126,7 @@ export async function loginAndSync(email, password) {
   });
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(await readSyncError(response));
   }
 
   const data = await response.json();
