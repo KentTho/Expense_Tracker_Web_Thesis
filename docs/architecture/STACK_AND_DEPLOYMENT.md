@@ -1,8 +1,10 @@
 # STACK & DEPLOYMENT — Expense Tracker Web v2.0
 
-> Tài liệu kiến trúc lâu dài. Phân biệt rõ **CURRENT** (đang chạy/đã verify local),
-> **TARGET** (đích, chưa triển khai), **NOT_YET_VERIFIED**, **PRODUCTION_GATED**
-> (chỉ làm sau Human Gate). Một concern → một authority.
+> Tài liệu kiến trúc lâu dài. Nhãn trạng thái:
+> **CURRENT** (đang chạy) · **VERIFIED_LOCAL** (đã chứng minh bằng test/Docker local) ·
+> **VERIFIED_EXTERNAL** (đã verify trên môi trường triển khai thật) · **TARGET** (đích, chưa triển khai) ·
+> **EXTERNAL_GATE** (chờ Human cấu hình dịch vụ ngoài: Render/Vercel/Firebase/Neon) ·
+> **PRODUCTION_GATED** (chỉ làm sau Human Gate). Một concern → một authority.
 
 ## 1. Software authorities
 | Concern | Authority | Trạng thái |
@@ -20,10 +22,20 @@
 | DNS | Cloudflare | TARGET |
 | Auth | Firebase + Backend JWT | CURRENT (không thêm session/token_version giai đoạn này) |
 
-## 2. Database connection policy (TARGET)
-- Application runtime → **pooled** Neon connection.
-- Alembic / schema migration → **direct non-pooled** connection.
-- Tests → **isolated `TEST_DATABASE_URL`** (Postgres local, tên chứa `test`; guard chặn Neon/Render/Railway/Supabase/production trong `alembic/env.py`).
+## 2. Database connection policy
+> Cơ chế chọn URL đã IMPLEMENTED trong code (VERIFIED_LOCAL). Việc gán URL Neon
+> pooled/direct trên Render vẫn là EXTERNAL_GATE / PRODUCTION_GATED.
+
+- **Authority chọn URL migration** = `db/migration_url.py::resolve_migration_url`, Alembic gọi
+  qua `alembic/env.py`. Precedence:
+  1. `TEST_DATABASE_URL` — chỉ local/CI test, đi qua NO_TARGET_GUARD (host local + tên DB chứa `test`; chặn neon/render/railway/supabase/prod/amazonaws). [VERIFIED_LOCAL]
+  2. `DATABASE_MIGRATION_URL` — kết nối migration canonical (**direct / non-pooled**). [EXTERNAL_GATE khi gán URL Neon]
+  3. `DATABASE_URL` — fallback runtime khi chưa cấu hình URL migration riêng.
+- Application runtime (`db/database.py`) → luôn dùng `DATABASE_URL` (**pooled** trên Neon).
+- Lý do tách direct-migration: chạy DDL qua endpoint POOLED (pgbouncer transaction mode) có thể
+  lỗi/không ổn định → migration nên đi DIRECT.
+- Đã chứng minh: `tests/db/test_migration_url_authority.py` (8, offline) + full PG-backed suite +
+  Docker container startup `alembic upgrade head` chạy qua resolver. [VERIFIED_LOCAL]
 - KHÔNG kết nối/migrate/stamp Neon khi chưa có Human Gate.
 
 ## 3. Migration adoption
@@ -55,13 +67,21 @@ production smoke. **Không migration production nếu chưa có Human Gate.**
 
 ## 8. Integration contract (Wave 04A0 — CURRENT, verify local)
 
-### 8.1 API base URL authority
+### 8.1 API base URL authority — FAIL-CLOSED (cập nhật Wave04A1)
 - `VITE_API_URL` = **ORIGIN ONLY** (vd `https://api.example.com`), KHÔNG kèm path
   (`/api`, `/auth`) và KHÔNG trailing slash. Mọi route được ghép trong
   `expense-tracker/src/services/api.js` (`resolveUrl`).
-- Chuẩn hoá tập trung: `normalizeBackendBase()` strip trailing slash + cảnh báo (DEV)
-  nếu phát hiện đuôi path. Dev mặc định (bỏ trống) = `http://localhost:8000`.
+- Authority chuẩn hoá tập trung = `resolveBackendBase(raw, { isDev })`:
+  - **DEV** thiếu biến → `http://localhost:8000`; đuôi path → cảnh báo.
+  - **PRODUCTION** thiếu biến → **THROW** (không âm thầm ship localhost); kèm `/api`|`/auth`
+    hoặc non-HTTPS (trừ localhost smoke) → **THROW**.
+- Tầng chặn build: `vite.config.ts` (production `build`) FAIL nếu `VITE_API_URL` thiếu/không hợp lệ
+  → Vercel/CI không thể ship bundle sai. CI cấp origin non-secret `https://backend.example.com` để verify build.
+- Đã chứng minh [VERIFIED_LOCAL]: `npm run build` không có biến → exit 1; có origin https hợp lệ → build OK;
+  unit test `resolveBackendBase` (dev/prod branches) trong `apiClient.test.jsx`.
 - Backend KHÔNG có prefix `/api`; router prefix = `/auth`, `/dashboard`, `/expenses`, …
+- **Root cause Wave04A1 (RC-1)**: trước đây thiếu `VITE_API_URL` ở production → bundle âm thầm gọi
+  `http://localhost:8000` → `/auth/sync` không bao giờ tới Render → không có row Neon. Fail-closed chặn tái diễn.
 
 ### 8.2 CORS policy
 - Nguồn: `BACKEND_CORS_ORIGINS` (CSV hoặc JSON list) → `core/config.py::cors_origins`
@@ -107,3 +127,38 @@ Project hiện tại: `expense-tracker-2200006616` (authDomain `…firebaseapp.c
 báo `auth/unauthorized-domain` → thiếu domain trong danh sách trên. **KHÔNG** đổi Firebase
 Console khi chưa có Human approval. Real signup/login E2E = **EXTERNAL_FIREBASE_E2E_GATE**
 (Wave 04A1, dùng project test non-production + tài khoản disposable).
+
+Init Firebase Admin (server) = inline ở `main.py:48-63`, chỉ đọc ENV `FIREBASE_SERVICE_ACCOUNT`
+(KHÔNG dùng file `firebase_admin_init.py` — file đó UNUSED_RUNTIME). Thiếu ENV trên Render →
+`firebase_admin._apps` rỗng → `/auth/sync` verify token THROW → không tạo row Neon (RC-2 external).
+
+## 9. Storage authority matrix (Gate 8 — Wave04A1)
+Một loại dữ liệu → một authority. KHÔNG chuyển bảng quan hệ sang Cloudflare KV/D1.
+
+| DATA_CLASS | AUTHORITY | RETENTION | CONSISTENCY | BACKUP | PII? | SECRET? | WHY |
+|---|---|---|---|---|---|---|---|
+| Identity/password/provider | **Firebase Auth** | Tới khi xoá user | Firebase | Firebase-managed | Có (email) | Token=secret | Firebase là identity authority; app không giữ password |
+| users, transactions, categories, audit_logs, system_settings | **Neon PostgreSQL** | Bền vững | Strong (ACID) | Neon PITR/branch (PRODUCTION_GATED) | Có | DSN=secret | Core relational source of truth |
+| Cache + distributed rate-limit | **Render Key Value / Valkey** | Ephemeral (TTL) | Best-effort | Không cần | Không | `REDIS_URL`=secret | Chia sẻ state khi multi-instance; down → degraded |
+| Client session (idToken/user) | **Browser localStorage/sessionStorage** | Phiên | Client-only | Không | Có (nhẹ) | Chứa JWT | Session tạm phía client; authority ghi = `authService.saveSession` |
+| Frontend build/static | **Vercel** | Theo deploy | — | Vercel | Không | Không | Hosting/CDN FE |
+| Backend compute | **Render** (Docker Web Service) | Theo deploy | — | — | — | ENV=secret | Backend runtime |
+| DNS + API WAF | **Cloudflare** (sau khi origin ổn) | — | — | — | Không | Không | DNS-only cho Vercel; proxy/WAF cho API domain |
+| File/blob (avatar, receipt, export) | **Cloudflare R2** — CHỈ nếu có nhu cầu thật | — | — | — | Có thể | Key=secret | **Hiện KHÔNG dùng**: profile_image lưu string/URL trong Neon, chưa có upload file bền vững → KHÔNG thêm R2 |
+
+Quyết định R2/D1/KV: **KHÔNG thêm** trong phase này (không có nhu cầu lưu file/blob bền vững đã chứng minh).
+
+## 10. Wave04A1 — first broken boundary & external gate checklist
+Triệu chứng: web reachable, signup/login lỗi, account KHÔNG xuất hiện ở Neon. Đây là
+**distributed integration failure** (không phải Neon hỏng). Backend `sync_firebase_user`
+tự nó commit đúng (chứng minh bằng PG-backed suite) → break nằm ở wiring/config:
+
+- **RC-1 (P0, đã FIX trong code)**: FE production thiếu `VITE_API_URL` → gọi nhầm localhost. Fail-closed §8.1.
+- **RC-2 (P0, EXTERNAL_GATE)**: Render ENV. Phải set: `SECRET_KEY`, `DATABASE_URL` (Neon pooled),
+  `DATABASE_MIGRATION_URL` (Neon direct), `BACKEND_CORS_ORIGINS` = origin Vercel, `FIREBASE_SERVICE_ACCOUNT` (JSON).
+  Thiếu bất kỳ → `/auth/sync` fail → không có row Neon.
+- **RC-3 (P1, giảm thiểu trong code)**: migration DDL nên đi `DATABASE_MIGRATION_URL` (direct), §2.
+- **Vercel**: set `VITE_API_URL` = origin Render (origin-only https). Đây là bản vá thực tế cho RC-1.
+- **Firebase**: Authorized Domains chứa host Vercel (§8.5).
+
+Khi 5 mục external trên xong → real browser E2E (EXTERNAL_FIREBASE_E2E_GATE) mới verify được đầu-cuối.
