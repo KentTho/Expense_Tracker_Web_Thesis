@@ -3,17 +3,52 @@ import { auth } from "../components/firebase";
 
 // Canonical rule: VITE_API_URL = ORIGIN ONLY (vd https://api.example.com).
 // KHÔNG kèm path (/api, /auth) và KHÔNG trailing slash — mọi route được ghép ở resolveUrl.
-function normalizeBackendBase(raw) {
-  const value = (raw || "http://localhost:8000").trim().replace(/\/+$/, "");
-  if (import.meta.env.DEV && /\/(api|auth)$/i.test(value)) {
-    console.warn(
-      `[api] VITE_API_URL nên là origin-only (không kèm path). Phát hiện đuôi path trong "${value}".`
+//
+// FAIL-CLOSED (Gate 04A1): DEV thiếu biến → localhost:8000 (tiện dev). PRODUCTION
+// thiếu/không hợp lệ → THROW rõ ràng, KHÔNG bao giờ âm thầm ship http://localhost:8000.
+// Đây là NGUỒN DUY NHẤT chuẩn hoá origin backend cho toàn frontend.
+const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
+
+function isLocalOrigin(value) {
+  return LOCAL_HOSTS.some(
+    (host) => value === `http://${host}` || value.startsWith(`http://${host}:`)
+  );
+}
+
+export function resolveBackendBase(raw, { isDev = false } = {}) {
+  const value = (raw || "").trim().replace(/\/+$/, "");
+  const hasPathSuffix = /\/(api|auth)$/i.test(value);
+
+  if (!value) {
+    if (isDev) return "http://localhost:8000";
+    throw new Error(
+      "[api] VITE_API_URL bắt buộc ở production build (origin-only, HTTPS). " +
+        "Chưa cấu hình → từ chối chạy để tránh gọi nhầm localhost."
     );
+  }
+
+  if (isDev) {
+    if (hasPathSuffix) {
+      console.warn(
+        `[api] VITE_API_URL nên là origin-only (không kèm path). Phát hiện đuôi path trong "${value}".`
+      );
+    }
+    return value;
+  }
+
+  // Production: siết chặt. Ngoại lệ local/test mode = localhost origin (smoke build).
+  if (hasPathSuffix) {
+    throw new Error("[api] VITE_API_URL production KHÔNG được kèm path (/api, /auth).");
+  }
+  if (!/^https:\/\//i.test(value) && !isLocalOrigin(value)) {
+    throw new Error("[api] VITE_API_URL production phải là HTTPS origin.");
   }
   return value;
 }
 
-export const BACKEND_BASE = normalizeBackendBase(import.meta.env.VITE_API_URL);
+export const BACKEND_BASE = resolveBackendBase(import.meta.env.VITE_API_URL, {
+  isDev: import.meta.env.DEV,
+});
 
 export async function forceLogout() {
   localStorage.removeItem("idToken");
