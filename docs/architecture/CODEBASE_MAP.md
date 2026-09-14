@@ -14,7 +14,7 @@
 ### 1.1 Entrypoint & core
 | Path | Layer | Purpose | Status |
 |---|---|---|---|
-| `main.py` | app | Khởi tạo FastAPI, lifespan (Redis + seed categories), CORS, đăng ký 13 router, `GET /` health | ACTIVE |
+| `main.py` | app | Khởi tạo FastAPI, init Firebase Admin inline từ ENV `FIREBASE_SERVICE_ACCOUNT` (dòng 48–63), lifespan (Redis + seed categories), CORS, đăng ký 14 router | ACTIVE |
 | `core/config.py` | config | `Settings` (pydantic-settings) fail-closed: SECRET_KEY, DATABASE_URL bắt buộc; CORS; token expiry (F1/F2/F15) | ACTIVE |
 | `core/security.py` | security | Tạo/verify JWT access token, hash mật khẩu | ACTIVE |
 | `core/exceptions.py` | security | Handler sanitize lỗi: HTTP/validation/unhandled → JSON generic, không lộ nội tình (F5/F6) | ACTIVE |
@@ -37,6 +37,7 @@
 | `admin_route.py` | JWT+admin | crud_admin, crud_audit | users, categories, audit_logs, system_settings | ACTIVE |
 | `system_route.py` | JWT/admin | crud_system | system_settings | ACTIVE |
 | `chat_route.py` | JWT | chat_service | transactions, categories, users | ACTIVE |
+| `health_route.py` | public | — (DB `SELECT 1`, Redis health) | — | ACTIVE (Wave04A0: `GET /health` liveness, `GET /ready` readiness) |
 
 Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_current_admin_user` (403 nếu không admin).
 
@@ -83,15 +84,16 @@ Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_
 ### 1.7 DB & migrations
 | Path | Purpose | Status |
 |---|---|---|
-| `db/database.py` | Engine sync/async, `SessionLocal`, `get_db` dependency, `Base` | ACTIVE |
-| `alembic/env.py` | Resolve `TEST_DATABASE_URL` (guard chặn Neon/prod) → else DATABASE_URL; target=Base.metadata | ACTIVE |
+| `db/database.py` | Engine sync/async (runtime `DATABASE_URL`, pooled), `SessionLocal`, `get_db` dependency, `Base` | ACTIVE |
+| `db/migration_url.py` | Authority chọn URL migration: `TEST_DATABASE_URL` (guard) → `DATABASE_MIGRATION_URL` (direct) → `DATABASE_URL` (runtime fallback); testable, không leak URL | ACTIVE (Wave04A1) |
+| `alembic/env.py` | Dùng `resolve_migration_url(runtime_url=settings.DATABASE_URL)`; target=Base.metadata | ACTIVE |
 | `alembic/versions/a1b2c3d4e5f6_baseline_full_schema.py` | Baseline new-install: 7 bảng từ zero (Option C squash) | ACTIVE |
 
 ### 1.8 Utility/legacy scripts (KHÔNG thuộc runtime API)
 | Path | Purpose | Status |
 |---|---|---|
 | `check_models.py` (root) | Script kiểm tra model thủ công | UTILITY |
-| `firebase_admin_init.py` | Helper init Firebase (main.py tự init inline) | UTILITY (rà lại: có thể trùng logic main.py) |
+| `firebase_admin_init.py` | Helper init Firebase (file→ENV). **KHÔNG được main.py import** — runtime init nằm inline ở `main.py:48-63` (chỉ đọc ENV). | UTILITY / UNUSED_RUNTIME (trùng logic main.py; comment "Railway" đã cũ → Render) |
 | `reset_alembic.py` | Script reset alembic local | UTILITY |
 
 ### 1.9 Tests — `tests/`
@@ -103,6 +105,9 @@ Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_
 | `tests/api/test_error_sanitization.py` | SEC-ERR admin/auth/security/chat (4) | TEST |
 | `tests/db/test_migration.py` | MIG-01..03 (3) | TEST |
 | `tests/db/test_data_regression.py` | DAT-01..06 + F7 (10) | TEST |
+| `tests/db/test_migration_url_authority.py` | Precedence + guard URL migration (8, offline) | TEST (Wave04A1) |
+| `tests/api/test_health_and_cors.py` | Health/readiness + CORS contract (5, offline) | TEST (Wave04A0) |
+| `tests/api/test_auth_sync_contract.py` | `/auth/sync` idempotent/recover/2FA (3, DB-suite) | TEST (Wave04A0) |
 
 ## 2. FRONTEND (`expense-tracker/src/`)
 
@@ -128,7 +133,7 @@ Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_
 | `pages/Admin/{AdminDashboard,AdminUserManagement,AdminDefaultCategories,AdminSystemSettings,AdminAuditLogs}.jsx` | /admin/* | ACTIVE |
 
 ### 2.3 Services (API client, `.js`) — ACTIVE
-`api.js` (canonical fetch client + `authorizedFetch`), `adminService, analyticsService, authService, categoryService, chatService, dashboardService, expenseService, incomeService, profileService, securityService, transactionService`.
+`api.js` (canonical fetch client + `authorizedFetch` + `forceLogout` = single logout authority; `resolveBackendBase` = authority chuẩn hoá origin backend, **fail-closed** ở production build — xem STACK_AND_DEPLOYMENT §8.1), `adminService, analyticsService, authService, categoryService, chatService, dashboardService, expenseService, incomeService, profileService, securityService, transactionService`.
 
 ### 2.4 Components & utils
 | Path | Purpose | Status |
@@ -141,9 +146,9 @@ Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_
 | `components/ui/*` | ErrorBoundary, FormField, PageHeader, SectionCard, StatusBadge | ACTIVE |
 | `components/{AppGuide,AuthLayout,ExportStatusModal,LanguageSwitcher,QRCodeModal,WelcomeSplash}.jsx` | UI phụ trợ | ACTIVE |
 | `data/defaultCategories.jsx` | Dữ liệu category mặc định (rà: nếu không chứa JSX nên đổi `.js`) | ACTIVE |
-| `utils/authHelper.js` | `getToken`, `getStoredUser`, `handleForceLogout`, `authorizedFetch` | ACTIVE |
+| `utils/authHelper.js` | `getToken`, `getStoredUser` (Wave04A0 đã gỡ `handleForceLogout`/`authorizedFetch` trùng — logout/HTTP authority về `api.js`) | ACTIVE |
 | `utils/formatters.js` | Format tiền tệ/ngày | ACTIVE |
-| `test/{setup.js,sanity.test.jsx,routeGuards.test.jsx}` | Vitest harness + FE-AUTH tests | TEST |
+| `test/{setup.js,sanity.test.jsx,routeGuards.test.jsx,apiClient.test.jsx,authService.test.jsx}` | Vitest harness + FE-AUTH/API-client/session tests | TEST |
 
 ## 3. INFRASTRUCTURE
 | Path | Purpose | Status |

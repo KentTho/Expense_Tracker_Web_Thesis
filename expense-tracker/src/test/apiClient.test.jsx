@@ -6,7 +6,13 @@ vi.mock("../components/firebase", () => ({ auth: {}, default: {} }));
 const mockSignOut = vi.fn();
 vi.mock("firebase/auth", () => ({ signOut: (...a) => mockSignOut(...a) }));
 
-import { BACKEND_BASE, buildQuery, publicFetch, authorizedFetch } from "../services/api";
+import {
+  BACKEND_BASE,
+  resolveBackendBase,
+  buildQuery,
+  publicFetch,
+  authorizedFetch,
+} from "../services/api";
 
 function mockFetch(ok, body, status) {
   globalThis.fetch = vi.fn().mockResolvedValue({
@@ -27,6 +33,27 @@ describe("api client contract", () => {
 
   it("BACKEND_BASE defaults to localhost origin (no /api, no trailing slash)", () => {
     expect(BACKEND_BASE).toBe("http://localhost:8000");
+  });
+
+  it("resolveBackendBase DEV: missing -> localhost fallback; strips trailing slash", () => {
+    expect(resolveBackendBase("", { isDev: true })).toBe("http://localhost:8000");
+    expect(resolveBackendBase("https://api.x.com/", { isDev: true })).toBe("https://api.x.com");
+  });
+
+  it("resolveBackendBase PROD fail-closed: missing throws (never silently localhost)", () => {
+    expect(() => resolveBackendBase("", { isDev: false })).toThrow(/VITE_API_URL/);
+  });
+
+  it("resolveBackendBase PROD rejects path suffix and non-HTTPS", () => {
+    expect(() => resolveBackendBase("https://api.x.com/auth", { isDev: false })).toThrow(/path/i);
+    expect(() => resolveBackendBase("http://api.x.com", { isDev: false })).toThrow(/HTTPS/i);
+  });
+
+  it("resolveBackendBase PROD accepts valid https origin and localhost smoke", () => {
+    expect(resolveBackendBase("https://api.x.com", { isDev: false })).toBe("https://api.x.com");
+    expect(resolveBackendBase("http://localhost:8000", { isDev: false })).toBe(
+      "http://localhost:8000"
+    );
   });
 
   it("buildQuery skips empty/null and encodes the rest", () => {

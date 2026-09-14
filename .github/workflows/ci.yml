@@ -76,6 +76,10 @@ jobs:
       - name: Run vitest
         run: npm test -- --run
       - name: Build
+        # Gate 04A1 fail-closed: production build BẮT BUỘC VITE_API_URL hợp lệ.
+        # Origin placeholder non-secret (KHÔNG phải host Render thật) chỉ để verify build.
+        env:
+          VITE_API_URL: https://backend.example.com
         run: npm run build
 
   docker:

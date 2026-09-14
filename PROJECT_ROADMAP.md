@@ -5,7 +5,8 @@
 > Quy ước trạng thái: `LANDED` `PASS` `PASS_WITH_BLOCKER` `CURRENT` `BLOCKED` `DEFERRED` `NOT_APPLICABLE` `UNKNOWN_EXTERNAL`
 > Không dùng "DONE 100%" / "PRODUCTION_READY" khi chỉ mới kiểm tra local.
 
-Baseline hiện tại: branch `main` · HEAD `9f0c2714` · worktree `DIRTY_WORKTREE_EXPECTED` (drift người dùng, protected).
+Baseline hiện tại: branch `main` · HEAD `fa263731` (đã merge PR #2 Wave04A0) · worktree `DIRTY_WORKTREE_EXPECTED` (drift người dùng, protected).
+Wave đang chạy: `wave04a1/external-e2e-staging-wiring` (nhánh off `fa263731`).
 
 ---
 
@@ -20,6 +21,8 @@ Baseline hiện tại: branch `main` · HEAD `9f0c2714` · worktree `DIRTY_WORKT
 | 03C | Wave 2 — DB Migration Rebuild & Tests | ✅ PASS | `DB_MIGRATION_REGRESSION_WAVE_02_LOCAL_PASS` |
 | 03D | Wave 3 — Repo Hygiene & FE Clean Code | ⛔ BLOCKED | — |
 | 03E | Wave 4 — Infra / CI-CD Gate / Observability | ⛔ BLOCKED | — |
+| 04A0 | Integration contract + Auth E2E hardening (health/readiness, API URL, CORS, session) | ✅ PASS (merged PR #2 → `fa263731`) | `WAVE_04A0_PASS_WITH_EXTERNAL_GATES` · REMOTE_CI_VERIFIED |
+| 04A1 | External auth E2E · Render↔Neon↔Firebase wiring · migration URL authority · storage matrix | 🔶 PASS_WITH_BLOCKER (RC-1 fixed in code; RC-2/E2E = EXTERNAL_GATE) | `WAVE_04A1_CODE_PASS_MANUAL_WIRING_REQUIRED` |
 
 ---
 

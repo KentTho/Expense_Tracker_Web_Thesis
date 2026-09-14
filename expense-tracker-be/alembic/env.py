@@ -11,6 +11,7 @@ sys.path.append(os.getcwd())
 
 # Import Database Base và các Models
 from db.database import Base
+from db.migration_url import resolve_migration_url
 from core.config import settings
 import models # Load tất cả các model đã viết
 
@@ -21,36 +22,11 @@ load_dotenv()
 config = context.config
 
 
-def _assert_safe_test_url(url: str) -> None:
-    """Guard: khi migrate bằng TEST_DATABASE_URL, chỉ cho phép DB test local.
-
-    Chặn trỏ nhầm vào Neon/Render/production. KHÔNG in giá trị URL.
-    """
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    host = (parsed.hostname or "").lower()
-    dbname = (parsed.path or "").lstrip("/").lower()
-    banned = ("neon", "render", "railway", "supabase", "production", "prod", "amazonaws")
-    if any(token in host or token in dbname for token in banned):
-        raise RuntimeError("TEST_DATABASE_URL bị từ chối: có dấu hiệu DB remote/production.")
-    if host not in ("localhost", "127.0.0.1", "::1"):
-        raise RuntimeError("TEST_DATABASE_URL phải trỏ host local.")
-    if "test" not in dbname:
-        raise RuntimeError("TEST_DATABASE_URL phải là database có 'test' trong tên.")
-
-
-def _resolve_db_url() -> str:
-    """Ưu tiên TEST_DATABASE_URL (có guard) rồi mới tới DATABASE_URL production."""
-    test_url = os.getenv("TEST_DATABASE_URL")
-    if test_url:
-        _assert_safe_test_url(test_url)
-        return test_url
-    return settings.DATABASE_URL
-
-
-# Ghi đè sqlalchemy.url: TEST_DATABASE_URL (local test) > DATABASE_URL (.env)
-config.set_main_option("sqlalchemy.url", _resolve_db_url())
+# Ghi đè sqlalchemy.url theo precedence (xem db/migration_url.py):
+#   TEST_DATABASE_URL (guard local) > DATABASE_MIGRATION_URL (direct) > DATABASE_URL (runtime).
+config.set_main_option(
+    "sqlalchemy.url", resolve_migration_url(runtime_url=settings.DATABASE_URL)
+)
 
 # Logging
 if config.config_file_name is not None:
