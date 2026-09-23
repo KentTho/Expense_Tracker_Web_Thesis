@@ -44,16 +44,19 @@ describe("api client contract", () => {
     expect(() => resolveBackendBase("", { isDev: false })).toThrow(/VITE_API_URL/);
   });
 
-  it("resolveBackendBase PROD rejects path suffix and non-HTTPS", () => {
+  it("resolveBackendBase PROD rejects path suffix, non-HTTPS, query/hash", () => {
     expect(() => resolveBackendBase("https://api.x.com/auth", { isDev: false })).toThrow(/path/i);
+    expect(() => resolveBackendBase("https://api.x.com/v1", { isDev: false })).toThrow(/path/i);
     expect(() => resolveBackendBase("http://api.x.com", { isDev: false })).toThrow(/HTTPS/i);
+    expect(() => resolveBackendBase("https://api.x.com?a=1", { isDev: false })).toThrow(/query/i);
   });
 
-  it("resolveBackendBase PROD accepts valid https origin and localhost smoke", () => {
+  it("resolveBackendBase PROD accepts valid https origin; rejects localhost (Gate 04A2)", () => {
     expect(resolveBackendBase("https://api.x.com", { isDev: false })).toBe("https://api.x.com");
-    expect(resolveBackendBase("http://localhost:8000", { isDev: false })).toBe(
-      "http://localhost:8000"
-    );
+    // Localhost KHÔNG còn được chấp nhận ở optimized/prod build (chỉ dev/test).
+    // http://localhost bị chặn ở luật HTTPS; https://localhost bị chặn ở luật localhost.
+    expect(() => resolveBackendBase("http://localhost:8000", { isDev: false })).toThrow();
+    expect(() => resolveBackendBase("https://localhost", { isDev: false })).toThrow(/localhost/i);
   });
 
   it("buildQuery skips empty/null and encodes the rest", () => {
