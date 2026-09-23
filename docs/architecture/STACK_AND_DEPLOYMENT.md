@@ -67,18 +67,20 @@ production smoke. **Không migration production nếu chưa có Human Gate.**
 
 ## 8. Integration contract (Wave 04A0 — CURRENT, verify local)
 
-### 8.1 API base URL authority — FAIL-CLOSED (cập nhật Wave04A1)
-- `VITE_API_URL` = **ORIGIN ONLY** (vd `https://api.example.com`), KHÔNG kèm path
-  (`/api`, `/auth`) và KHÔNG trailing slash. Mọi route được ghép trong
-  `expense-tracker/src/services/api.js` (`resolveUrl`).
-- Authority chuẩn hoá tập trung = `resolveBackendBase(raw, { isDev })`:
-  - **DEV** thiếu biến → `http://localhost:8000`; đuôi path → cảnh báo.
-  - **PRODUCTION** thiếu biến → **THROW** (không âm thầm ship localhost); kèm `/api`|`/auth`
-    hoặc non-HTTPS (trừ localhost smoke) → **THROW**.
-- Tầng chặn build: `vite.config.ts` (production `build`) FAIL nếu `VITE_API_URL` thiếu/không hợp lệ
-  → Vercel/CI không thể ship bundle sai. CI cấp origin non-secret `https://backend.example.com` để verify build.
-- Đã chứng minh [VERIFIED_LOCAL]: `npm run build` không có biến → exit 1; có origin https hợp lệ → build OK;
-  unit test `resolveBackendBase` (dev/prod branches) trong `apiClient.test.jsx`.
+### 8.1 API base URL authority — FAIL-CLOSED (cập nhật Wave04A2)
+- `VITE_API_URL` = **ORIGIN ONLY** (vd `https://api.example.com`): protocol `https:`, có hostname,
+  KHÔNG userinfo, pathname `/` hoặc rỗng, KHÔNG query, KHÔNG fragment, KHÔNG trailing slash.
+  Mọi route được ghép trong `expense-tracker/src/services/api.js` (`resolveUrl`).
+- **Một validator authority** = `src/services/apiUrl.js::validateApiOrigin(raw,{allowLocalhost})`
+  (dựa trên URL semantics, KHÔNG regex mảnh). Dùng chung bởi cả runtime (`api.js`) và build guard
+  (`vite.config.ts`) — không nhân đôi logic.
+  - **DEV** (`resolveBackendBase` isDev): thiếu biến → `http://localhost:8000`; origin sai → cảnh báo (không chặn).
+  - **PRODUCTION/optimized build**: thiếu/không hợp lệ → **THROW**. localhost chỉ hợp lệ ở mode `development`/`test`.
+- Tầng chặn build `vite.config.ts`: validate với **MỌI** `command === "build"` (không chỉ mode production —
+  đóng Gap A: `vite build --mode staging` không còn bypass). URL có path (`/api`,`/auth`,`/v1`…)/query/fragment/
+  non-HTTPS → build FAIL (Gap B). CI cấp origin non-secret `https://backend.example.com`.
+- Đã chứng minh [VERIFIED_LOCAL]: 10 test `apiUrl.test.jsx` (APIURL-01..09) + `resolveBackendBase` trong
+  `apiClient.test.jsx`; build staging thiếu biến → exit 1; build `/v1`/query → exit 1; https origin hợp lệ → build OK.
 - Backend KHÔNG có prefix `/api`; router prefix = `/auth`, `/dashboard`, `/expenses`, …
 - **Root cause Wave04A1 (RC-1)**: trước đây thiếu `VITE_API_URL` ở production → bundle âm thầm gọi
   `http://localhost:8000` → `/auth/sync` không bao giờ tới Render → không có row Neon. Fail-closed chặn tái diễn.
@@ -162,3 +164,13 @@ tự nó commit đúng (chứng minh bằng PG-backed suite) → break nằm ở
 - **Firebase**: Authorized Domains chứa host Vercel (§8.5).
 
 Khi 5 mục external trên xong → real browser E2E (EXTERNAL_FIREBASE_E2E_GATE) mới verify được đầu-cuối.
+
+## 11. Wave04A2 — review-gap closure & secret quarantine (VERIFIED_LOCAL)
+- **PR #3 review gaps đã đóng** (§8.1): Gap A (build guard chỉ chạy mode=production → nay validate MỌI
+  optimized build); Gap B (chỉ chặn `/api`,`/auth` → nay URL-semantics origin-only qua `validateApiOrigin`).
+- **Secret quarantine**: Firebase service-account JSON đặt local dưới backend. `.gitignore` mở rộng
+  `serviceAccountKey*.json` để phủ cả `serviceAccountKey.json` (mới) và `serviceAccountKey_old.json` (cũ).
+  Đã kiểm (metadata-only, KHÔNG mở nội dung): cả 2 file **ignored + không tracked + chưa từng commit**.
+  KHUYẾN NGHỊ: sau khi Render `FIREBASE_SERVICE_ACCOUNT` đã hoạt động, xoá/di chuyển JSON local khỏi cây repo.
+- **External runtime trust chain (Render/Neon/Firebase E2E)**: chưa verify — cần `RENDER_BACKEND_URL` thật
+  (chưa được cung cấp) + tài khoản disposable + duyệt Playwright. Trạng thái: EXTERNAL_GATE (pending Human).
