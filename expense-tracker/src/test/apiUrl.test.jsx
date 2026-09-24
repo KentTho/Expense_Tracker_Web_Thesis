@@ -2,7 +2,7 @@
 // api.js (runtime) và vite.config.ts (build guard). URL semantics, không regex mảnh.
 import { describe, it, expect } from "vitest";
 
-import { validateApiOrigin } from "../services/apiUrl";
+import { validateApiOrigin, validateBuildApiOrigin } from "../services/apiUrl";
 
 describe("validateApiOrigin (APIURL)", () => {
   // allowLocalhost=false = optimized build (production/staging).
@@ -64,5 +64,44 @@ describe("validateApiOrigin (APIURL)", () => {
     expect(validateApiOrigin("http://backend.example.com", { allowLocalhost: false }).ok).toBe(
       false
     );
+  });
+});
+
+// Gate 04A2.1 — optimized-build policy: MỌI `vite build` (bất kể mode) cấm localhost,
+// khớp runtime (bundle build luôn import.meta.env.DEV === false). validateBuildApiOrigin
+// là authority chính sách build (không phụ thuộc mode name).
+describe("validateBuildApiOrigin (APIURL-BUILD, optimized-build policy)", () => {
+  const LOCAL = "http://localhost:8000";
+
+  it("APIURL-BUILD-01 production + localhost -> FAIL", () => {
+    expect(validateBuildApiOrigin(LOCAL).ok).toBe(false);
+  });
+
+  it("APIURL-BUILD-02 staging + localhost -> FAIL", () => {
+    // mode không còn ảnh hưởng: build policy luôn allowLocalhost=false.
+    expect(validateBuildApiOrigin(LOCAL).ok).toBe(false);
+  });
+
+  it("APIURL-BUILD-03 development optimized build + localhost -> FAIL (regression)", () => {
+    expect(validateBuildApiOrigin(LOCAL).ok).toBe(false);
+  });
+
+  it("APIURL-BUILD-04 test optimized build + localhost -> FAIL (regression)", () => {
+    expect(validateBuildApiOrigin(LOCAL).ok).toBe(false);
+  });
+
+  it("APIURL-BUILD-05 any build missing URL -> FAIL", () => {
+    expect(validateBuildApiOrigin("").ok).toBe(false);
+    expect(validateBuildApiOrigin(undefined).ok).toBe(false);
+  });
+
+  it("APIURL-BUILD-06 any build valid HTTPS origin -> PASS", () => {
+    const r = validateBuildApiOrigin("https://backend.example.com");
+    expect(r.ok).toBe(true);
+    expect(r.value).toBe("https://backend.example.com");
+  });
+
+  it("APIURL-RUNTIME-01 dev server localhost -> PASS (allowLocalhost)", () => {
+    expect(validateApiOrigin(LOCAL, { allowLocalhost: true }).ok).toBe(true);
   });
 });
