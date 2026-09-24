@@ -5,8 +5,8 @@
 > Quy ước trạng thái: `LANDED` `PASS` `PASS_WITH_BLOCKER` `CURRENT` `BLOCKED` `DEFERRED` `NOT_APPLICABLE` `UNKNOWN_EXTERNAL`
 > Không dùng "DONE 100%" / "PRODUCTION_READY" khi chỉ mới kiểm tra local.
 
-Baseline hiện tại: branch `main` · HEAD `afde4ca` (đã merge PR #3 Wave04A1) · worktree `DIRTY_WORKTREE_EXPECTED` (drift người dùng, protected).
-Wave đang chạy: `wave04a2/external-runtime-proof` (nhánh off `afde4ca`).
+Baseline hiện tại: branch `main` · HEAD `21ccfd76` (đã merge PR #4 Wave04A2) · worktree `DIRTY_WORKTREE_EXPECTED` (drift người dùng, protected).
+Wave đang chạy: `wave04a2-1/build-runtime-consistency` (nhánh off `21ccfd76`) — đóng review finding build/runtime localhost của PR #4.
 
 ---
 
@@ -19,11 +19,12 @@ Wave đang chạy: `wave04a2/external-runtime-proof` (nhánh off `afde4ca`).
 | 03A | Wave 0 — Foundation & Test Harness | ✅ PASS | `FOUNDATION_WAVE_00_LOCAL_PASS` |
 | 03B | Wave 1 — Security Hardening | ✅ PASS | `SECURITY_HARDENING_WAVE_01_LOCAL_PASS` |
 | 03C | Wave 2 — DB Migration Rebuild & Tests | ✅ PASS | `DB_MIGRATION_REGRESSION_WAVE_02_LOCAL_PASS` |
-| 03D | Wave 3 — Repo Hygiene & FE Clean Code | ⛔ BLOCKED | — |
-| 03E | Wave 4 — Infra / CI-CD Gate / Observability | ⛔ BLOCKED | — |
+| 03D | Wave 3 — Repo Hygiene & FE Clean Code | ⛔ BLOCKED (một phần đã landed: FE dead-code cleanup 04A0, secret-quarantine gitignore 04A2) | — |
+| 03E | Wave 4 — Infra / CI-CD Gate / Observability | 🔶 SUPERSEDED_IN_PART (F8 CI gate + health/readiness + Docker + env matrix đã landed ở 04A0/04A1; còn lại: Sentry/structured-log, live deploy verify) | — |
 | 04A0 | Integration contract + Auth E2E hardening (health/readiness, API URL, CORS, session) | ✅ PASS (merged PR #2 → `fa263731`) | `WAVE_04A0_PASS_WITH_EXTERNAL_GATES` · REMOTE_CI_VERIFIED |
 | 04A1 | External auth E2E · Render↔Neon↔Firebase wiring · migration URL authority · storage matrix | ✅ PASS (merged PR #3 → `afde4ca`) | `WAVE_04A1_CODE_PASS_MANUAL_WIRING_REQUIRED` |
-| 04A2 | Secret quarantine · PR#3 URL-validator review gaps (A/B) · external runtime proof | 🔶 PASS_WITH_BLOCKER (Gate 0/2 code PASS; external E2E chờ RENDER_BACKEND_URL thật) | `WAVE_04A2_PASS_WITH_BROWSER_AUTOMATION_GATE` (dự kiến) |
+| 04A2 | Secret quarantine · PR#3 URL-validator review gaps (A/B) · external runtime proof | ✅ PASS (merged PR #4 → `21ccfd76`) | `WAVE_04A2_PASS_WITH_BROWSER_AUTOMATION_GATE` |
+| 04A2.1 | Đóng review finding PR#4: build/runtime localhost consistency (mọi optimized build cấm localhost) | 🔷 CODE PASS (PR mới, chờ Human merge) | `WAVE_04A2_PR4_REVIEW_CLOSURE_PASS` |
 
 ---
 
@@ -132,7 +133,9 @@ audit_logs, system_settings) — giữ đúng metadata runtime + REST contract c
 
 ---
 
-## 6. LỆNH CẦN HUMAN OPERATOR PHÊ DUYỆT (mở khóa Wave 0)
+## 6. (LỊCH SỬ — ĐÃ HOÀN TẤT) Lệnh mở khóa Wave 0
+> ⚠️ KHÔNG còn là blocker hiện tại. Wave 0 đã `FOUNDATION_WAVE_00_LOCAL_PASS`; dev-deps đã cài;
+> harness pytest/vitest đang chạy trong CI. Giữ lại chỉ để tham chiếu lịch sử.
 ```bash
 # Backend (trong venv sẵn có):
 cd expense-tracker-be && .venv/Scripts/python -m pip install -r requirements-dev.txt
