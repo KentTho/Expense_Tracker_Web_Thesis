@@ -1,23 +1,15 @@
 import { signOut } from "firebase/auth";
 import { auth } from "../components/firebase";
+import { validateApiOrigin } from "./apiUrl";
 
 // Canonical rule: VITE_API_URL = ORIGIN ONLY (vd https://api.example.com).
-// KHÔNG kèm path (/api, /auth) và KHÔNG trailing slash — mọi route được ghép ở resolveUrl.
+// KHÔNG kèm path (/api, /auth), query, fragment; mọi route ghép ở resolveUrl.
 //
-// FAIL-CLOSED (Gate 04A1): DEV thiếu biến → localhost:8000 (tiện dev). PRODUCTION
+// FAIL-CLOSED (Gate 04A1/04A2): DEV thiếu biến → localhost:8000 (tiện dev). PRODUCTION
 // thiếu/không hợp lệ → THROW rõ ràng, KHÔNG bao giờ âm thầm ship http://localhost:8000.
-// Đây là NGUỒN DUY NHẤT chuẩn hoá origin backend cho toàn frontend.
-const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
-
-function isLocalOrigin(value) {
-  return LOCAL_HOSTS.some(
-    (host) => value === `http://${host}` || value.startsWith(`http://${host}:`)
-  );
-}
-
+// Validation dùng chung authority `validateApiOrigin` (URL semantics).
 export function resolveBackendBase(raw, { isDev = false } = {}) {
-  const value = (raw || "").trim().replace(/\/+$/, "");
-  const hasPathSuffix = /\/(api|auth)$/i.test(value);
+  const value = (raw || "").trim();
 
   if (!value) {
     if (isDev) return "http://localhost:8000";
@@ -27,23 +19,16 @@ export function resolveBackendBase(raw, { isDev = false } = {}) {
     );
   }
 
-  if (isDev) {
-    if (hasPathSuffix) {
-      console.warn(
-        `[api] VITE_API_URL nên là origin-only (không kèm path). Phát hiện đuôi path trong "${value}".`
-      );
+  // DEV: localhost cho phép; sai origin chỉ cảnh báo (không chặn workflow local).
+  const result = validateApiOrigin(value, { allowLocalhost: isDev });
+  if (!result.ok) {
+    if (isDev) {
+      console.warn(`[api] VITE_API_URL không chuẩn origin-only: ${result.error}`);
+      return value.replace(/\/+$/, "");
     }
-    return value;
+    throw new Error(`[api] ${result.error}`);
   }
-
-  // Production: siết chặt. Ngoại lệ local/test mode = localhost origin (smoke build).
-  if (hasPathSuffix) {
-    throw new Error("[api] VITE_API_URL production KHÔNG được kèm path (/api, /auth).");
-  }
-  if (!/^https:\/\//i.test(value) && !isLocalOrigin(value)) {
-    throw new Error("[api] VITE_API_URL production phải là HTTPS origin.");
-  }
-  return value;
+  return result.value;
 }
 
 export const BACKEND_BASE = resolveBackendBase(import.meta.env.VITE_API_URL, {

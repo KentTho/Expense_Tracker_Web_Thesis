@@ -2,33 +2,23 @@
 import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { validateApiOrigin } from "./src/services/apiUrl";
 
-// FAIL-CLOSED (Gate 04A1): production build PHẢI có VITE_API_URL hợp lệ.
-// Ngăn Vercel/CI vô tình ship bundle trỏ http://localhost:8000. Ngoại lệ local
-// smoke = localhost origin. KHÔNG hardcode hostname Render production ở đây.
-function assertProductionApiUrl(mode, url) {
-  if (mode !== "production") return;
-  const value = (url || "").trim();
-  const isLocal =
-    value === "http://localhost:8000" || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(value);
-  if (!value) {
-    throw new Error(
-      "[vite] VITE_API_URL bắt buộc cho production build (origin-only HTTPS). " +
-        "Đặt biến này trong Vercel/CI env."
-    );
-  }
-  if (/\/(api|auth)\/?$/i.test(value)) {
-    throw new Error("[vite] VITE_API_URL phải là origin-only (không kèm /api hoặc /auth).");
-  }
-  if (!/^https:\/\//i.test(value) && !isLocal) {
-    throw new Error("[vite] VITE_API_URL production phải là HTTPS.");
-  }
-}
-
+// FAIL-CLOSED (Gate 04A1/04A2): MỌI optimized build (command === "build") PHẢI có
+// VITE_API_URL hợp lệ, không chỉ mode "production" (đóng Gap A: `--mode staging`).
+// localhost chỉ được phép ở mode development/test (Gap B: dùng URL-semantics authority).
+// KHÔNG hardcode hostname Render production ở đây.
 export default defineConfig(({ command, mode }) => {
   if (command === "build") {
     const env = loadEnv(mode, ".", "");
-    assertProductionApiUrl(mode, env.VITE_API_URL);
+    const allowLocalhost = mode === "development" || mode === "test";
+    const result = validateApiOrigin(env.VITE_API_URL, { allowLocalhost });
+    if (!result.ok) {
+      throw new Error(
+        `[vite] VITE_API_URL không hợp lệ cho build (mode=${mode}): ${result.error} ` +
+          "Đặt origin HTTPS đúng trong Vercel/CI env."
+      );
+    }
   }
 
   return {

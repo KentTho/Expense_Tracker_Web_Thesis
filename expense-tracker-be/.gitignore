@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 serviceAccountKey.json
+serviceAccountKey*.json
 __pycache__/
 *.py[cod]
 .venv/
