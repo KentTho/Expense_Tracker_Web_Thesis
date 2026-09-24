@@ -54,3 +54,11 @@ export function validateApiOrigin(raw, { allowLocalhost = false } = {}) {
 
   return { ok: true, value: url.origin };
 }
+
+// Optimized-build policy (Gate 04A2.1): MỌI `vite build` (bất kể mode: production,
+// staging, development, test) CẤM localhost — khớp runtime vì bundle build luôn chạy
+// với import.meta.env.DEV === false (build-pass mà runtime-fail là mâu thuẫn). Dev SERVER
+// mới cho localhost (qua resolveBackendBase isDev). Đây là authority chính sách build.
+export function validateBuildApiOrigin(raw) {
+  return validateApiOrigin(raw, { allowLocalhost: false });
+}
