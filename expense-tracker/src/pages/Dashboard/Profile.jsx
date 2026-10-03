@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import {
   User,
@@ -46,16 +46,17 @@ export default function Profile() {
   // --- DATA FETCHING ---
   useEffect(() => {
     let mounted = true;
+    const auth = getAuth();
 
-    const fetchProfile = async () => {
-      setLoading(true);
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
+        if (mounted) {
+          setLoading(false);
+        }
         return;
       }
 
+      setLoading(true);
       try {
         const data = await getUserProfile();
 
@@ -79,7 +80,7 @@ export default function Profile() {
             is_email_verified: currentUser.emailVerified,
             is_admin: false,
             currency_code: "USD",
-            created_at: currentUser.metadata.creationTime,
+            created_at: currentUser.metadata?.creationTime,
           };
 
           setUser(fallbackUser);
@@ -90,11 +91,11 @@ export default function Profile() {
           setLoading(false);
         }
       }
-    };
+    });
 
-    fetchProfile();
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, [navigate]);
 
