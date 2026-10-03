@@ -1,0 +1,58 @@
+{
+  "nav": {
+    "overview": "Tổng quan",
+    "analytics": "Phân tích",
+    "income": "Thu nhập",
+    "expense": "Chi tiêu",
+    "categories": "Danh mục",
+    "exports": "Xuất dữ liệu",
+    "security": "Bảo mật",
+    "profile": "Hồ sơ",
+    "logout": "Đăng xuất",
+    "admin": "Quản trị",
+    "dashboard": "Bảng điều khiển",
+    "users": "Người dùng",
+    "defaultCategories": "Danh mục mặc định",
+    "settings": "Cài đặt hệ thống",
+    "auditLogs": "Nhật ký hệ thống"
+  },
+  "auth": {
+    "signIn": "Đăng nhập",
+    "createAccount": "Tạo tài khoản",
+    "welcomeBack": "Chào mừng trở lại!",
+    "email": "Email",
+    "password": "Mật khẩu",
+    "confirmPassword": "Xác nhận mật khẩu",
+    "fullName": "Họ và tên",
+    "forgotPassword": "Quên mật khẩu?",
+    "dontHaveAccount": "Chưa có tài khoản?",
+    "alreadyMember": "Đã có tài khoản?",
+    "getStarted": "Bắt đầu ngay",
+    "login": "Đăng nhập",
+    "twoFactorAuth": "Xác thực hai yếu tố"
+  },
+  "dashboard": {
+    "welcome": "Chào mừng trở lại",
+    "overviewSubtitle": "Bảng điều khiển đồng bộ trực tiếp từ máy chủ dữ liệu thu chi, giao dịch và bảo mật.",
+    "addIncome": "Thêm thu nhập",
+    "addExpense": "Thêm chi tiêu",
+    "openAnalytics": "Xem phân tích",
+    "income": "Thu nhập",
+    "expense": "Chi tiêu",
+    "balance": "Số dư",
+    "budget": "Ngân sách",
+    "spentThisMonth": "Đã chi tháng này",
+    "remainingBudget": "Ngân sách còn lại",
+    "recentTransactions": "Giao dịch gần đây",
+    "noTransactions": "Chưa có giao dịch nào."
+  },
+  "common": {
+    "save": "Lưu",
+    "cancel": "Hủy",
+    "delete": "Xóa",
+    "edit": "Sửa",
+    "loading": "Đang tải...",
+    "success": "Thành công",
+    "error": "Lỗi"
+  }
+}
