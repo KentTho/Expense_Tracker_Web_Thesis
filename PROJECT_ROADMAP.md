@@ -24,7 +24,10 @@ Wave đang chạy: `wave04a2-1/build-runtime-consistency` (nhánh off `21ccfd76`
 | 04A0 | Integration contract + Auth E2E hardening (health/readiness, API URL, CORS, session) | ✅ PASS (merged PR #2 → `fa263731`) | `WAVE_04A0_PASS_WITH_EXTERNAL_GATES` · REMOTE_CI_VERIFIED |
 | 04A1 | External auth E2E · Render↔Neon↔Firebase wiring · migration URL authority · storage matrix | ✅ PASS (merged PR #3 → `afde4ca`) | `WAVE_04A1_CODE_PASS_MANUAL_WIRING_REQUIRED` |
 | 04A2 | Secret quarantine · PR#3 URL-validator review gaps (A/B) · external runtime proof | ✅ PASS (merged PR #4 → `21ccfd76`) | `WAVE_04A2_PASS_WITH_BROWSER_AUTOMATION_GATE` |
-| 04A2.1 | Đóng review finding PR#4: build/runtime localhost consistency (mọi optimized build cấm localhost) | 🔷 CODE PASS (PR mới, chờ Human merge) | `WAVE_04A2_PR4_REVIEW_CLOSURE_PASS` |
+| 04A2.1 | Đóng review finding PR#4: build/runtime localhost consistency (mọi optimized build cấm localhost) | ✅ PASS (merged PR #5) | `WAVE_04A2_PR4_REVIEW_CLOSURE_PASS` |
+| 04A3 | Live trust chain closeout: CORS preflight, Render↔Neon latency, real browser single-identity session | ✅ PASS | `WAVE_04A3_LIVE_TRUST_CHAIN_PASS` |
+| 05A | Product functional acceptance: E2E browser suite, auth/dash/tx/cat/analytics/export/profile/sec/admin | ✅ PASS (P1 Profile/FinBot fixed) | `WAVE_05A_PRODUCT_FUNCTIONAL_PASS` |
+| 05B | AI hardening (atomic batch rollback, admin confirmation) + Native i18n (VI/EN local, zero Google scripts) | ✅ PASS | `WAVE_05B_AI_I18N_PASS` |
 
 ---
 

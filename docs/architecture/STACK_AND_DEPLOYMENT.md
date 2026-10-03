@@ -11,16 +11,16 @@
 |---|---|---|
 | Source control | **GitHub** (single canonical) | CURRENT |
 | CI | **GitHub Actions** (`.github/workflows/ci.yml`) | CURRENT · REMOTE_CI_VERIFIED (Backend/Frontend/Docker PASS trên PR + main) |
-| Frontend stack | React 18 + Vite 5 + Tailwind 3 | CURRENT |
-| Frontend host | Vercel (`expense-tracker-web-thesis.vercel.app`) | CURRENT_DEPLOYMENT_REACHABLE (GET 200) · auth/BE integration NOT_YET_FULLY_VERIFIED |
+| Frontend stack | React 18 + Vite 5 + Tailwind 3 + i18next (native) | CURRENT |
+| Frontend host | Vercel (`expense-tracker-web-thesis.vercel.app`) | VERIFIED_EXTERNAL (live browser QA login, session recovery, e2e suite PASS) |
 | Backend stack | FastAPI + Pydantic + SQLAlchemy 2 + Alembic | CURRENT |
 | Backend runtime | **Python 3.12** (CURRENT, verified qua Docker) | xem §4 |
-| Backend host | Render (Docker Web Service) | TARGET |
-| Database | PostgreSQL 17.6 local (test) | CURRENT · Neon = TARGET / PRODUCTION_GATED |
+| Backend host | Render (`expense-tracker-web-thesis-1.onrender.com`) | VERIFIED_EXTERNAL (GET /health 200, /ready 200, CORS preflight 200) |
+| Database | Neon PostgreSQL (prod runtime, ~11ms) / PG 17.6 local (test) | CURRENT · VERIFIED_EXTERNAL |
 | Cache / rate-limit store | Redis-compatible; prod = Render Key Value / Valkey | TARGET (in-memory fallback chỉ LOCAL/DEGRADED) |
 | Container | Docker / Docker Compose | CURRENT (config + image build verified local trên `python:3.12-slim`) |
 | DNS | Cloudflare | TARGET |
-| Auth | Firebase + Backend JWT | CURRENT (không thêm session/token_version giai đoạn này) |
+| Auth | Firebase + Backend JWT | CURRENT · VERIFIED_EXTERNAL (single-identity trust chain) |
 
 ## 2. Database connection policy
 > Cơ chế chọn URL đã IMPLEMENTED trong code (VERIFIED_LOCAL). Việc gán URL Neon
