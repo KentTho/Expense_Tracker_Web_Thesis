@@ -21,6 +21,7 @@
 | Container | Docker / Docker Compose | CURRENT (config + image build verified local trên `python:3.12-slim`) |
 | DNS | Cloudflare | TARGET |
 | Auth | Firebase + Backend JWT | CURRENT · VERIFIED_EXTERNAL (single-identity trust chain) |
+| Deployment provenance | GET /health `build_sha` (`RENDER_GIT_COMMIT` / `APP_BUILD_SHA`) | CURRENT |
 
 ## 2. Database connection policy
 > Cơ chế chọn URL đã IMPLEMENTED trong code (VERIFIED_LOCAL). Việc gán URL Neon

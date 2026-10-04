@@ -45,6 +45,7 @@ class UserSyncPayload(BaseModel):
     email: str
     firebase_uid: str
     display_name: Optional[str] = None
+    picture: Optional[str] = None
 
 class SupportRequest(BaseModel):
     email: str

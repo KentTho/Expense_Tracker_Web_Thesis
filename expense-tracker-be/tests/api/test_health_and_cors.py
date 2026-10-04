@@ -18,7 +18,9 @@ DISALLOWED_ORIGIN = "http://evil.example.com"
 def test_health_liveness_ok():
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert "build_sha" in data
 
 
 def test_ready_shape_and_status():

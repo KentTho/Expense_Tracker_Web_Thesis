@@ -54,3 +54,19 @@ class Settings(BaseSettings):  # Inheritance tốt – dễ extend (e.g., thêm 
         extra = "ignore"  # Bỏ qua biến thừa để không lỗi  # Graceful, tránh crash nếu ENV thừa.
 
 settings = Settings()  # Singleton instance – import everywhere (e.g., from core.config import settings).
+
+import re
+
+VERCEL_PREVIEW_REGEX = re.compile(r"^https://expense-tracker-web-thesis(-[a-zA-Z0-9_-]+)?\.vercel\.app$")
+
+def is_allowed_origin(origin: str) -> bool:
+    """Single authority for allowed origins across middleware and exception handlers."""
+    if not origin:
+        return False
+    if origin in settings.cors_origins:
+        return True
+    if VERCEL_PREVIEW_REGEX.match(origin):
+        return True
+    if origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:"):
+        return True
+    return False

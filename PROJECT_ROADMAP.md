@@ -5,8 +5,8 @@
 > Quy ước trạng thái: `LANDED` `PASS` `PASS_WITH_BLOCKER` `CURRENT` `BLOCKED` `DEFERRED` `NOT_APPLICABLE` `UNKNOWN_EXTERNAL`
 > Không dùng "DONE 100%" / "PRODUCTION_READY" khi chỉ mới kiểm tra local.
 
-Baseline hiện tại: branch `main` · HEAD `21ccfd76` (đã merge PR #4 Wave04A2) · worktree `DIRTY_WORKTREE_EXPECTED` (drift người dùng, protected).
-Wave đang chạy: `wave04a2-1/build-runtime-consistency` (nhánh off `21ccfd76`) — đóng review finding build/runtime localhost của PR #4.
+Baseline hiện tại: branch `main` · HEAD `9db87f27` (đã merge PR #6 Wave05 và PR #7 Wave05A-R1).
+Wave đang chạy: `wave05a-r2/production-trust-repair` (nhánh off `9db87f27`) — Đóng bug /auth/sync contract mismatch (422), chuẩn hóa deployment provenance, thống nhất CORS single authority, điều tra alembic migration divergence.
 
 ---
 
@@ -20,14 +20,15 @@ Wave đang chạy: `wave04a2-1/build-runtime-consistency` (nhánh off `21ccfd76`
 | 03B | Wave 1 — Security Hardening | ✅ PASS | `SECURITY_HARDENING_WAVE_01_LOCAL_PASS` |
 | 03C | Wave 2 — DB Migration Rebuild & Tests | ✅ PASS | `DB_MIGRATION_REGRESSION_WAVE_02_LOCAL_PASS` |
 | 03D | Wave 3 — Repo Hygiene & FE Clean Code | ⛔ BLOCKED (một phần đã landed: FE dead-code cleanup 04A0, secret-quarantine gitignore 04A2) | — |
-| 03E | Wave 4 — Infra / CI-CD Gate / Observability | 🔶 SUPERSEDED_IN_PART (F8 CI gate + health/readiness + Docker + env matrix đã landed ở 04A0/04A1; còn lại: Sentry/structured-log, live deploy verify) | — |
-| 04A0 | Integration contract + Auth E2E hardening (health/readiness, API URL, CORS, session) | ✅ PASS (merged PR #2 → `fa263731`) | `WAVE_04A0_PASS_WITH_EXTERNAL_GATES` · REMOTE_CI_VERIFIED |
-| 04A1 | External auth E2E · Render↔Neon↔Firebase wiring · migration URL authority · storage matrix | ✅ PASS (merged PR #3 → `afde4ca`) | `WAVE_04A1_CODE_PASS_MANUAL_WIRING_REQUIRED` |
-| 04A2 | Secret quarantine · PR#3 URL-validator review gaps (A/B) · external runtime proof | ✅ PASS (merged PR #4 → `21ccfd76`) | `WAVE_04A2_PASS_WITH_BROWSER_AUTOMATION_GATE` |
-| 04A2.1 | Đóng review finding PR#4: build/runtime localhost consistency (mọi optimized build cấm localhost) | ✅ PASS (merged PR #5) | `WAVE_04A2_PR4_REVIEW_CLOSURE_PASS` |
-| 04A3 | Live trust chain closeout: CORS preflight, Render↔Neon latency, real browser single-identity session | ✅ PASS | `WAVE_04A3_LIVE_TRUST_CHAIN_PASS` |
-| 05A | Product functional acceptance: E2E browser suite, auth/dash/tx/cat/analytics/export/profile/sec/admin | ✅ PASS (P1 Profile/FinBot fixed) | `WAVE_05A_PRODUCT_FUNCTIONAL_PASS` |
-| 05B | AI hardening (atomic batch rollback, admin confirmation) + Native i18n (VI/EN local, zero Google scripts) | ✅ PASS | `WAVE_05B_AI_I18N_PASS` |
+| 03E | Wave 4 — Infra / CI-CD Gate / Observability | 🔶 SUPERSEDED_IN_PART (F8 CI gate + health/readiness + Docker + env matrix đã landed ở 04A0/04A1) | — |
+| 04A0 | Integration contract + Auth E2E hardening | ✅ PASS (merged PR #2 → `fa263731`) | `WAVE_04A0_PASS_WITH_EXTERNAL_GATES` · REMOTE_CI_VERIFIED |
+| 04A1 | External auth E2E · Render↔Neon↔Firebase wiring | ✅ PASS (merged PR #3 → `afde4ca`) | `WAVE_04A1_CODE_PASS_MANUAL_WIRING_REQUIRED` |
+| 04A2 | Secret quarantine · URL-validator review gaps | ✅ PASS (merged PR #4 → `21ccfd76`) | `WAVE_04A2_PASS_WITH_BROWSER_AUTOMATION_GATE` |
+| 04A2.1 | Build/runtime localhost consistency | ✅ PASS (merged PR #5 → `7e439a85`) | `WAVE_04A2_PR4_REVIEW_CLOSURE_PASS` |
+| 04A3 | Live trust chain closeout: CORS preflight, latency, session | ✅ PASS | `WAVE_04A3_LIVE_TRUST_CHAIN_PASS` |
+| 05A | Product functional acceptance & Native i18n (PR #6) | 🔶 CONTRADICTORY (Reopened by Production Evidence) | `CONTRADICTORY_EVIDENCE_REOPENED` |
+| 05A-R1 | Reconcile Render source drift, Recharts runtime, CORS handlers (PR #7) | ✅ LANDED (merged PR #7 → `9db87f27`) | `WAVE_05A_R1_PREVIEW_PASS_HUMAN_MERGE_REQUIRED` |
+| 05A-R2 | Production trust repair, /auth/sync 422 fix, build provenance, alembic forensic | 🔄 CURRENT | `WAVE_05A_R2_IN_PROGRESS` |
 
 ---
 

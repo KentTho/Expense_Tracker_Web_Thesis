@@ -7,7 +7,7 @@ import {
   verifyBeforeUpdateEmail,
 } from "firebase/auth";
 import { auth } from "../components/firebase";
-import { BACKEND_BASE } from "./api";
+import { BACKEND_BASE, buildUserSyncPayload } from "./api";
 
 function broadcastUserUpdate() {
   window.dispatchEvent(new Event("user_profile_updated"));
@@ -84,11 +84,7 @@ export async function signupAndSync(email, password, displayName = null) {
         Authorization: `Bearer ${firebaseToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        email: user.email,
-        display_name: displayName || user.displayName || "",
-        firebase_uid: user.uid,
-      }),
+      body: JSON.stringify(buildUserSyncPayload(user, displayName)),
     });
   } catch {
     const err = new Error(
@@ -119,10 +115,7 @@ export async function loginAndSync(email, password) {
       Authorization: `Bearer ${firebaseToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      email: credential.user.email,
-      firebase_uid: credential.user.uid,
-    }),
+    body: JSON.stringify(buildUserSyncPayload(credential.user)),
   });
 
   if (!response.ok) {

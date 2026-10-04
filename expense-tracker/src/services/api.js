@@ -131,6 +131,15 @@ async function getErrorMessage(response) {
   return `Request failed with status ${response.status}`;
 }
 
+export function buildUserSyncPayload(user, displayName = null) {
+  if (!user) return null;
+  return {
+    email: user.email,
+    firebase_uid: user.uid,
+    display_name: displayName || user.displayName || "",
+  };
+}
+
 let refreshSessionPromise = null;
 
 export async function refreshBackendSession() {
@@ -159,11 +168,7 @@ export async function refreshBackendSession() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${newFirebaseIdToken}`,
         },
-        body: JSON.stringify({
-          email: currentUser.email,
-          display_name: currentUser.displayName,
-          picture: currentUser.photoURL,
-        }),
+        body: JSON.stringify(buildUserSyncPayload(currentUser)),
       });
 
       if (!syncResponse.ok) {
