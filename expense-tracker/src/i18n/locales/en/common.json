@@ -1,0 +1,58 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "analytics": "Analytics",
+    "income": "Income",
+    "expense": "Expense",
+    "categories": "Categories",
+    "exports": "Exports",
+    "security": "Security",
+    "profile": "Profile",
+    "logout": "Logout",
+    "admin": "Admin",
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "defaultCategories": "Default Categories",
+    "settings": "Settings",
+    "auditLogs": "Audit Logs"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "createAccount": "Create Account",
+    "welcomeBack": "Welcome Back!",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "fullName": "Full Name",
+    "forgotPassword": "Forgot Password?",
+    "dontHaveAccount": "Don't have an account?",
+    "alreadyMember": "Already a member?",
+    "getStarted": "Get Started",
+    "login": "Login",
+    "twoFactorAuth": "Two-Factor Auth"
+  },
+  "dashboard": {
+    "welcome": "Welcome back",
+    "overviewSubtitle": "This dashboard reads directly from backend summaries, transaction feeds, and security settings so FE and BE stay in sync.",
+    "addIncome": "Add income",
+    "addExpense": "Add expense",
+    "openAnalytics": "Open analytics",
+    "income": "Income",
+    "expense": "Expense",
+    "balance": "Balance",
+    "budget": "Budget",
+    "spentThisMonth": "Spent this month",
+    "remainingBudget": "Remaining budget",
+    "recentTransactions": "Recent Transactions",
+    "noTransactions": "No transactions found."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "success": "Success",
+    "error": "Error"
+  }
+}

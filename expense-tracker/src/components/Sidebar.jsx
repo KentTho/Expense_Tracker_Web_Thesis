@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   ArrowLeftRight,
   BarChart3,
@@ -98,9 +99,43 @@ export default function SidebarUnified({
 
   const user = currentUser || storedUser;
   const isAdmin = Boolean(user?.is_admin);
+  const { t } = useTranslation();
   const isDark = theme === "dark";
   const isAdminView = location.pathname.startsWith("/admin");
-  const sections = useMemo(() => (isAdminView ? adminSections : personalSections), [isAdminView]);
+
+  const personalSectionsDynamic = useMemo(
+    () => [
+      {
+        label: "Command",
+        items: [
+          { label: t("nav.overview", "Overview"), to: "/dashboard", icon: Home },
+          { label: t("nav.analytics", "Analytics"), to: "/analytics", icon: BarChart3 },
+        ],
+      },
+      {
+        label: "Flow",
+        items: [
+          { label: t("nav.income", "Income"), to: "/income", icon: ArrowLeftRight },
+          { label: t("nav.expense", "Expense"), to: "/expense", icon: Wallet },
+          { label: t("nav.categories", "Categories"), to: "/categories", icon: Palette },
+          { label: t("nav.exports", "Exports"), to: "/dataexport", icon: Download },
+        ],
+      },
+      {
+        label: "Profile",
+        items: [
+          { label: t("nav.security", "Security"), to: "/security", icon: Lock },
+          { label: t("nav.profile", "Profile"), to: "/profile", icon: User },
+        ],
+      },
+    ],
+    [t]
+  );
+
+  const sections = useMemo(
+    () => (isAdminView ? adminSections : personalSectionsDynamic),
+    [isAdminView, personalSectionsDynamic]
+  );
   const widthClass = isMobile ? "w-[18.5rem]" : collapsed ? "w-24" : "w-80";
 
   async function handleLogout() {
@@ -324,7 +359,7 @@ export default function SidebarUnified({
               } ${collapsed && !isMobile ? "w-12 h-12 p-0 mx-auto" : "w-full"}`}
             >
               <LogOut size={18} className="transition-transform group-hover:-translate-x-1" />
-              {(!collapsed || isMobile) && "Logout"}
+              {(!collapsed || isMobile) && t("nav.logout", "Logout")}
             </button>
           </div>
 

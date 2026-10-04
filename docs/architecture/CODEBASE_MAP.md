@@ -108,13 +108,14 @@ Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_
 | `tests/db/test_migration_url_authority.py` | Precedence + guard URL migration (8, offline) | TEST (Wave04A1) |
 | `tests/api/test_health_and_cors.py` | Health/readiness + CORS contract (5, offline) | TEST (Wave04A0) |
 | `tests/api/test_auth_sync_contract.py` | `/auth/sync` idempotent/recover/2FA (3, DB-suite) | TEST (Wave04A0) |
+| `tests/api/test_chat_tools.py` | Batch pre-validation/atomic rollback + admin reset confirmation (8, offline) | TEST (Wave05B) |
 
 ## 2. FRONTEND (`expense-tracker/src/`)
 
 ### 2.1 Entry & routing
 | Path | Purpose | Status |
 |---|---|---|
-| `main.jsx` | React root render | ACTIVE |
+| `main.jsx` | React root render + i18n initialization | ACTIVE |
 | `App.jsx` | Router: public routes + ProtectedRoute(DashboardLayout) + AdminRoute(/admin/*) | ACTIVE |
 | `components/ProtectedRoute.jsx` | Guard đăng nhập → /login | ACTIVE |
 | `components/AdminRoute.jsx` | Guard admin → /dashboard nếu không admin | ACTIVE |
@@ -128,7 +129,7 @@ Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_
 | `pages/Dashboard/Analytics.jsx` | /analytics | ACTIVE |
 | `pages/Dashboard/{Income,Expense,Category}.jsx` | /income /expense /categories | ACTIVE |
 | `pages/Dashboard/ExportData.jsx` | /dataexport | ACTIVE |
-| `pages/Dashboard/Profile.jsx` | /profile | ACTIVE |
+| `pages/Dashboard/Profile.jsx` | /profile (sửa onAuthStateChanged tin cậy) | ACTIVE |
 | `pages/Dashboard/SecuritySettings.jsx` | /security | ACTIVE |
 | `pages/Admin/{AdminDashboard,AdminUserManagement,AdminDefaultCategories,AdminSystemSettings,AdminAuditLogs}.jsx` | /admin/* | ACTIVE |
 
@@ -138,17 +139,20 @@ Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_
 ### 2.4 Components & utils
 | Path | Purpose | Status |
 |---|---|---|
-| `components/Sidebar.jsx` | Nav chính (personal/admin theo `user.is_admin`) | ACTIVE |
-| `components/FinBotWidget.jsx` | Widget chat AI | ACTIVE |
+| `components/Sidebar.jsx` | Nav chính (personal/admin theo `user.is_admin`, i18n translated) | ACTIVE |
+| `components/FinBotWidget.jsx` | Widget chat AI (lỗi hiển thị trực tiếp cho user) | ACTIVE |
 | `components/firebase.jsx` | Init Firebase client | ACTIVE |
 | `components/dashboard/*` | OverviewHeader, MetricCard, BudgetCard, DashboardSkeleton | ACTIVE |
 | `components/transactions/*` | List, FormModal, DetailModal, ConfirmDelete, EmptyState | ACTIVE |
 | `components/ui/*` | ErrorBoundary, FormField, PageHeader, SectionCard, StatusBadge | ACTIVE |
-| `components/{AppGuide,AuthLayout,ExportStatusModal,LanguageSwitcher,QRCodeModal,WelcomeSplash}.jsx` | UI phụ trợ | ACTIVE |
+| `components/{AppGuide,AuthLayout,ExportStatusModal,QRCodeModal,WelcomeSplash}.jsx` | UI phụ trợ | ACTIVE |
+| `components/LanguageSwitcher.jsx` | Chuyển đổi ngôn ngữ tức thời VI/EN thuần native (gỡ bỏ hoàn toàn script Google Translate và cookie googtrans) | ACTIVE (Wave05B) |
+| `i18n/index.js` + `locales/{en,vi}/common.json` | Cấu hình i18next & tài nguyên ngôn ngữ cục bộ | ACTIVE (Wave05B) |
 | `data/defaultCategories.jsx` | Dữ liệu category mặc định (rà: nếu không chứa JSX nên đổi `.js`) | ACTIVE |
 | `utils/authHelper.js` | `getToken`, `getStoredUser` (Wave04A0 đã gỡ `handleForceLogout`/`authorizedFetch` trùng — logout/HTTP authority về `api.js`) | ACTIVE |
 | `utils/formatters.js` | Format tiền tệ/ngày | ACTIVE |
-| `test/{setup.js,sanity.test.jsx,routeGuards.test.jsx,apiClient.test.jsx,authService.test.jsx}` | Vitest harness + FE-AUTH/API-client/session tests | TEST |
+| `test/{setup.js,sanity.test.jsx,routeGuards.test.jsx,apiClient.test.jsx,authService.test.jsx}` | Vitest harness + FE-AUTH/API-client/session tests (38 tests) | TEST |
+| `e2e/{wave04a3-closeout,auth-acceptance,dashboard-transactions,analytics-export-profile,finbot-audit,i18n-acceptance}.spec.js` | Playwright browser acceptance suite (16 tests) | TEST (Wave05A/05B) |
 
 ## 3. INFRASTRUCTURE
 | Path | Purpose | Status |

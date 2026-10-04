@@ -46,6 +46,11 @@ class AdminSearchInput(BaseModel):
 class BatchTransactionInput(BaseModel):
     transactions: List[CreateTransactionInput] = Field(description="Danh sách các giao dịch cần ghi")
 
+
+class AdminResetSecurityInput(BaseModel):
+    email: str = Field(description="Email user cần cứu hộ/reset bảo mật")
+    confirm: bool = Field(default=False, description="Đặt True sau khi admin đã xác nhận rõ ràng")
+
 # --- HÀM CHÍNH ---
 def get_finbot_tools(db: Session, user: user_model.User):
     # ... (Giữ nguyên logic find_existing_category) ...
@@ -138,24 +143,64 @@ def get_finbot_tools(db: Session, user: user_model.User):
             return "Xin lỗi, không thực hiện được yêu cầu này."
 
     def create_batch_transactions_func(transactions: List[CreateTransactionInput]):
+        if not transactions:
+            return "❌ Danh sách giao dịch trống."
+
+        # 1. Pre-validation atomic check on entire batch
+        clean_items = []
+        for i, item in enumerate(transactions, 1):
+            clean_type = (item.type or "").lower().strip()
+            if clean_type not in ("income", "expense"):
+                return f"❌ Lỗi giao dịch #{i}: Loại '{item.type}' không hợp lệ (chỉ chấp nhận 'income' hoặc 'expense'). Hủy toàn bộ đợt ghi."
+            try:
+                dec_amount = Decimal(str(item.amount))
+                if dec_amount <= 0:
+                    return f"❌ Lỗi giao dịch #{i}: Số tiền phải lớn hơn 0. Hủy toàn bộ đợt ghi."
+            except Exception:
+                return f"❌ Lỗi giao dịch #{i}: Số tiền '{item.amount}' không hợp lệ. Hủy toàn bộ đợt ghi."
+
+            txn_date = date.today()
+            if item.date_str:
+                try:
+                    txn_date = date.fromisoformat(item.date_str)
+                except Exception:
+                    return f"❌ Lỗi giao dịch #{i}: Ngày '{item.date_str}' không đúng định dạng YYYY-MM-DD. Hủy toàn bộ đợt ghi."
+
+            clean_items.append({
+                "type": clean_type,
+                "amount": dec_amount,
+                "category_name": item.category_name,
+                "note": item.note or "",
+                "date": txn_date
+            })
+
+        # 2. Atomic execution with rollback protection
         results = []
         try:
-            for item in transactions:
-                # Gọi lại logic của hàm đơn lẻ để tái sử dụng code
-                res = create_transaction_func(
-                    type=item.type,
-                    amount=item.amount,
-                    category_name=item.category_name,
-                    note=item.note,
-                    date_str=item.date_str
-                )
-                results.append(res)
+            for item in clean_items:
+                existing_cat = find_existing_category(item["category_name"], item["type"])
+                cat_id = existing_cat.id if existing_cat else None
+                final_name = existing_cat.name if existing_cat else item["category_name"]
+                final_emoji = existing_cat.icon if existing_cat else "🤖"
 
-            # Trả về 1 chuỗi kết quả duy nhất
-            return f"[REFRESH] ✅ Đã ghi nhận {len(results)} giao dịch:\n- " + "\n- ".join(results)
+                if item["type"] == "income":
+                    crud_income.create_income(
+                        db, user.id, final_name, item["amount"], user.currency_code or "USD",
+                        item["date"], final_emoji, cat_id, note=item["note"]
+                    )
+                    results.append(f"Thu nhập: {item['amount']:,.0f} ({final_name}) - {item['note']}")
+                else:
+                    crud_expense.create_expense(
+                        db, user.id, final_name, item["amount"], user.currency_code or "USD",
+                        item["date"], final_emoji, cat_id, note=item["note"]
+                    )
+                    results.append(f"Chi tiêu: {item['amount']:,.0f} ({final_name}) - {item['note']}")
+
+            return f"[REFRESH] ✅ Đã ghi nhận thành công {len(results)} giao dịch:\n- " + "\n- ".join(results)
         except Exception:
+            db.rollback()
             logger.exception("FinBot batch transaction error")
-            return "❌ Không ghi được danh sách giao dịch."
+            return "❌ Lỗi khi ghi danh sách giao dịch. Đã hoàn tác toàn bộ."
 
     # ==========================================
     # 🛡️ ADMIN TOOLS (MỚI & XỊN)
@@ -219,28 +264,33 @@ def get_finbot_tools(db: Session, user: user_model.User):
             logger.exception("FinBot admin tool error")
             return "Lỗi: không truy vấn được dữ liệu."
 
-    def admin_reset_security_func(email: str):
+    def admin_reset_security_func(email: str, confirm: bool = False):
         """
         Admin Tool: Cứu hộ khẩn cấp user bị hack hoặc mất 2FA.
+        Bắt buộc phải có xác nhận rõ ràng từ Admin trước khi thực thi.
         """
+        if not confirm:
+            return (
+                f"⚠️ YÊU CẦU XÁC NHẬN BẢO MẬT: Thao tác này sẽ TẮT 2FA và HỦY MỌI PHIÊN ĐĂNG NHẬP của {email}.\n"
+                f"Để xác nhận thực hiện, vui lòng trả lời: 'Xác nhận cứu hộ {email}'."
+            )
+
         try:
-            # Tìm user
             target_user = crud_user.get_user_by_email(db, email)
             if not target_user:
                 return f"❌ Không tìm thấy user: {email}"
 
             # CƯỠNG CHẾ RESET
-            target_user.is_2fa_enabled = False  # Tắt 2FA
-            target_user.otp_secret = None  # Xóa mã bí mật
-            target_user.last_session_key = "RESET_BY_ADMIN"  # Đổi key -> Session cũ sẽ bị vô hiệu hóa ngay lập tức
+            target_user.is_2fa_enabled = False
+            target_user.otp_secret = None
+            target_user.last_session_key = "RESET_BY_ADMIN"
 
             db.commit()
 
-            # Ghi log
             crud_audit.log_action(db, actor_email=user.email, action="EMERGENCY_RESET", target=email,
-                                  details="Admin reset bảo mật", status="SUCCESS")
+                                  details="Admin reset bảo mật có xác nhận", status="SUCCESS")
 
-            return f"✅ Đã CỨU HỘ user {email} thành công!\n- 2FA: Đã TẮT.\n- Hacker: Đã bị ĐÁ VĂNG (Kick Session).\n👉 Hãy báo user đăng nhập lại ngay."
+            return f"✅ Đã CỨU HỘ user {email} thành công!\n- 2FA: Đã TẮT.\n- Phiên cũ: Đã bị vô hiệu hoá.\n👉 Hãy báo user đăng nhập lại ngay."
         except Exception:
             logger.exception("FinBot tool error")
             return "❌ Không thực hiện được yêu cầu."
@@ -274,8 +324,8 @@ def get_finbot_tools(db: Session, user: user_model.User):
             StructuredTool.from_function(func=admin_search_user_func, name="check_user_info",
                                          description="Admin: Tra cứu user theo email.", args_schema=AdminSearchInput),
             StructuredTool.from_function(func=admin_reset_security_func, name="admin_emergency_reset",
-                                         description="Admin: Cứu hộ khẩn cấp (Tắt 2FA + Đá session cũ) cho email cụ thể.",
-                                         args_schema=AdminSearchInput)
+                                         description="Admin: Cứu hộ khẩn cấp (Tắt 2FA + Đá session cũ). Yêu cầu confirm=True sau khi admin xác nhận.",
+                                         args_schema=AdminResetSecurityInput)
         ]
 
     return user_tools + admin_tools

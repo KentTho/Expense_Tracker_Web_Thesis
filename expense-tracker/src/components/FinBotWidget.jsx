@@ -267,7 +267,13 @@ export default function FinBotWidget({ theme }) {
       setMessages((prev) => [...prev, botMsg]);
 
     } catch (error) {
-      console.warn("FinBot Error (Silent):", error);
+      console.warn("FinBot Error:", error);
+      const errorMsg = {
+        role: "bot",
+        content: "⚠️ Không thể kết nối với FinBot lúc này. Vui lòng kiểm tra kết nối và thử lại.",
+        special: { type: null, payload: null },
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
     }
