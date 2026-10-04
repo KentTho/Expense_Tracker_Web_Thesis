@@ -46,8 +46,8 @@ class IncomeListOut(BaseModel):
 
 class IncomeSummaryOut(BaseModel):
     """Schema cho Tổng quan Thu nhập theo danh mục (Bar Chart)"""
-    category_name: str
-    total_amount: Decimal # Tổng tiền của danh mục
+    category_name: Optional[str] = "Other"
+    total_amount: Decimal = Decimal("0")
 
     class Config:
         from_attributes = True

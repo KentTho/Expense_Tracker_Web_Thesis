@@ -24,7 +24,7 @@ import {
     deleteIncome,
     getIncomeSummary,
 } from "../../services/incomeService";
-import { getCategories } from "../../services/categoryService"; 
+import { getCategories } from "../../services/categoryService";
 import { format } from "date-fns";
 
 // Shared Components
@@ -35,7 +35,7 @@ import TransactionList from "../../components/transactions/TransactionList";
 import TransactionDetailModal from "../../components/transactions/TransactionDetailModal";
 import DashboardSkeleton from "../../components/dashboard/DashboardSkeleton";
 
-const INCOME_TREND_COLOR = "#10B981"; 
+const INCOME_TREND_COLOR = "#10B981";
 
 const formatAmountDisplay = (amount, currencyCode = 'USD') => {
     const numberAmount = Number(amount) || 0;
@@ -43,7 +43,7 @@ const formatAmountDisplay = (amount, currencyCode = 'USD') => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: currencyCode,
-            minimumFractionDigits: 0, 
+            minimumFractionDigits: 0,
             maximumFractionDigits: 2,
         }).format(numberAmount);
     } catch (e) {
@@ -66,24 +66,24 @@ const CustomTooltip = ({ active, payload, label, currencyCode }) => {
 };
 
 export default function Income() {
-    const { theme, currencyCode } = useOutletContext(); 
+    const { theme, currencyCode } = useOutletContext();
     const isDark = theme === "dark";
 
     const [incomes, setIncomes] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [incomeSummary, setIncomeSummary] = useState([]); 
-    
-    const [showModal, setShowModal] = useState(false); 
-    const [showSummaryModal, setShowSummaryModal] = useState(false); 
-    const [showDeleteModal, setShowDeleteModal] = useState(false); 
+    const [incomeSummary, setIncomeSummary] = useState([]);
+
+    const [showModal, setShowModal] = useState(false);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteId, setDeleteId] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedIncome, setSelectedIncome] = useState(null);
 
     const [editId, setEditId] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [filterDate, setFilterDate] = useState(""); 
-    
+    const [filterDate, setFilterDate] = useState("");
+
     const [form, setForm] = useState({
         category_name: "",
         amount: "",
@@ -91,7 +91,7 @@ export default function Income() {
         emoji: "💰",
         category_id: "",
         note: "",
-        currency_code: currencyCode 
+        currency_code: currencyCode
     });
 
     useEffect(() => {
@@ -103,7 +103,7 @@ export default function Income() {
         const avg = incomes.length > 0 ? total / incomes.length : 0;
         const max = incomes.length > 0 ? Math.max(...incomes.map(i => Number(i.amount))) : 0;
 
-        return { 
+        return {
             totalIncome: total,
             avgIncome: avg,
             maxIncome: max
@@ -157,9 +157,9 @@ export default function Income() {
             toast.error("Please select a date.");
             return;
         }
-        
+
         let finalForm = { ...form, amount: amountNum, currency_code: currencyCode };
-        
+
         if (!finalForm.category_id && finalForm.category_name) {
             const foundCategory = categories.find(c => c.name.toLowerCase() === finalForm.category_name.toLowerCase());
             if (foundCategory) {
@@ -167,7 +167,7 @@ export default function Income() {
                 finalForm.emoji = foundCategory.icon || foundCategory.emoji || finalForm.emoji;
             }
         }
-        
+
         const toastId = toast.loading(editId ? "Updating income..." : "Adding income...");
 
         try {
@@ -180,24 +180,24 @@ export default function Income() {
                 setIncomes(prev => [...prev, created]);
                 toast.success("New income added successfully!", { id: toastId });
             }
-            await fetchData(); 
+            await fetchData();
             handleCloseModal();
         } catch (err) {
             console.error(err);
             toast.error("Failed to save income.", { id: toastId });
         }
     };
-    
+
     const handleEdit = (income) => {
         setEditId(income.id);
         setForm({
             category_name: income.category_name,
-            amount: String(income.amount), 
+            amount: String(income.amount),
             date: income.date,
             emoji: income.emoji,
             category_id: income.category?.id || income.category_id || '',
             note: income.note || "",
-            currency_code: currencyCode 
+            currency_code: currencyCode
         });
         setShowModal(true);
     };
@@ -213,7 +213,7 @@ export default function Income() {
         try {
             await deleteIncome(deleteId);
             setIncomes(prev => prev.filter((i) => i.id !== deleteId));
-            await fetchData(); 
+            await fetchData();
             toast.success("Income deleted successfully!", { id: toastId });
         } catch (err) {
             console.error(err);
@@ -223,7 +223,7 @@ export default function Income() {
             setDeleteId(null);
         }
     };
-    
+
     const handleCloseModal = () => {
         setShowModal(false);
         setEditId(null);
@@ -251,7 +251,7 @@ export default function Income() {
     }, [incomes, filterDate]);
 
     const summaryData = useMemo(() => {
-        return [...incomeSummary].sort((a, b) => b.value - a.value); 
+        return [...incomeSummary].sort((a, b) => b.value - a.value);
     }, [incomeSummary]);
 
     const dailyTrendData = useMemo(() => {
@@ -264,7 +264,7 @@ export default function Income() {
         return Object.keys(dailyMap)
             .sort()
             .map(dateStr => ({
-                date: format(new Date(dateStr), 'dd/MM'), 
+                date: format(new Date(dateStr), 'dd/MM'),
                 amount: dailyMap[dateStr],
             }));
     }, [incomes]);
@@ -284,7 +284,7 @@ export default function Income() {
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">Track your earnings and revenue streams.</p>
                 </div>
-                
+
                 <div className="flex flex-wrap gap-3 items-center w-full sm:w-auto">
                     <button
                         onClick={() => setShowSummaryModal(true)}
@@ -361,11 +361,11 @@ export default function Income() {
                     />
                 </div>
             </div>
-            
+
             <div id="tour-income-chart" className={`w-full p-8 rounded-[2.5rem] shadow-xl mb-8 transition-all duration-300 hover:shadow-2xl ${isDark ? "bg-gray-800" : "bg-white border border-gray-100"}`}>
                 <div className="mb-8">
                     <h2 className="text-xl font-black flex items-center gap-2 tracking-tight">
-                        <TrendingUp size={24} className="text-emerald-500" /> 
+                        <TrendingUp size={24} className="text-emerald-500" />
                         Income Trend
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">
@@ -373,16 +373,16 @@ export default function Income() {
                     </p>
                 </div>
 
-                <div className="h-[300px] sm:h-[400px] w-full"> 
-                    <ResponsiveContainer width="100%" height="100%">
-                        {dailyTrendData.length === 0 ? (
-                             <TransactionEmptyState
-                                isDark={isDark}
-                                title="No trend data"
-                                description="Add your first income to see analytics here."
-                                icon={TrendingUp}
-                             />
-                        ) : (
+                <div className="h-[300px] sm:h-[400px] w-full min-w-0">
+                    {dailyTrendData.length === 0 ? (
+                         <TransactionEmptyState
+                            isDark={isDark}
+                            title="No trend data"
+                            description="Add your first income to see analytics here."
+                            icon={TrendingUp}
+                         />
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={dailyTrendData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
@@ -390,38 +390,38 @@ export default function Income() {
                                         <stop offset="95%" stopColor="#10B981" stopOpacity={0.05}/>
                                     </linearGradient>
                                 </defs>
-                                
+
                                 <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} opacity={0.5} />
-                                <XAxis 
-                                    dataKey="date" 
-                                    stroke={isDark ? "#9CA3AF" : "#6B7280"} 
+                                <XAxis
+                                    dataKey="date"
+                                    stroke={isDark ? "#9CA3AF" : "#6B7280"}
                                     tickMargin={15}
                                     tick={{ fontSize: 11, fontWeight: 700 }}
                                     axisLine={false}
                                     tickLine={false}
-                                /> 
-                                <YAxis 
-                                    stroke={isDark ? "#9CA3AF" : "#6B7280"} 
-                                    tickFormatter={(value) => formatAmountDisplay(value, currencyCode).replace(currencyCode, "").trim()} 
+                                />
+                                <YAxis
+                                    stroke={isDark ? "#9CA3AF" : "#6B7280"}
+                                    tickFormatter={(value) => formatAmountDisplay(value, currencyCode).replace(currencyCode, "").trim()}
                                     tick={{ fontSize: 11, fontWeight: 700 }}
                                     width={45}
                                     axisLine={false}
                                     tickLine={false}
-                                /> 
-                                <Tooltip content={<CustomTooltip currencyCode={currencyCode} />} cursor={{ stroke: '#10B981', strokeWidth: 1, strokeDasharray: '5 5' }} />
-                                <Area 
-                                    type="monotone" 
-                                    dataKey="amount" 
-                                    stroke="#10B981" 
-                                    strokeWidth={4} 
-                                    fillOpacity={1} 
-                                    fill="url(#colorIncome)" 
-                                    activeDot={{ r: 6, strokeWidth: 0, fill: '#059669' }} 
-                                    animationDuration={1500} 
+                                />
+                                <Tooltip content={(props) => <CustomTooltip {...props} currencyCode={currencyCode} />} cursor={{ stroke: '#10B981', strokeWidth: 1, strokeDasharray: '5 5' }} />
+                                <Area
+                                    type="monotone"
+                                    dataKey="amount"
+                                    stroke="#10B981"
+                                    strokeWidth={4}
+                                    fillOpacity={1}
+                                    fill="url(#colorIncome)"
+                                    activeDot={{ r: 6, strokeWidth: 0, fill: '#059669' }}
+                                    animationDuration={1500}
                                 />
                             </AreaChart>
-                        )}
-                    </ResponsiveContainer>
+                        </ResponsiveContainer>
+                    )}
                 </div>
             </div>
 
@@ -447,12 +447,12 @@ export default function Income() {
                 isDark={isDark}
                 currencyCode={currencyCode}
             />
-            
+
             {showSummaryModal && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fadeIn">
                     <div className={`w-full max-w-3xl p-8 rounded-[2.5rem] shadow-2xl relative ${isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
-                        
-                        <button 
+
+                        <button
                             onClick={() => setShowSummaryModal(false)}
                             className={`absolute top-6 right-6 p-2 rounded-full transition-colors ${isDark ? "text-gray-400 hover:bg-gray-700 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-800"}`}
                         >
@@ -463,34 +463,34 @@ export default function Income() {
                             <BarChart3 size={28} className="text-purple-500" /> Income Breakdown
                         </h3>
 
-                        <div className="h-96 w-full">
+                        <div className="h-96 w-full min-w-0">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart 
-                                    data={summaryData.slice(0, 10)} 
-                                    layout="vertical" 
+                                <BarChart
+                                    data={summaryData.slice(0, 10)}
+                                    layout="vertical"
                                     margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
                                 >
                                     <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} horizontal={true} vertical={false} />
-                                    <XAxis 
-                                        type="number" 
-                                        stroke={isDark ? "#9CA3AF" : "#6B7280"} 
+                                    <XAxis
+                                        type="number"
+                                        stroke={isDark ? "#9CA3AF" : "#6B7280"}
                                         tickFormatter={(value) => formatAmountDisplay(value, currencyCode).replace(currencyCode, "").trim()}
                                         tick={{ fontSize: 11, fontWeight: 700 }}
                                         axisLine={false}
                                     />
-                                    <YAxis 
-                                        dataKey="name" 
-                                        type="category" 
-                                        stroke={isDark ? "#9CA3AF" : "#6B7280"} 
-                                        width={120} 
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        stroke={isDark ? "#9CA3AF" : "#6B7280"}
+                                        width={120}
                                         tick={{ fontSize: 11, fontWeight: 800 }}
                                         axisLine={false}
                                     />
-                                    <Tooltip 
+                                    <Tooltip
                                         formatter={(value) => [`${formatAmountDisplay(value, currencyCode)}`, "Total"]}
-                                        contentStyle={{ 
-                                            backgroundColor: isDark ? "#1F2937" : "#FFFFFF", 
-                                            borderColor: isDark ? "#4B5563" : "#D1D5DB", 
+                                        contentStyle={{
+                                            backgroundColor: isDark ? "#1F2937" : "#FFFFFF",
+                                            borderColor: isDark ? "#4B5563" : "#D1D5DB",
                                             borderRadius: "20px",
                                             boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
                                             border: "none"

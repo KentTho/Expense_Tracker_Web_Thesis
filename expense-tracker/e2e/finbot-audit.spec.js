@@ -16,23 +16,30 @@ test.describe("Gate 13: FinBot Current Behavior Audit", () => {
     await page.waitForURL("**/dashboard", { timeout: 20000 });
   });
 
-  test("AI-01: FinBot widget opens, takes input, and handles response/errors", async ({
+  test("AI-01: FinBot widget opens, takes input, and handles response/errors deterministically", async ({
     page,
   }) => {
-    // 1. Open FinBot trigger button
-    const botTrigger = page.locator('button:has(svg.lucide-sparkles), button[aria-label*="FinBot" i], div:has(> svg.lucide-sparkles)').first();
-    if (await botTrigger.isVisible()) {
-      await botTrigger.click();
-      await page.waitForTimeout(1000);
+    // 1. Mandatory trigger button must be visible
+    const botTrigger = page.locator('button:has(svg.lucide-sparkles)').first();
+    await expect(botTrigger).toBeVisible({ timeout: 10000 });
+    await botTrigger.click();
 
-      // Verify chat window is open
-      const chatInput = page.locator('input[placeholder*="Hỏi FinBot" i], input[placeholder*="FinBot" i], input[placeholder*="Ask" i]').first();
-      if (await chatInput.isVisible()) {
-        await chatInput.fill("Số dư của tôi?");
-        await page.keyboard.press("Enter");
-        // Wait for response or error state
-        await page.waitForTimeout(5000);
-      }
-    }
+    // 2. Chat window & input must appear deterministically (no false green)
+    const chatInput = page.locator('textarea[placeholder*="Ask me anything" i], input[placeholder*="Ask" i]').first();
+    await expect(chatInput).toBeVisible({ timeout: 10000 });
+
+    // 3. Send query
+    await chatInput.fill("Số dư của tôi?");
+    const sendButton = page.locator('button:has(svg.lucide-send)').first();
+    await expect(sendButton).toBeVisible();
+    await sendButton.click();
+
+    // 4. Verify message appears in conversation (either user message or assistant reply/status)
+    const sentMessage = page.locator('text=Số dư của tôi?').first();
+    await expect(sentMessage).toBeVisible({ timeout: 10000 });
+
+    // 5. Verify bot response container or loader resolves within timeout
+    const chatContainer = page.locator('div.custom-scrollbar').first();
+    await expect(chatContainer).toBeVisible({ timeout: 15000 });
   });
 });

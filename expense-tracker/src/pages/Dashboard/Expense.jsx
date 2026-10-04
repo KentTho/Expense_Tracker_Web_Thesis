@@ -2,15 +2,15 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
     PlusCircle, TrendingDown, DollarSign, BarChart3, LineChart,
-    Activity, ArrowUpRight, Calendar, X 
+    Activity, ArrowUpRight, Calendar, X
 } from "lucide-react";
 import {
     ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart as RechartsLineChart, Line,
 } from "recharts";
 import toast, { Toaster } from "react-hot-toast";
 import {
-    createExpense, getExpenses, updateExpense, deleteExpense, getExpenseDailyTrend, getExpenseBreakdown, 
-} from "../../services/expenseService"; 
+    createExpense, getExpenses, updateExpense, deleteExpense, getExpenseDailyTrend, getExpenseBreakdown,
+} from "../../services/expenseService";
 import { getCategories } from "../../services/categoryService";
 import { format } from "date-fns";
 
@@ -24,7 +24,7 @@ import DashboardSkeleton from "../../components/dashboard/DashboardSkeleton";
 
 // Helper Định dạng tiền tệ an toàn
 const formatAmountDisplay = (amount, currencyCode = 'USD') => {
-    const numberAmount = Number(amount) || 0; 
+    const numberAmount = Number(amount) || 0;
     try {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -53,7 +53,7 @@ const CustomTooltip = ({ active, payload, label, currencyCode }) => {
             <div className="p-3 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl backdrop-blur-sm z-50">
                 <p className="text-sm font-bold mb-1 text-gray-700 dark:text-gray-200">{isBreakdown ? name : `Date: ${label}`}</p>
                 <p className="text-base font-bold text-red-500">
-                    {isBreakdown ? 'Total Spent' : 'Expense'}: 
+                    {isBreakdown ? 'Total Spent' : 'Expense'}:
                     {formatAmountDisplay(value, currencyCode)}
                 </p>
             </div>
@@ -68,18 +68,18 @@ export default function Expense() {
 
     const [expenseData, setExpenseData] = useState({ items: [] });
     const [categories, setCategories] = useState([]);
-    
+
     // UI States
-    const [showModal, setShowModal] = useState(false); 
+    const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteId, setDeleteId] = useState(null);
     const [editId, setEditId] = useState(null);
     const [loading, setLoading] = useState(true);
-    
+
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedExpense, setSelectedExpense] = useState(null);
 
-    const [filterDate, setFilterDate] = useState(""); 
+    const [filterDate, setFilterDate] = useState("");
 
     // Chart States
     const [dailyTrend, setDailyTrend] = useState([]);
@@ -95,7 +95,7 @@ export default function Expense() {
         emoji: "💸",
         category_id: "",
         note: "",
-        currency_code: currencyCode 
+        currency_code: currencyCode
     });
 
     useEffect(() => {
@@ -109,7 +109,7 @@ export default function Expense() {
         const avg = items.length > 0 ? total / items.length : 0;
         const max = items.length > 0 ? Math.max(...items.map(item => Number(item.amount))) : 0;
 
-        return { 
+        return {
             totalExpense: Math.round(total),
             avgExpense: Math.round(avg),
             maxExpense: Math.round(max)
@@ -125,10 +125,10 @@ export default function Expense() {
     const fetchData = useCallback(async () => {
         try {
             const [expData, categoryData, trendData, breakdown] = await Promise.all([
-                getExpenses().catch(err => { console.warn("Expense fetch fail:", err); return { items: [] }; }),            
-                getCategories('expense').catch(err => { console.warn("Cat fetch fail:", err); return []; }), 
-                getExpenseDailyTrend(chartDays).catch(err => { console.warn("Trend fetch fail:", err); return []; }), 
-                getExpenseBreakdown().catch(err => { console.warn("Breakdown fetch fail:", err); return []; })     
+                getExpenses().catch(err => { console.warn("Expense fetch fail:", err); return { items: [] }; }),
+                getCategories('expense').catch(err => { console.warn("Cat fetch fail:", err); return []; }),
+                getExpenseDailyTrend(chartDays).catch(err => { console.warn("Trend fetch fail:", err); return []; }),
+                getExpenseBreakdown().catch(err => { console.warn("Breakdown fetch fail:", err); return []; })
             ]);
 
             setExpenseData(expData && expData.items ? expData : { items: [] });
@@ -146,7 +146,7 @@ export default function Expense() {
     useEffect(() => {
         fetchData();
         const handleUpdate = () => {
-            fetchData(); 
+            fetchData();
         };
         window.addEventListener("transactionUpdated", handleUpdate);
         return () => window.removeEventListener("transactionUpdated", handleUpdate);
@@ -171,7 +171,7 @@ export default function Expense() {
             note: expense.note || "",
             currency_code: currencyCode
         });
-        setShowModal(true); 
+        setShowModal(true);
     };
 
     const handleFormSubmit = async () => {
@@ -184,38 +184,38 @@ export default function Expense() {
             toast.error("Please select a date.");
             return;
         }
-        
+
         let finalForm = { ...form, amount: amountNum, currency_code: currencyCode };
-        
+
         if (!finalForm.category_id && finalForm.category_name) {
             const foundCategory = categories.find(c => c.name.toLowerCase() === finalForm.category_name.toLowerCase());
             if (foundCategory) {
                 finalForm.category_id = foundCategory.id;
-                finalForm.emoji = foundCategory.emoji || foundCategory.icon || finalForm.emoji; 
+                finalForm.emoji = foundCategory.emoji || foundCategory.icon || finalForm.emoji;
             }
         }
 
         const toastId = toast.loading(editId ? "Updating expense..." : "Saving expense...");
-        
+
         try {
             if (editId) {
-                await updateExpense(editId, finalForm); 
+                await updateExpense(editId, finalForm);
                 toast.success("Expense updated successfully!", { id: toastId });
             } else {
-                await createExpense(finalForm); 
+                await createExpense(finalForm);
                 toast.success("Expense saved successfully!", { id: toastId });
             }
             setShowModal(false);
             setEditId(null);
             resetForm();
-            fetchData(); 
+            fetchData();
         } catch {
             toast.error("Failed to save expense. Please try again.", { id: toastId });
         }
     };
 
     const initiateDelete = (id) => { setDeleteId(id); setShowDeleteModal(true); };
-    
+
     const confirmDelete = async () => {
         if (!deleteId) return;
         const toastId = toast.loading("Deleting expense...");
@@ -239,7 +239,7 @@ export default function Expense() {
 
     // --- CHART UI ---
     const chartTitle = chartView === 'trend' ? `Daily Expense Trend (${chartDays} Days)` : 'Expense Breakdown';
-    
+
     const TrendChart = (
         <RechartsLineChart data={dailyTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
@@ -249,11 +249,11 @@ export default function Expense() {
                 stroke={isDark ? "#9CA3AF" : "#6B7280"} tick={{ fontSize: 12 }} axisLine={false} tickLine={false}
             />
             <YAxis
-                tickFormatter={(value) => formatAmountDisplay(value, currencyCode).replace(currencyCode, "").trim()} 
+                tickFormatter={(value) => formatAmountDisplay(value, currencyCode).replace(currencyCode, "").trim()}
                 stroke={isDark ? "#9CA3AF" : "#6B7280"} tick={{ fontSize: 12 }} axisLine={false} tickLine={false}
                 width={40}
             />
-            <Tooltip content={<CustomTooltip currencyCode={currencyCode} />} cursor={{stroke: '#EF4444', strokeWidth: 1, strokeDasharray: '4 4'}} />
+            <Tooltip content={(props) => <CustomTooltip {...props} currencyCode={currencyCode} />} cursor={{stroke: '#EF4444', strokeWidth: 1, strokeDasharray: '4 4'}} />
             <Line type="monotone" dataKey="total_amount" stroke="#EF4444" strokeWidth={3} dot={{ r: 4, fill: '#EF4444', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} />
         </RechartsLineChart>
     );
@@ -262,12 +262,12 @@ export default function Expense() {
         <BarChart data={breakdownData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#E5E7EB"} vertical={false} />
             <XAxis dataKey="category_name" stroke={isDark ? "#9CA3AF" : "#6B7280"} tick={{ fontSize: 12 }} height={50} axisLine={false} tickLine={false} />
-            <YAxis 
-                tickFormatter={(value) => formatAmountDisplay(value, currencyCode).replace(currencyCode, "").trim()} 
+            <YAxis
+                tickFormatter={(value) => formatAmountDisplay(value, currencyCode).replace(currencyCode, "").trim()}
                 stroke={isDark ? "#9CA3AF" : "#6B7280"} tick={{ fontSize: 12 }} axisLine={false} tickLine={false}
                 width={40}
             />
-            <Tooltip content={<CustomTooltip currencyCode={currencyCode} />} cursor={{fill: isDark ? '#374151' : '#F3F4F6', opacity: 0.4}} />
+            <Tooltip content={(props) => <CustomTooltip {...props} currencyCode={currencyCode} />} cursor={{fill: isDark ? '#374151' : '#F3F4F6', opacity: 0.4}} />
             <Bar dataKey="total_amount" fill="#EF4444" radius={[6, 6, 0, 0]} maxBarSize={60} />
         </BarChart>
     );
@@ -279,7 +279,7 @@ export default function Expense() {
     return (
         <div className={`p-4 sm:p-6 min-h-screen transition-colors duration-300 ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
             <Toaster position="top-center" />
-            
+
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-black flex items-center gap-2 tracking-tight">
@@ -288,13 +288,13 @@ export default function Expense() {
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">Manage your daily spending.</p>
                 </div>
-                
-                <button 
+
+                <button
                     onClick={() => {
                         setEditId(null);
                         resetForm();
                         setShowModal(true);
-                    }} 
+                    }}
                     className="w-full sm:w-auto flex items-center justify-center px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-500/30 transition-all transform hover:-translate-y-0.5"
                 >
                     <PlusCircle size={20} className="mr-2" /> Add Expense
@@ -349,13 +349,13 @@ export default function Expense() {
                         <BarChart3 size={24} className="text-red-500"/>
                         {chartTitle}
                     </h2>
-                    
+
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                         {chartView === 'trend' && (
-                            <select 
-                                value={chartDays} 
-                                onChange={(e) => setChartDays(Number(e.target.value))} 
-                                className={`text-sm py-2 px-3 rounded-xl border-2 outline-none focus:ring-4 focus:ring-red-500/10 ${isDark ? "bg-gray-700 border-gray-600 focus:border-red-500" : "bg-gray-50 border-gray-200 focus:border-red-500"}`} 
+                            <select
+                                value={chartDays}
+                                onChange={(e) => setChartDays(Number(e.target.value))}
+                                className={`text-sm py-2 px-3 rounded-xl border-2 outline-none focus:ring-4 focus:ring-red-500/10 ${isDark ? "bg-gray-700 border-gray-600 focus:border-red-500" : "bg-gray-50 border-gray-200 focus:border-red-500"}`}
                                 disabled={loading}
                             >
                                 <option value={7}>Last 7 Days</option>
@@ -363,29 +363,29 @@ export default function Expense() {
                                 <option value={90}>Last 90 Days</option>
                             </select>
                         )}
-                        <button 
-                            onClick={() => setChartView(chartView === 'trend' ? 'summary' : 'trend')} 
+                        <button
+                            onClick={() => setChartView(chartView === 'trend' ? 'summary' : 'trend')}
                             className={`flex items-center text-sm px-5 py-2.5 rounded-xl font-bold transition-all active:scale-95 ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
                         >
-                            {chartView === 'trend' ? <BarChart3 size={16} className="mr-2" /> : <LineChart size={16} className="mr-2" />} 
+                            {chartView === 'trend' ? <BarChart3 size={16} className="mr-2" /> : <LineChart size={16} className="mr-2" />}
                             Switch View
                         </button>
                     </div>
                 </div>
-                
-                <div className="h-[300px] sm:h-[400px] w-full"> 
-                    <ResponsiveContainer width="100%" height="100%"> 
-                        {(chartView === 'trend' && dailyTrend.length === 0) || (chartView === 'summary' && breakdownData.length === 0) ? (
-                            <TransactionEmptyState
-                                isDark={isDark}
-                                title="No analytics data available"
-                                description="Start adding expenses to see trends."
-                                icon={BarChart3}
-                            />
-                        ) : (
-                            chartView === 'trend' ? TrendChart : SummaryChart
-                        )}
-                    </ResponsiveContainer>
+
+                <div className="h-[300px] sm:h-[400px] w-full min-w-0">
+                    {(chartView === 'trend' && dailyTrend.length === 0) || (chartView === 'summary' && breakdownData.length === 0) ? (
+                        <TransactionEmptyState
+                            isDark={isDark}
+                            title="No analytics data available"
+                            description="Start adding expenses to see trends."
+                            icon={BarChart3}
+                        />
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            {chartView === 'trend' ? TrendChart : SummaryChart}
+                        </ResponsiveContainer>
+                    )}
                 </div>
             </div>
 
@@ -423,4 +423,4 @@ export default function Expense() {
             />
         </div>
     );
-}
+}

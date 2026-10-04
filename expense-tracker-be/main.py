@@ -151,6 +151,7 @@ origins = settings.cors_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"^https://expense-tracker-web-thesis.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],  # Cho phép mọi phương thức: GET, POST, PUT, DELETE...
     allow_headers=["*"],  # Cho phép mọi loại header  # Rộng, nhưng cần cho auth (e.g., Authorization header).

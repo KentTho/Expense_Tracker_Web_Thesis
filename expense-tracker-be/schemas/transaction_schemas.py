@@ -31,7 +31,7 @@ class TransactionOut(TransactionBase):
 
     id: UUID
     user_id: UUID
-    created_at: datetime
+    created_at: Optional[datetime] = None
     category: Optional[CategoryOut] = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -296,7 +296,7 @@ export default function HomeUnified() {
             </div>
           </div>
 
-          <div className="h-[320px]">
+          <div className="h-[320px] min-w-0">
             {chartData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
@@ -346,7 +346,7 @@ export default function HomeUnified() {
             <Flame className="text-orange-300" size={20} />
           </div>
 
-          <div className="h-[320px]">
+          <div className="h-[320px] min-w-0">
             {distributionData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
