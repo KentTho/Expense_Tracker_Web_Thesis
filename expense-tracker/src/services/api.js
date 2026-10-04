@@ -131,7 +131,63 @@ async function getErrorMessage(response) {
   return `Request failed with status ${response.status}`;
 }
 
+let refreshSessionPromise = null;
+
+export async function refreshBackendSession() {
+  if (refreshSessionPromise) {
+    return refreshSessionPromise;
+  }
+
+  refreshSessionPromise = (async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error("No active Firebase session for silent refresh.");
+      }
+
+      // Force refresh Firebase ID token
+      const newFirebaseIdToken = await currentUser.getIdToken(true);
+      if (!newFirebaseIdToken) {
+        throw new Error("Failed to retrieve fresh Firebase ID token.");
+      }
+
+      // Sync with backend to get fresh backend JWT
+      const syncUrl = resolveUrl("/auth/sync");
+      const syncResponse = await fetch(syncUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${newFirebaseIdToken}`,
+        },
+        body: JSON.stringify({
+          email: currentUser.email,
+          display_name: currentUser.displayName,
+          picture: currentUser.photoURL,
+        }),
+      });
+
+      if (!syncResponse.ok) {
+        throw new Error(`Sync failed with status ${syncResponse.status}`);
+      }
+
+      const syncData = await syncResponse.json();
+      const newAccessToken = syncData.access_token;
+      if (!newAccessToken) {
+        throw new Error("Backend did not return an access token.");
+      }
+
+      localStorage.setItem("idToken", newAccessToken);
+      return newAccessToken;
+    } finally {
+      refreshSessionPromise = null;
+    }
+  })();
+
+  return refreshSessionPromise;
+}
+
 export async function authorizedFetch(pathOrUrl, options = {}, config = {}) {
+  const isRetry = Boolean(config._isRetry);
   const token = await getAccessToken();
   const responseType = config.responseType || "json";
   const response = await fetch(resolveUrl(pathOrUrl), {
@@ -140,6 +196,32 @@ export async function authorizedFetch(pathOrUrl, options = {}, config = {}) {
   });
 
   if (response.status === 401) {
+    if (!isRetry && auth.currentUser) {
+      try {
+        const freshToken = await refreshBackendSession();
+        // Retry original request ONCE with new token
+        const retryResponse = await fetch(resolveUrl(pathOrUrl), {
+          ...options,
+          headers: buildHeaders(options, freshToken),
+        });
+
+        if (retryResponse.status === 401) {
+          await forceLogout();
+          throw new Error("Session expired. Please login again.");
+        }
+
+        if (!retryResponse.ok) {
+          throw new Error(await getErrorMessage(retryResponse));
+        }
+
+        return parseResponse(retryResponse, responseType);
+      } catch (refreshErr) {
+        console.warn("[api] Silent session refresh failed:", refreshErr.message);
+        await forceLogout();
+        throw new Error("Session expired. Please login again.");
+      }
+    }
+
     await forceLogout();
     throw new Error("Session expired. Please login again.");
   }

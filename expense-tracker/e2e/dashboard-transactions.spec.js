@@ -19,10 +19,17 @@ test.describe("Gate 6 & 7: Dashboard, Transactions & Categories Acceptance", () 
   test("DASH-01 to DASH-05: Dashboard loads with stats and layout elements", async ({
     page,
   }) => {
+    await expect(page).toHaveURL(new RegExp(`${baseURL}/dashboard`));
+
+    // Mandatory cards and links must be visible
     const addIncomeLink = page.locator('a[href="/income"]').first();
     await expect(addIncomeLink).toBeVisible({ timeout: 15000 });
-    // Verify cards are present
-    expect(page.url()).toContain("/dashboard");
+
+    const totalBalanceCard = page.locator('text=Total Balance, text=Tổng số dư').first();
+    await expect(totalBalanceCard).toBeVisible({ timeout: 10000 });
+
+    const recentTxHeading = page.locator('text=Recent Transactions, text=Giao dịch gần đây').first();
+    await expect(recentTxHeading).toBeVisible({ timeout: 10000 });
   });
 
   test("CAT-01 to CAT-04: Category list and creation with [QA-W05]", async ({
@@ -31,22 +38,23 @@ test.describe("Gate 6 & 7: Dashboard, Transactions & Categories Acceptance", () 
     await page.goto(`${baseURL}/categories`);
     await page.waitForLoadState("networkidle");
 
-    // Click Add Category button
-    const addCatBtn = page.locator('button:has-text("Add Category"), button:has-text("Thêm danh mục"), button:has-text("Tạo danh mục")');
-    if (await addCatBtn.isVisible()) {
-      await addCatBtn.click();
+    // Click "Create new" category button - must be visible
+    const addCatBtn = page.locator('button:has-text("Create new"), button:has-text("Tạo danh mục")').first();
+    await expect(addCatBtn).toBeVisible({ timeout: 15000 });
+    await addCatBtn.click();
 
-      // Fill category name with [QA-W05] marker
-      const catInput = page.locator('input[placeholder*="name" i], input[placeholder*="tên" i]').first();
-      if (await catInput.isVisible()) {
-        await catInput.fill("[QA-W05] Test Category");
-        const saveBtn = page.locator('button:has-text("Save"), button:has-text("Lưu"), button:has-text("Tạo")').first();
-        await saveBtn.click();
-        await page.waitForTimeout(2000);
-      }
-    }
+    // Modal input must appear
+    const catInput = page.locator('input[placeholder*="Salary, Rent, Groceries" i], input[placeholder*="tên" i]').first();
+    await expect(catInput).toBeVisible({ timeout: 10000 });
+    await catInput.fill("[QA-W05] Test Category");
 
-    expect(page.url()).toContain("/categories");
+    // Submit button must be visible and clicked
+    const saveBtn = page.locator('button:has-text("Confirm creation"), button:has-text("Xác nhận tạo"), button:has-text("Save")').first();
+    await expect(saveBtn).toBeVisible({ timeout: 5000 });
+    await saveBtn.click();
+
+    // Wait for category to be listed or modal to close
+    await expect(catInput).toBeHidden({ timeout: 10000 });
   });
 
   test("TX-01 to TX-06: Income, Expense creation, dashboard reflection, and cleanup", async ({
@@ -56,50 +64,51 @@ test.describe("Gate 6 & 7: Dashboard, Transactions & Categories Acceptance", () 
     await page.goto(`${baseURL}/income`);
     await page.waitForLoadState("networkidle");
 
-    const addIncomeBtn = page.locator('button:has-text("Add Income"), button:has-text("Thêm thu nhập"), button:has-text("Thêm")').first();
-    if (await addIncomeBtn.isVisible()) {
-      await addIncomeBtn.click();
+    const addIncomeBtn = page.locator('button:has-text("Add Income"), button:has-text("Thêm thu nhập")').first();
+    await expect(addIncomeBtn).toBeVisible({ timeout: 15000 });
+    await addIncomeBtn.click();
 
-      // Fill amount
-      const amountInput = page.locator('input[type="number"], input[placeholder*="amount" i], input[placeholder*="số tiền" i]').first();
-      await amountInput.fill("5000000");
+    // Fill amount and note
+    const incomeAmountInput = page.locator('input[name="amount"], input[type="number"]').first();
+    await expect(incomeAmountInput).toBeVisible({ timeout: 10000 });
+    await incomeAmountInput.fill("5000000");
 
-      // Fill note
-      const noteInput = page.locator('input[placeholder*="note" i], input[placeholder*="ghi chú" i], textarea').first();
-      if (await noteInput.isVisible()) {
-        await noteInput.fill("[QA-W05] Salary");
-      }
+    const incomeNoteInput = page.locator('textarea[name="note"], input[placeholder*="memo" i]').first();
+    await expect(incomeNoteInput).toBeVisible({ timeout: 5000 });
+    await incomeNoteInput.fill("[QA-W05] Salary");
 
-      // Submit
-      const submitBtn = page.locator('button[type="submit"], button:has-text("Save"), button:has-text("Lưu")').first();
-      await submitBtn.click();
-      await page.waitForTimeout(3000);
-    }
+    const saveIncomeBtn = page.locator('button:has-text("Save Income"), button:has-text("Lưu thu nhập")').first();
+    await expect(saveIncomeBtn).toBeVisible({ timeout: 5000 });
+    await saveIncomeBtn.click();
+    await expect(incomeAmountInput).toBeHidden({ timeout: 10000 });
 
     // 2. Create Expense
     await page.goto(`${baseURL}/expense`);
     await page.waitForLoadState("networkidle");
 
-    const addExpenseBtn = page.locator('button:has-text("Add Expense"), button:has-text("Thêm chi tiêu"), button:has-text("Thêm")').first();
-    if (await addExpenseBtn.isVisible()) {
-      await addExpenseBtn.click();
+    const addExpenseBtn = page.locator('button:has-text("Add Expense"), button:has-text("Thêm chi tiêu")').first();
+    await expect(addExpenseBtn).toBeVisible({ timeout: 15000 });
+    await addExpenseBtn.click();
 
-      const amountInput = page.locator('input[type="number"], input[placeholder*="amount" i], input[placeholder*="số tiền" i]').first();
-      await amountInput.fill("50000");
+    const expenseAmountInput = page.locator('input[name="amount"], input[type="number"]').first();
+    await expect(expenseAmountInput).toBeVisible({ timeout: 10000 });
+    await expenseAmountInput.fill("50000");
 
-      const noteInput = page.locator('input[placeholder*="note" i], input[placeholder*="ghi chú" i], textarea').first();
-      if (await noteInput.isVisible()) {
-        await noteInput.fill("[QA-W05] Lunch");
-      }
+    const expenseNoteInput = page.locator('textarea[name="note"], input[placeholder*="memo" i]').first();
+    await expect(expenseNoteInput).toBeVisible({ timeout: 5000 });
+    await expenseNoteInput.fill("[QA-W05] Lunch");
 
-      const submitBtn = page.locator('button[type="submit"], button:has-text("Save"), button:has-text("Lưu")').first();
-      await submitBtn.click();
-      await page.waitForTimeout(3000);
-    }
+    const saveExpenseBtn = page.locator('button:has-text("Save Expense"), button:has-text("Lưu chi tiêu")').first();
+    await expect(saveExpenseBtn).toBeVisible({ timeout: 5000 });
+    await saveExpenseBtn.click();
+    await expect(expenseAmountInput).toBeHidden({ timeout: 10000 });
 
     // 3. Return to Dashboard and verify recent transactions
     await page.goto(`${baseURL}/dashboard`);
     await page.waitForLoadState("networkidle");
-    expect(page.url()).toContain("/dashboard");
+    await expect(page).toHaveURL(new RegExp(`${baseURL}/dashboard`));
+
+    const dashboardItem = page.locator('text=[QA-W05] Lunch, text=[QA-W05] Salary').first();
+    await expect(dashboardItem).toBeVisible({ timeout: 15000 });
   });
 });

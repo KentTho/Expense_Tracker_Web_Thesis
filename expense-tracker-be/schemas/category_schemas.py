@@ -28,7 +28,7 @@ class CategoryOut(CategoryBase):
     id: UUID
     # ✅ Quan trọng: Cho phép user_id là Optional (None) để hỗ trợ Default Category
     user_id: Optional[UUID] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

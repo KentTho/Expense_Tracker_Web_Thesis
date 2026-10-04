@@ -265,7 +265,7 @@ export default function AnalyticsUnified() {
             <Sparkles className="text-cyan-400" size={18} />
           </div>
 
-          <div className="h-[340px]">
+          <div className="h-[340px] min-w-0">
             {distributionData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={distributionData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>

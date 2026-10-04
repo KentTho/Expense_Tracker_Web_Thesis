@@ -213,4 +213,4 @@ def get_income_summary(db: Session, user_id: UUID):
         .order_by(func.sum(transaction_model.Transaction.amount).desc())
         .all()
     )
-    return [{"category_name": s.category_name, "total_amount": float(s.total_amount)} for s in summary]
+    return [{"category_name": s.category_name or "Other", "total_amount": float(s.total_amount or 0)} for s in summary]
