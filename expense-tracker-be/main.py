@@ -145,13 +145,15 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Đăng ký các custom handler để KHÔNG rò rỉ str(e)/stack trace ra client.
 register_exception_handlers(app)
 
+from core.config import settings, VERCEL_PREVIEW_REGEX
+
 # Cấu hình CORS (Cho phép Vercel truy cập)
 origins = settings.cors_origins
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"^https://expense-tracker-web-thesis.*\.vercel\.app$",
+    allow_origin_regex=VERCEL_PREVIEW_REGEX.pattern,
     allow_credentials=True,
     allow_methods=["*"],  # Cho phép mọi phương thức: GET, POST, PUT, DELETE...
     allow_headers=["*"],  # Cho phép mọi loại header  # Rộng, nhưng cần cho auth (e.g., Authorization header).

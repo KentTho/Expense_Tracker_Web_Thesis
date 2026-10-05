@@ -6,26 +6,14 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 
-from core.config import settings
+from core.config import is_allowed_origin
 
 logger = logging.getLogger(__name__)
-
-VERCEL_PREVIEW_REGEX = re.compile(r"^https://expense-tracker-web-thesis.*\.vercel\.app$")
 
 
 def get_cors_headers(request: Request) -> dict:
     origin = request.headers.get("origin")
-    if not origin:
-        return {}
-    allowed = False
-    if origin in settings.cors_origins:
-        allowed = True
-    elif VERCEL_PREVIEW_REGEX.match(origin):
-        allowed = True
-    elif origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:"):
-        allowed = True
-
-    if allowed:
+    if origin and is_allowed_origin(origin):
         return {
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",

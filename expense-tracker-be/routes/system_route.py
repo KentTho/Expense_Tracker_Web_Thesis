@@ -31,10 +31,13 @@ def get_settings(
 @router.get("/health")
 def check_system_health(db: Session = Depends(get_db)):
     """Đo độ trễ API và kiểm tra kết nối Database thực tế"""
+    import os
+    build_sha = os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("APP_BUILD_SHA") or "unknown"
     status_data = {
         "db_status": "Disconnected",
         "latency": 0,
-        "color": "red"
+        "color": "red",
+        "build_sha": build_sha
     }
 
     try:

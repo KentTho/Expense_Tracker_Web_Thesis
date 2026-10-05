@@ -22,8 +22,10 @@ router = APIRouter(tags=["Health"])
 
 @router.get("/health")
 def health():
-    """Liveness probe — chỉ khẳng định tiến trình còn sống."""
-    return {"status": "ok"}
+    """Liveness probe — chỉ khẳng định tiến trình còn sống kèm build provenance."""
+    import os
+    build_sha = os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("APP_BUILD_SHA") or "unknown"
+    return {"status": "ok", "build_sha": build_sha}
 
 
 @router.get("/ready")

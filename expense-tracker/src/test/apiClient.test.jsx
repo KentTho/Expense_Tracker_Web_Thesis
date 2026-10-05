@@ -163,4 +163,44 @@ describe("api client contract", () => {
 
     auth.currentUser = null;
   });
+
+  it("SESSION-SYNC-422-01: silent refresh payload must contain email, firebase_uid, and display_name", async () => {
+    const { auth } = await import("../components/firebase");
+    auth.currentUser = {
+      uid: "firebase-uid-qa-999",
+      email: "qa@example.com",
+      displayName: "QA User",
+      getIdToken: vi.fn().mockResolvedValue("fresh-fb-token"),
+    };
+
+    localStorage.setItem("idToken", "expired-jwt");
+
+    let capturedSyncBody = null;
+    let syncHeaders = null;
+    globalThis.fetch = vi.fn().mockImplementation(async (url, opts) => {
+      const authHeader = typeof opts?.headers?.get === "function" ? opts.headers.get("Authorization") : opts?.headers?.Authorization;
+      if (url.includes("/dashboard/data") && authHeader === "Bearer expired-jwt") {
+        return { ok: false, status: 401, json: async () => ({ detail: "expired" }), text: async () => "expired" };
+      }
+      if (url.includes("/auth/sync")) {
+        capturedSyncBody = JSON.parse(opts.body);
+        syncHeaders = authHeader;
+        return { ok: true, status: 200, json: async () => ({ access_token: "renewed-jwt" }), text: async () => JSON.stringify({ access_token: "renewed-jwt" }) };
+      }
+      if (url.includes("/dashboard/data") && authHeader === "Bearer renewed-jwt") {
+        return { ok: true, status: 200, json: async () => ({ ok: true }), text: async () => JSON.stringify({ ok: true }) };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await authorizedFetch("/dashboard/data");
+    expect(syncHeaders).toBe("Bearer fresh-fb-token");
+    expect(capturedSyncBody).toEqual({
+      email: "qa@example.com",
+      firebase_uid: "firebase-uid-qa-999",
+      display_name: "QA User",
+    });
+
+    auth.currentUser = null;
+  });
 });

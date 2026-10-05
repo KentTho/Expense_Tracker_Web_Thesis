@@ -37,7 +37,7 @@
 | `admin_route.py` | JWT+admin | crud_admin, crud_audit | users, categories, audit_logs, system_settings | ACTIVE |
 | `system_route.py` | JWT/admin | crud_system | system_settings | ACTIVE |
 | `chat_route.py` | JWT | chat_service | transactions, categories, users | ACTIVE |
-| `health_route.py` | public | — (DB `SELECT 1`, Redis health) | — | ACTIVE (Wave04A0: `GET /health` liveness, `GET /ready` readiness) |
+| `health_route.py` | public | — (DB `SELECT 1`, Redis health) | — | ACTIVE (Wave04A0/05A-R2: `GET /health` liveness + build_sha provenance, `GET /ready` readiness) |
 
 Guard: `services/auth_token_db.get_current_user_db` (JWT + single-device), `get_current_admin_user` (403 nếu không admin).
 

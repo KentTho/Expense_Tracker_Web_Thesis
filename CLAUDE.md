@@ -82,12 +82,34 @@ Frontend:
 - Backend test:   `cd expense-tracker-be && .venv/Scripts/python -m pytest`
   - DB-suite (MIG/DAT/F7) chỉ chạy khi có `TEST_DATABASE_URL` trỏ Postgres **local test** (guard chặn Neon/production); thiếu env → skip an toàn, KHÔNG fallback SQLite.
 
-## 8. OUTPUT RULE
+## 8. EVIDENCE LAW & VERIFICATION CONTRACT (Permanent)
+- **Allowed Evidence Statuses**: `VERIFIED_PASS`, `FAILED`, `BLOCKED`, `NOT_VERIFIED`, `NOT_APPLICABLE`, `CONTRADICTORY`.
+- **Environment-Scoped PASS (BẮT BUỘC)**:
+  `LOCAL_PASS` · `PG_LOCAL_PASS` · `DOCKER_PASS` · `CI_PASS` · `PREVIEW_PASS` · `PRODUCTION_PASS`.
+  - TUYỆT ĐỐI KHÔNG suy diễn PASS môi trường cao hơn từ môi trường thấp hơn (`pytest PASS != production PASS`, `CI PASS != production PASS`, `Preview PASS != production PASS`).
+  - Skipped tests KHÔNG PHẢI LÀ PASS. Không có bằng chứng = `NOT_VERIFIED`.
+  - Nếu bằng chứng thực tế môi trường production mâu thuẫn với PASS trước đó: lập tức đánh dấu `CONTRADICTORY`.
+- **Tiêu chuẩn cấp `PRODUCTION_PASS`**:
+  1. Required control/UI element tồn tại thực tế.
+  2. Real user action được thực thi (không skip qua `if isVisible`).
+  3. Expected request thực tế được gửi đi.
+  4. Expected HTTP status trả về (2xx hoặc đúng spec).
+  5. Expected DB/readback side effect tồn tại thực sự.
+  6. Expected UI state hiển thị đúng.
+  7. Browser refresh bảo toàn chính xác dữ liệu/state.
+  8. Zero unexpected `pageerror`.
+  9. Zero required `requestfailed`.
+  10. Zero unexplained 5xx errors.
+- **Quy tắc phát ngôn**:
+  - KHÔNG BAO GIỜ tuyên bố: "100% bug-free", "hoàn hảo không lỗi", "production-ready tuyệt đối".
+  - Câu chữ chuẩn mực cho phép: `0 KNOWN REPRODUCIBLE P0/P1 UNDER THE EXECUTED ACCEPTANCE MATRIX.`
+
+## 9. OUTPUT RULE
 - Trả kết quả ngắn gọn nhưng đủ evidence (dùng `path:line`).
 - KHÔNG tạo report folder / report `.md` (trừ `CLAUDE.md`, `PROJECT_ROADMAP.md`, và tài liệu kiến trúc lâu dài trong `docs/architecture/**`).
 - KHÔNG tuyên bố "production-ready" / "DONE 100%" khi chỉ kiểm tra local.
 
-## 9. SOFTWARE AUTHORITIES (one concern → one authority)
+## 10. SOFTWARE AUTHORITIES (one concern → one authority)
 Quyết định của Human Operator. Trạng thái: CURRENT (đang dùng) / TARGET (đích, chưa verify) / DEFERRED.
 
 | Concern | Authority | Trạng thái |
