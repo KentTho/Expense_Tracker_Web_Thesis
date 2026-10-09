@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .category_schemas import CategoryOut
 
@@ -18,6 +18,13 @@ class TransactionBase(BaseModel):
     category_name: Optional[str] = None
     category_id: Optional[UUID] = None
     emoji: Optional[str] = None
+
+    @field_validator("category_id", mode="before")
+    @classmethod
+    def empty_category_id_to_none(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
 
 
 class TransactionCreate(TransactionBase):

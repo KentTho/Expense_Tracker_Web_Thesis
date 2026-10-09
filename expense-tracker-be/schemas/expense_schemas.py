@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import date, datetime
 from uuid import UUID
@@ -16,6 +16,12 @@ class ExpenseBase(BaseModel):
     emoji: Optional[str] = None
     note: Optional[str] = None
     category_id: Optional[UUID] = None   # Liên kết Category (nếu có)
+    @field_validator("category_id", mode="before")
+    @classmethod
+    def empty_category_id_to_none(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
 
 
 class ExpenseCreate(ExpenseBase):
