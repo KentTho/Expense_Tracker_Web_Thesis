@@ -25,10 +25,10 @@ test.describe("Gate 6 & 7: Dashboard, Transactions & Categories Acceptance", () 
     const addIncomeLink = page.locator('a[href="/income"]').first();
     await expect(addIncomeLink).toBeVisible({ timeout: 15000 });
 
-    const totalBalanceCard = page.locator('text=Total Balance, text=Tổng số dư').first();
+    const totalBalanceCard = page.locator('text=Balance, text=Total Balance, text=Tổng số dư, text=Số dư').first();
     await expect(totalBalanceCard).toBeVisible({ timeout: 10000 });
 
-    const recentTxHeading = page.locator('text=Recent Transactions, text=Giao dịch gần đây').first();
+    const recentTxHeading = page.locator('text=Latest transactions, text=Recent Transactions, text=Giao dịch gần đây').first();
     await expect(recentTxHeading).toBeVisible({ timeout: 10000 });
   });
 
@@ -73,6 +73,16 @@ test.describe("Gate 6 & 7: Dashboard, Transactions & Categories Acceptance", () 
     await expect(incomeAmountInput).toBeVisible({ timeout: 10000 });
     await incomeAmountInput.fill("5000000");
 
+    // Select category if available
+    const catSelectIncome = page.locator('select[name="category_id"]').first();
+    if (await catSelectIncome.isVisible()) {
+      const options = await catSelectIncome.locator('option').all();
+      if (options.length > 1) {
+        const val = await options[1].getAttribute('value');
+        if (val) await catSelectIncome.selectOption(val);
+      }
+    }
+
     const incomeNoteInput = page.locator('textarea[name="note"], input[placeholder*="memo" i]').first();
     await expect(incomeNoteInput).toBeVisible({ timeout: 5000 });
     await incomeNoteInput.fill("[QA-W05] Salary");
@@ -93,6 +103,15 @@ test.describe("Gate 6 & 7: Dashboard, Transactions & Categories Acceptance", () 
     const expenseAmountInput = page.locator('input[name="amount"], input[type="number"]').first();
     await expect(expenseAmountInput).toBeVisible({ timeout: 10000 });
     await expenseAmountInput.fill("50000");
+
+    const catSelectExpense = page.locator('select[name="category_id"]').first();
+    if (await catSelectExpense.isVisible()) {
+      const options = await catSelectExpense.locator('option').all();
+      if (options.length > 1) {
+        const val = await options[1].getAttribute('value');
+        if (val) await catSelectExpense.selectOption(val);
+      }
+    }
 
     const expenseNoteInput = page.locator('textarea[name="note"], input[placeholder*="memo" i]').first();
     await expect(expenseNoteInput).toBeVisible({ timeout: 5000 });

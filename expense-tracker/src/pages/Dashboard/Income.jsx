@@ -168,6 +168,10 @@ export default function Income() {
             }
         }
 
+        if (!finalForm.category_id) {
+            delete finalForm.category_id;
+        }
+
         const toastId = toast.loading(editId ? "Updating income..." : "Adding income...");
 
         try {
