@@ -1,8 +1,8 @@
 # CANONICAL PRODUCTION ACCEPTANCE LEDGER
 **Project:** Expense Tracker Web v2.0
 **Repository:** `KentTho/Expense_Tracker_Web_Thesis` (GitHub Canonical Authority)
-**Current Phase:** Wave 05A-R2.1 — Production Functional Stabilization
-**Last Audit Timestamp:** 2026-10-09T16:30:00+07:00
+**Current Phase:** Wave 05A-R2.2 — Post-Merge Deployment Provenance, DB-Backed CI Integrity & Core Finance Live Recovery
+**Last Audit Timestamp:** 2026-10-12T23:00:00+07:00
 
 ---
 
@@ -17,11 +17,12 @@
 ## 2. Environment & Deployment Provenance
 | Metric | Value | Verification Status |
 | :--- | :--- | :--- |
-| **GitHub Main SHA** | `47892a79a6c1b9b799f9b5fe7e6cce882e53242d` | VERIFIED (Merge commit of PR #8) |
+| **GitHub Main SHA** | `d61c534e8de2902151a143bf0911760d1204afc8` | VERIFIED (Merge commit of PR #9) |
 | **Render Service URL** | `https://expense-tracker-web-thesis-1.onrender.com` | Live (Uvicorn / Cloudflare) |
-| **Render Deployed SHA** | `unknown` / missing `build_sha` | **DEPLOYMENT_PROVENANCE_BLOCKED** (Render `/health` returns `{"status":"ok"}` without `build_sha`) |
+| **Render Deployed SHA** | `missing build_sha` (pre-PR #8) | **DEPLOYMENT_PROVENANCE_BLOCKED** (`HUMAN_RENDER_DEPLOY_REQUIRED` — Render `/health` returns `{"status":"ok"}` without `build_sha`) |
 | **Vercel Production URL** | `https://expense-tracker-web-thesis.vercel.app` | Live (HTTP 200 OK) |
-| **Vercel Deployed SHA** | `47892a79` | VERIFIED (Bundle `index-D9YqqszL.js` contains `buildUserSyncPayload`) |
+| **Vercel Deployed SHA** | `47892a79` / `d61c534e` | VERIFIED (Bundle contains canonical `buildUserSyncPayload`) |
+| **CI PostgreSQL Service** | GitHub Actions Job `113762118598` | **CI_PG_VERIFIED** (56 passed, 0 skipped against CI PostgreSQL 17.6 `expense_tracker_test`) |
 | **QA Identity** | `qa.antigravity.w05@gmail.com` | Dedicated QA Account |
 
 ---

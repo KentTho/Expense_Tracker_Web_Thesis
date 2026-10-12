@@ -5,8 +5,8 @@
 > Quy ước trạng thái: `LANDED` `PASS` `PASS_WITH_BLOCKER` `CURRENT` `BLOCKED` `DEFERRED` `NOT_APPLICABLE` `UNKNOWN_EXTERNAL`
 > Không dùng "DONE 100%" / "PRODUCTION_READY" khi chỉ mới kiểm tra local.
 
-Baseline hiện tại: branch `main` · HEAD `9db87f27` (đã merge PR #6 Wave05 và PR #7 Wave05A-R1).
-Wave đang chạy: `wave05a-r2/production-trust-repair` (nhánh off `9db87f27`) — Đóng bug /auth/sync contract mismatch (422), chuẩn hóa deployment provenance, thống nhất CORS single authority, điều tra alembic migration divergence.
+Baseline hiện tại: branch `main` · HEAD `d61c534e` (đã merge PR #6, #7, #8 `47892a79`, và PR #9 `d61c534e`).
+Wave đang chạy: `wave05a-r2-2/production-core-recovery` (nhánh off `d61c534e`) — Xác minh deployment provenance Render, tính toàn vẹn CI DB PostgreSQL (56 passed, 0 skipped), retest 500s production và phục hồi luồng tài chính cốt lõi.
 
 ---
 
@@ -28,7 +28,9 @@ Wave đang chạy: `wave05a-r2/production-trust-repair` (nhánh off `9db87f27`) 
 | 04A3 | Live trust chain closeout: CORS preflight, latency, session | ✅ PASS | `WAVE_04A3_LIVE_TRUST_CHAIN_PASS` |
 | 05A | Product functional acceptance & Native i18n (PR #6) | 🔶 CONTRADICTORY (Reopened by Production Evidence) | `CONTRADICTORY_EVIDENCE_REOPENED` |
 | 05A-R1 | Reconcile Render source drift, Recharts runtime, CORS handlers (PR #7) | ✅ LANDED (merged PR #7 → `9db87f27`) | `WAVE_05A_R1_PREVIEW_PASS_HUMAN_MERGE_REQUIRED` |
-| 05A-R2 | Production trust repair, /auth/sync 422 fix, build provenance, alembic forensic | 🔄 CURRENT | `WAVE_05A_R2_IN_PROGRESS` |
+| 05A-R2 | Production trust repair, /auth/sync 422 fix, build provenance | ✅ LANDED (merged PR #8 → `47892a79`) | `WAVE_05A_R2_PASS_WITH_BLOCKERS` |
+| 05A-R2.1 | Live functional defect sweep, empty category_id coercion | ✅ LANDED (merged PR #9 → `d61c534e`) | `WAVE_05A_R2_1_PASS_WITH_BLOCKERS` |
+| 05A-R2.2 | Deployment provenance, CI DB integrity & core finance live recovery | 🔄 CURRENT | `WAVE_05A_R2_2_IN_PROGRESS` |
 
 ---
 
