@@ -16,7 +16,8 @@
 - **Think Before Coding** — không đoán; nêu assumption; surface tradeoff; hỏi khi mâu thuẫn.
 - **Simplicity First** — code tối thiểu giải quyết đúng vấn đề; không abstraction cho code dùng-một-lần.
 - **Surgical Changes** — chỉ đụng file trong scope; không format/refactor liền kề; dead code chỉ ghi nhận.
-- **Goal-Driven Execution** — mỗi task = tiêu chí verify rõ ràng; loop tới khi PASS.
+- **Goal-Driven Execution** — mỗi task = tiêu chí verify rõ ràng.
+- **Bounded Repair Law (Permanent)** — Cho một root cause: tối đa 2 chu kỳ sửa chữa (REPRODUCE → RED TEST → ROOT CAUSE → MINIMAL FIX → TARGETED TEST → DOMAIN TEST → FULL REGRESSION → LIVE RETEST). Nếu vẫn fail sau 2 chu kỳ: DỪNG, đánh dấu FAILED/BLOCKED, báo cáo bằng chứng, KHÔNG tự ý mở rộng scope, KHÔNG hạ chuẩn test, KHÔNG định nghĩa lại PASS.
 - **Clarification Gate (Evidence-First)** — hỏi Human đúng lúc, KHÔNG tạo ceremony; KHÔNG phải "luôn luôn hỏi trước khi làm":
   1. Tự kiểm chứng bằng Git/source/tests/tool/runtime (READ-ONLY) TRƯỚC.
   2. Chỉ hỏi khi ambiguity còn lại thực sự ảnh hưởng: hành động bất khả nghịch; push/merge/deploy; production/hệ thống ngoài; credential/secret; thao tác DB/data phá hủy; breaking API contract; authority kiến trúc/tool; mở rộng scope lớn; nhiều phương án hợp lệ có trade-off đáng kể.
@@ -103,10 +104,28 @@ Frontend:
 - **Quy tắc phát ngôn**:
   - KHÔNG BAO GIỜ tuyên bố: "100% bug-free", "hoàn hảo không lỗi", "production-ready tuyệt đối".
   - Câu chữ chuẩn mực cho phép: `0 KNOWN REPRODUCIBLE P0/P1 UNDER THE EXECUTED ACCEPTANCE MATRIX.`
+- **Mandatory Source-of-Truth Hierarchy (Permanent)**:
+  1. Live runtime evidence
+  2. Deployment provenance
+  3. Current Git/source
+  4. Database readback
+  5. Automated tests
+  6. Canonical architecture/governance docs
+  7. Historical reports
+  8. Memory (Memory KHÔNG BAO GIỜ override runtime/source; nếu tài liệu mâu thuẫn live runtime → CONTRADICTORY).
+- **Skill Routing Authority (Permanent)**:
+  - Root cause: `superpowers/systematic-debugging`
+  - TDD: `superpowers/test-driven-development` (không dùng đồng thời skill TDD khác)
+  - Verification: `superpowers/verification-before-completion`
+  - Code Graph: `CodeGraph MCP`
+  - Production browser: `Playwright MCP` + repo Playwright tests
+  - PR Review: `requesting-code-review`
+  - Branch closeout: `finishing-a-development-branch`
+  - CẤM dùng UI redesign / animation skills (Impeccable, Stitch, GSAP) khi functional acceptance chưa green.
 
 ## 9. OUTPUT RULE
 - Trả kết quả ngắn gọn nhưng đủ evidence (dùng `path:line`).
-- KHÔNG tạo report folder / report `.md` (trừ `CLAUDE.md`, `PROJECT_ROADMAP.md`, và tài liệu kiến trúc lâu dài trong `docs/architecture/**`).
+- KHÔNG tạo report folder / report `.md` (trừ `CLAUDE.md`, `PROJECT_ROADMAP.md`, tài liệu kiến trúc lâu dài trong `docs/architecture/**`, và CANONICAL ACCEPTANCE LEDGER tại `docs/qa/PRODUCTION_ACCEPTANCE_LEDGER.md`).
 - KHÔNG tuyên bố "production-ready" / "DONE 100%" khi chỉ kiểm tra local.
 
 ## 10. SOFTWARE AUTHORITIES (one concern → one authority)
@@ -117,10 +136,10 @@ Quyết định của Human Operator. Trạng thái: CURRENT (đang dùng) / TAR
 | Source control (SCM) | **GitHub** (single canonical) | CURRENT |
 | CI | **GitHub Actions** (single canonical) | CURRENT |
 | Frontend stack | React 18 + Vite + Tailwind | CURRENT |
-| Frontend host | Vercel | TARGET |
+| Frontend host | Vercel (`expense-tracker-web-thesis.vercel.app`) | CURRENT · VERIFIED_EXTERNAL |
 | Backend stack | FastAPI + Pydantic + SQLAlchemy 2 + Alembic | CURRENT |
 | Backend runtime | **Python 3.12** | CURRENT (verified: clean-build `python:3.12-slim` + `pip check` + full pytest qua Docker) |
-| Backend host | Render (Docker Web Service) | TARGET |
+| Backend host | Render (`expense-tracker-web-thesis-1.onrender.com`) | CURRENT · VERIFIED_EXTERNAL |
 | Database | PostgreSQL / Neon | CURRENT (local test) · Neon = TARGET/PRODUCTION_GATED |
 | Cache / rate-limit store | Redis-compatible; prod = Render Key Value / Valkey. In-memory chỉ là fallback LOCAL/DEGRADED | TARGET |
 | Container | Docker / Docker Compose (dev + CI reproducibility) | CURRENT |
