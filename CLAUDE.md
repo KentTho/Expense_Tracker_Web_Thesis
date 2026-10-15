@@ -66,6 +66,12 @@ Frontend:
 - KHÔNG trả `str(e)` / stack trace ra client.
 - KHÔNG hardcode credential theo môi trường.
 - KHÔNG chạy migration trên DB target/production khi chưa được phê duyệt.
+- **Credential Handling Law (Permanent)**:
+  1. Never embed password/secret/token in shell command literals.
+  2. Never log secret values.
+  3. Never commit secrets.
+  4. Credential exposed in logs/transcript = COMPROMISED → rotate before reuse.
+  5. Reports may state secret presence/status, never secret value.
 
 ## 6. CHANGE RULES
 - Exact scope only theo Wave đang chạy.
