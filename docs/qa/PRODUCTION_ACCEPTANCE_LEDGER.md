@@ -17,13 +17,13 @@
 ## 2. Environment & Deployment Provenance
 | Metric | Value | Verification Status |
 | :--- | :--- | :--- |
-| **GitHub Main SHA** | `d61c534e8de2902151a143bf0911760d1204afc8` | VERIFIED (Merge commit of PR #9) |
+| **GitHub Main SHA** | `257fe27dd4b8154897e56311ea23bf146c280944` | VERIFIED (Merge commit of PR #10) |
 | **Render Service URL** | `https://expense-tracker-web-thesis-1.onrender.com` | Live (Uvicorn / Cloudflare) |
 | **Render Deployed SHA** | `missing build_sha` (pre-PR #8) | **DEPLOYMENT_PROVENANCE_BLOCKED** (`HUMAN_RENDER_DEPLOY_REQUIRED` — Render `/health` returns `{"status":"ok"}` without `build_sha`) |
 | **Vercel Production URL** | `https://expense-tracker-web-thesis.vercel.app` | Live (HTTP 200 OK) |
-| **Vercel Deployed SHA** | `47892a79` / `d61c534e` | VERIFIED (Bundle contains canonical `buildUserSyncPayload`) |
-| **CI PostgreSQL Service** | GitHub Actions Job `113762118598` | **CI_PG_VERIFIED** (56 passed, 0 skipped against CI PostgreSQL 17.6 `expense_tracker_test`) |
-| **QA Identity** | `qa.antigravity.w05@gmail.com` | Dedicated QA Account |
+| **Vercel Deployed SHA** | `257fe27d` / `d61c534e` / `47892a79` | VERIFIED (Bundle contains canonical `buildUserSyncPayload`) |
+| **CI PostgreSQL Service** | GitHub Actions Job `114897669826` / `113762118598` | **CI_PG_VERIFIED** (56 passed, 0 skipped against CI PostgreSQL 17.6 `expense_tracker_test`) |
+| **QA Identity** | `qa.antigravity.w05@gmail.com` | **QA_CREDENTIAL_ROTATION_REQUIRED** (Previous literal exposed in transcript = COMPROMISED; must rotate before mutation testing) |
 
 ---
 
